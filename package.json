@@ -1,0 +1,67 @@
+{
+  "name": "eaa-kit",
+  "version": "0.0.0",
+  "description": "Build-time WCAG 2.2 AA auditor and EU accessibility statement generator for static sites (EAA / BFSG / BaFG, DACH-localised).",
+  "type": "module",
+  "license": "MIT",
+  "keywords": [
+    "accessibility",
+    "a11y",
+    "wcag",
+    "eaa",
+    "bfsg",
+    "barrierefreiheit",
+    "axe-core",
+    "cli"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@10.28.0",
+  "bin": {
+    "eaa-kit": "./dist/cli/index.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsdown --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "format": "biome check --write ."
+  },
+  "peerDependencies": {
+    "playwright": ">=1.40.0"
+  },
+  "peerDependenciesMeta": {
+    "playwright": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "axe-core": "^4.13.0",
+    "commander": "^15.0.0",
+    "jsdom": "^30.0.1",
+    "tinyglobby": "^0.2.17",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.9",
+    "@types/node": "^26.2.0",
+    "tsdown": "^0.22.14",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.11"
+  }
+}
