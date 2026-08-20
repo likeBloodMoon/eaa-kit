@@ -1,5 +1,7 @@
 # eaa-kit
 
+[![CI](https://github.com/likeBloodMoon/eaa-kit/actions/workflows/ci.yml/badge.svg)](https://github.com/likeBloodMoon/eaa-kit/actions/workflows/ci.yml)
+
 Build-time WCAG 2.2 AA auditor for static sites, aimed at freelancers and small agencies in
 the DACH region who have to comply with the European Accessibility Act (in force since
 28 June 2025), the BFSG in Germany and the BaFG in Austria.
@@ -236,6 +238,10 @@ this schema to axe-core's).
 
 Output is deterministic for a given run apart from `generatedAt`: pages are sorted by
 path, findings by rule id, and the rule index by key, so two reports diff cleanly.
+
+A complete generated document is checked in at
+[examples/report.json](examples/report.json), with the SARIF equivalent at
+[examples/report.sarif](examples/report.sarif).
 
 ### Shape
 

@@ -23,7 +23,7 @@
     "cli"
   ],
   "engines": {
-    "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
+    "node": ">=22.22.2"
   },
   "packageManager": "pnpm@10.28.0",
   "bin": {
@@ -49,7 +49,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
     "format": "biome check --write .",
-    "smoke": "pnpm build && node dist/cli/index.js audit tests/fixtures/site --include about/** --format json"
+    "smoke": "pnpm build && node dist/cli/index.js audit tests/fixtures/site --include about/** --format json",
+    "examples": "pnpm build && node scripts/generate-examples.mjs"
   },
   "peerDependencies": {
     "playwright": ">=1.40.0"

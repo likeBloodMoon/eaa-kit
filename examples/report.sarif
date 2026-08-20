@@ -1,0 +1,1181 @@
+{
+  "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "eaa-kit",
+          "version": "0.1.0",
+          "rules": [
+            {
+              "id": "area-alt",
+              "shortDescription": {
+                "text": "Active <area> elements must have alternative text"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/area-alt?application=axeAPI",
+              "help": {
+                "text": "Active <area> elements must have alternative text\n\nWCAG 2.4.4, WCAG 4.1.2, EN 301 549 9.2.4.4, EN 301 549 9.4.1.2"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-2.4.4",
+                  "wcag-4.1.2",
+                  "en-301-549-9.2.4.4",
+                  "en-301-549-9.4.1.2"
+                ]
+              }
+            },
+            {
+              "id": "aria-allowed-attr",
+              "shortDescription": {
+                "text": "Elements must only use supported ARIA attributes"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/aria-allowed-attr?application=axeAPI",
+              "help": {
+                "text": "Elements must only use supported ARIA attributes\n\nWCAG 4.1.2, EN 301 549 9.4.1.2"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-4.1.2",
+                  "en-301-549-9.4.1.2"
+                ]
+              }
+            },
+            {
+              "id": "aria-braille-equivalent",
+              "shortDescription": {
+                "text": "aria-braille attributes must have a non-braille equivalent"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/aria-braille-equivalent?application=axeAPI",
+              "help": {
+                "text": "aria-braille attributes must have a non-braille equivalent\n\nWCAG 4.1.2, EN 301 549 9.4.1.2"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-4.1.2",
+                  "en-301-549-9.4.1.2"
+                ]
+              }
+            },
+            {
+              "id": "aria-command-name",
+              "shortDescription": {
+                "text": "ARIA commands must have an accessible name"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/aria-command-name?application=axeAPI",
+              "help": {
+                "text": "ARIA commands must have an accessible name\n\nWCAG 4.1.2, EN 301 549 9.4.1.2"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-4.1.2",
+                  "en-301-549-9.4.1.2"
+                ]
+              }
+            },
+            {
+              "id": "aria-conditional-attr",
+              "shortDescription": {
+                "text": "ARIA attributes must be used as specified for the element's role"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/aria-conditional-attr?application=axeAPI",
+              "help": {
+                "text": "ARIA attributes must be used as specified for the element's role\n\nWCAG 4.1.2, EN 301 549 9.4.1.2"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-4.1.2",
+                  "en-301-549-9.4.1.2"
+                ]
+              }
+            },
+            {
+              "id": "aria-deprecated-role",
+              "shortDescription": {
+                "text": "Deprecated ARIA roles must not be used"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/aria-deprecated-role?application=axeAPI",
+              "help": {
+                "text": "Deprecated ARIA roles must not be used\n\nWCAG 4.1.2, EN 301 549 9.4.1.2"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-4.1.2",
+                  "en-301-549-9.4.1.2"
+                ]
+              }
+            },
+            {
+              "id": "aria-hidden-body",
+              "shortDescription": {
+                "text": "aria-hidden=\"true\" must not be present on the document body"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/aria-hidden-body?application=axeAPI",
+              "help": {
+                "text": "aria-hidden=\"true\" must not be present on the document body\n\nWCAG 1.3.1, WCAG 4.1.2, EN 301 549 9.1.3.1, EN 301 549 9.4.1.2"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-1.3.1",
+                  "wcag-4.1.2",
+                  "en-301-549-9.1.3.1",
+                  "en-301-549-9.4.1.2"
+                ]
+              }
+            },
+            {
+              "id": "aria-hidden-focus",
+              "shortDescription": {
+                "text": "ARIA hidden element must not be focusable or contain focusable elements"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/aria-hidden-focus?application=axeAPI",
+              "help": {
+                "text": "ARIA hidden element must not be focusable or contain focusable elements\n\nWCAG 4.1.2, EN 301 549 9.4.1.2"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-4.1.2",
+                  "en-301-549-9.4.1.2"
+                ]
+              }
+            },
+            {
+              "id": "aria-input-field-name",
+              "shortDescription": {
+                "text": "ARIA input fields must have an accessible name"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/aria-input-field-name?application=axeAPI",
+              "help": {
+                "text": "ARIA input fields must have an accessible name\n\nWCAG 4.1.2, EN 301 549 9.4.1.2"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-4.1.2",
+                  "en-301-549-9.4.1.2"
+                ]
+              }
+            },
+            {
+              "id": "aria-meter-name",
+              "shortDescription": {
+                "text": "ARIA meter nodes must have an accessible name"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/aria-meter-name?application=axeAPI",
+              "help": {
+                "text": "ARIA meter nodes must have an accessible name\n\nWCAG 1.1.1, EN 301 549 9.1.1.1"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-1.1.1",
+                  "en-301-549-9.1.1.1"
+                ]
+              }
+            },
+            {
+              "id": "aria-progressbar-name",
+              "shortDescription": {
+                "text": "ARIA progressbar nodes must have an accessible name"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/aria-progressbar-name?application=axeAPI",
+              "help": {
+                "text": "ARIA progressbar nodes must have an accessible name\n\nWCAG 1.1.1, EN 301 549 9.1.1.1"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-1.1.1",
+                  "en-301-549-9.1.1.1"
+                ]
+              }
+            },
+            {
+              "id": "aria-prohibited-attr",
+              "shortDescription": {
+                "text": "Elements must only use permitted ARIA attributes"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/aria-prohibited-attr?application=axeAPI",
+              "help": {
+                "text": "Elements must only use permitted ARIA attributes\n\nWCAG 4.1.2, EN 301 549 9.4.1.2"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-4.1.2",
+                  "en-301-549-9.4.1.2"
+                ]
+              }
+            },
+            {
+              "id": "aria-required-attr",
+              "shortDescription": {
+                "text": "Required ARIA attributes must be provided"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/aria-required-attr?application=axeAPI",
+              "help": {
+                "text": "Required ARIA attributes must be provided\n\nWCAG 4.1.2, EN 301 549 9.4.1.2"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-4.1.2",
+                  "en-301-549-9.4.1.2"
+                ]
+              }
+            },
+            {
+              "id": "aria-required-children",
+              "shortDescription": {
+                "text": "Certain ARIA roles must contain particular children"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/aria-required-children?application=axeAPI",
+              "help": {
+                "text": "Certain ARIA roles must contain particular children\n\nWCAG 1.3.1, EN 301 549 9.1.3.1"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-1.3.1",
+                  "en-301-549-9.1.3.1"
+                ]
+              }
+            },
+            {
+              "id": "aria-required-parent",
+              "shortDescription": {
+                "text": "Certain ARIA roles must be contained by particular parents"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/aria-required-parent?application=axeAPI",
+              "help": {
+                "text": "Certain ARIA roles must be contained by particular parents\n\nWCAG 1.3.1, EN 301 549 9.1.3.1"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-1.3.1",
+                  "en-301-549-9.1.3.1"
+                ]
+              }
+            },
+            {
+              "id": "aria-roles",
+              "shortDescription": {
+                "text": "ARIA roles used must conform to valid values"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/aria-roles?application=axeAPI",
+              "help": {
+                "text": "ARIA roles used must conform to valid values\n\nWCAG 4.1.2, EN 301 549 9.4.1.2"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-4.1.2",
+                  "en-301-549-9.4.1.2"
+                ]
+              }
+            },
+            {
+              "id": "aria-tab-name",
+              "shortDescription": {
+                "text": "ARIA tab nodes must have an accessible name"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/aria-tab-name?application=axeAPI",
+              "help": {
+                "text": "ARIA tab nodes must have an accessible name\n\nWCAG 4.1.2, EN 301 549 9.4.1.2"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-4.1.2",
+                  "en-301-549-9.4.1.2"
+                ]
+              }
+            },
+            {
+              "id": "aria-toggle-field-name",
+              "shortDescription": {
+                "text": "ARIA toggle fields must have an accessible name"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/aria-toggle-field-name?application=axeAPI",
+              "help": {
+                "text": "ARIA toggle fields must have an accessible name\n\nWCAG 4.1.2, EN 301 549 9.4.1.2"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-4.1.2",
+                  "en-301-549-9.4.1.2"
+                ]
+              }
+            },
+            {
+              "id": "aria-tooltip-name",
+              "shortDescription": {
+                "text": "ARIA tooltip nodes must have an accessible name"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/aria-tooltip-name?application=axeAPI",
+              "help": {
+                "text": "ARIA tooltip nodes must have an accessible name\n\nWCAG 4.1.2, EN 301 549 9.4.1.2"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-4.1.2",
+                  "en-301-549-9.4.1.2"
+                ]
+              }
+            },
+            {
+              "id": "aria-valid-attr",
+              "shortDescription": {
+                "text": "ARIA attributes must conform to valid names"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/aria-valid-attr?application=axeAPI",
+              "help": {
+                "text": "ARIA attributes must conform to valid names\n\nWCAG 4.1.2, EN 301 549 9.4.1.2"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-4.1.2",
+                  "en-301-549-9.4.1.2"
+                ]
+              }
+            },
+            {
+              "id": "aria-valid-attr-value",
+              "shortDescription": {
+                "text": "ARIA attributes must conform to valid values"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/aria-valid-attr-value?application=axeAPI",
+              "help": {
+                "text": "ARIA attributes must conform to valid values\n\nWCAG 4.1.2, EN 301 549 9.4.1.2"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-4.1.2",
+                  "en-301-549-9.4.1.2"
+                ]
+              }
+            },
+            {
+              "id": "autocomplete-valid",
+              "shortDescription": {
+                "text": "autocomplete attribute must be used correctly"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/autocomplete-valid?application=axeAPI",
+              "help": {
+                "text": "autocomplete attribute must be used correctly\n\nWCAG 1.3.5, EN 301 549 9.1.3.5"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-1.3.5",
+                  "en-301-549-9.1.3.5"
+                ]
+              }
+            },
+            {
+              "id": "avoid-inline-spacing",
+              "shortDescription": {
+                "text": "Inline text spacing must be adjustable with custom stylesheets"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/avoid-inline-spacing?application=axeAPI",
+              "help": {
+                "text": "Inline text spacing must be adjustable with custom stylesheets\n\nWCAG 1.4.12, EN 301 549 9.1.4.12"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-1.4.12",
+                  "en-301-549-9.1.4.12"
+                ]
+              }
+            },
+            {
+              "id": "blink",
+              "shortDescription": {
+                "text": "<blink> elements are deprecated and must not be used"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/blink?application=axeAPI",
+              "help": {
+                "text": "<blink> elements are deprecated and must not be used\n\nWCAG 2.2.2, EN 301 549 9.2.2.2"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-2.2.2",
+                  "en-301-549-9.2.2.2"
+                ]
+              }
+            },
+            {
+              "id": "button-name",
+              "shortDescription": {
+                "text": "Buttons must have discernible text"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/button-name?application=axeAPI",
+              "help": {
+                "text": "Buttons must have discernible text\n\nWCAG 4.1.2, EN 301 549 9.4.1.2"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-4.1.2",
+                  "en-301-549-9.4.1.2"
+                ]
+              }
+            },
+            {
+              "id": "bypass",
+              "shortDescription": {
+                "text": "Page must have means to bypass repeated blocks"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/bypass?application=axeAPI",
+              "help": {
+                "text": "Page must have means to bypass repeated blocks\n\nWCAG 2.4.1, EN 301 549 9.2.4.1"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-2.4.1",
+                  "en-301-549-9.2.4.1"
+                ]
+              }
+            },
+            {
+              "id": "color-contrast",
+              "shortDescription": {
+                "text": "Elements must meet minimum color contrast ratio thresholds"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/color-contrast?application=axeAPI",
+              "help": {
+                "text": "Elements must meet minimum color contrast ratio thresholds\n\nWCAG 1.4.3, EN 301 549 9.1.4.3"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-1.4.3",
+                  "en-301-549-9.1.4.3"
+                ]
+              }
+            },
+            {
+              "id": "definition-list",
+              "shortDescription": {
+                "text": "<dl> elements must only directly contain properly-ordered <dt> and <dd> groups, <script>, <template> or <div> elements"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/definition-list?application=axeAPI",
+              "help": {
+                "text": "<dl> elements must only directly contain properly-ordered <dt> and <dd> groups, <script>, <template> or <div> elements\n\nWCAG 1.3.1, EN 301 549 9.1.3.1"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-1.3.1",
+                  "en-301-549-9.1.3.1"
+                ]
+              }
+            },
+            {
+              "id": "dlitem",
+              "shortDescription": {
+                "text": "<dt> and <dd> elements must be contained by a <dl>"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/dlitem?application=axeAPI",
+              "help": {
+                "text": "<dt> and <dd> elements must be contained by a <dl>\n\nWCAG 1.3.1, EN 301 549 9.1.3.1"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-1.3.1",
+                  "en-301-549-9.1.3.1"
+                ]
+              }
+            },
+            {
+              "id": "document-title",
+              "shortDescription": {
+                "text": "Documents must have <title> element to aid in navigation"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/document-title?application=axeAPI",
+              "help": {
+                "text": "Documents must have <title> element to aid in navigation\n\nWCAG 2.4.2, EN 301 549 9.2.4.2"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-2.4.2",
+                  "en-301-549-9.2.4.2"
+                ]
+              }
+            },
+            {
+              "id": "duplicate-id-aria",
+              "shortDescription": {
+                "text": "IDs used in ARIA and labels must be unique"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/duplicate-id-aria?application=axeAPI",
+              "help": {
+                "text": "IDs used in ARIA and labels must be unique\n\nWCAG 4.1.2, EN 301 549 9.4.1.2"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-4.1.2",
+                  "en-301-549-9.4.1.2"
+                ]
+              }
+            },
+            {
+              "id": "form-field-multiple-labels",
+              "shortDescription": {
+                "text": "Form field must not have multiple label elements"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/form-field-multiple-labels?application=axeAPI",
+              "help": {
+                "text": "Form field must not have multiple label elements\n\nWCAG 3.3.2, EN 301 549 9.3.3.2"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-3.3.2",
+                  "en-301-549-9.3.3.2"
+                ]
+              }
+            },
+            {
+              "id": "frame-focusable-content",
+              "shortDescription": {
+                "text": "Frames with focusable content must not have tabindex=-1"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/frame-focusable-content?application=axeAPI",
+              "help": {
+                "text": "Frames with focusable content must not have tabindex=-1\n\nWCAG 2.1.1, EN 301 549 9.2.1.1"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-2.1.1",
+                  "en-301-549-9.2.1.1"
+                ]
+              }
+            },
+            {
+              "id": "frame-title",
+              "shortDescription": {
+                "text": "Frames must have an accessible name"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/frame-title?application=axeAPI",
+              "help": {
+                "text": "Frames must have an accessible name\n\nWCAG 4.1.2, EN 301 549 9.4.1.2"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-4.1.2",
+                  "en-301-549-9.4.1.2"
+                ]
+              }
+            },
+            {
+              "id": "frame-title-unique",
+              "shortDescription": {
+                "text": "Frames must have a unique title attribute"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/frame-title-unique?application=axeAPI",
+              "help": {
+                "text": "Frames must have a unique title attribute\n\nWCAG 4.1.2, EN 301 549 9.4.1.2"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-4.1.2",
+                  "en-301-549-9.4.1.2"
+                ]
+              }
+            },
+            {
+              "id": "html-has-lang",
+              "shortDescription": {
+                "text": "<html> element must have a lang attribute"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/html-has-lang?application=axeAPI",
+              "help": {
+                "text": "<html> element must have a lang attribute\n\nWCAG 3.1.1, EN 301 549 9.3.1.1"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-3.1.1",
+                  "en-301-549-9.3.1.1"
+                ]
+              }
+            },
+            {
+              "id": "html-lang-valid",
+              "shortDescription": {
+                "text": "<html> element must have a valid value for the lang attribute"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/html-lang-valid?application=axeAPI",
+              "help": {
+                "text": "<html> element must have a valid value for the lang attribute\n\nWCAG 3.1.1, EN 301 549 9.3.1.1"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-3.1.1",
+                  "en-301-549-9.3.1.1"
+                ]
+              }
+            },
+            {
+              "id": "html-xml-lang-mismatch",
+              "shortDescription": {
+                "text": "HTML elements with lang and xml:lang must have the same base language"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/html-xml-lang-mismatch?application=axeAPI",
+              "help": {
+                "text": "HTML elements with lang and xml:lang must have the same base language\n\nWCAG 3.1.1, EN 301 549 9.3.1.1"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-3.1.1",
+                  "en-301-549-9.3.1.1"
+                ]
+              }
+            },
+            {
+              "id": "image-alt",
+              "shortDescription": {
+                "text": "Images must have alternative text"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/image-alt?application=axeAPI",
+              "help": {
+                "text": "Images must have alternative text\n\nWCAG 1.1.1, EN 301 549 9.1.1.1"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-1.1.1",
+                  "en-301-549-9.1.1.1"
+                ]
+              }
+            },
+            {
+              "id": "input-button-name",
+              "shortDescription": {
+                "text": "Input buttons must have discernible text"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/input-button-name?application=axeAPI",
+              "help": {
+                "text": "Input buttons must have discernible text\n\nWCAG 4.1.2, EN 301 549 9.4.1.2"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-4.1.2",
+                  "en-301-549-9.4.1.2"
+                ]
+              }
+            },
+            {
+              "id": "input-image-alt",
+              "shortDescription": {
+                "text": "Image buttons must have alternative text"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/input-image-alt?application=axeAPI",
+              "help": {
+                "text": "Image buttons must have alternative text\n\nWCAG 1.1.1, WCAG 4.1.2, EN 301 549 9.1.1.1, EN 301 549 9.4.1.2"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-1.1.1",
+                  "wcag-4.1.2",
+                  "en-301-549-9.1.1.1",
+                  "en-301-549-9.4.1.2"
+                ]
+              }
+            },
+            {
+              "id": "label",
+              "shortDescription": {
+                "text": "Form elements must have labels"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/label?application=axeAPI",
+              "help": {
+                "text": "Form elements must have labels\n\nWCAG 4.1.2, EN 301 549 9.4.1.2"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-4.1.2",
+                  "en-301-549-9.4.1.2"
+                ]
+              }
+            },
+            {
+              "id": "link-in-text-block",
+              "shortDescription": {
+                "text": "Links must be distinguishable without relying on color"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/link-in-text-block?application=axeAPI",
+              "help": {
+                "text": "Links must be distinguishable without relying on color\n\nWCAG 1.4.1, EN 301 549 9.1.4.1"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-1.4.1",
+                  "en-301-549-9.1.4.1"
+                ]
+              }
+            },
+            {
+              "id": "link-name",
+              "shortDescription": {
+                "text": "Links must have discernible text"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/link-name?application=axeAPI",
+              "help": {
+                "text": "Links must have discernible text\n\nWCAG 2.4.4, WCAG 4.1.2, EN 301 549 9.2.4.4, EN 301 549 9.4.1.2"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-2.4.4",
+                  "wcag-4.1.2",
+                  "en-301-549-9.2.4.4",
+                  "en-301-549-9.4.1.2"
+                ]
+              }
+            },
+            {
+              "id": "list",
+              "shortDescription": {
+                "text": "<ul> and <ol> must only directly contain <li>, <script> or <template> elements"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/list?application=axeAPI",
+              "help": {
+                "text": "<ul> and <ol> must only directly contain <li>, <script> or <template> elements\n\nWCAG 1.3.1, EN 301 549 9.1.3.1"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-1.3.1",
+                  "en-301-549-9.1.3.1"
+                ]
+              }
+            },
+            {
+              "id": "listitem",
+              "shortDescription": {
+                "text": "<li> elements must be contained in a <ul> or <ol>"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/listitem?application=axeAPI",
+              "help": {
+                "text": "<li> elements must be contained in a <ul> or <ol>\n\nWCAG 1.3.1, EN 301 549 9.1.3.1"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-1.3.1",
+                  "en-301-549-9.1.3.1"
+                ]
+              }
+            },
+            {
+              "id": "marquee",
+              "shortDescription": {
+                "text": "<marquee> elements are deprecated and must not be used"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/marquee?application=axeAPI",
+              "help": {
+                "text": "<marquee> elements are deprecated and must not be used\n\nWCAG 2.2.2, EN 301 549 9.2.2.2"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-2.2.2",
+                  "en-301-549-9.2.2.2"
+                ]
+              }
+            },
+            {
+              "id": "meta-refresh",
+              "shortDescription": {
+                "text": "Delayed refresh under 20 hours must not be used"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/meta-refresh?application=axeAPI",
+              "help": {
+                "text": "Delayed refresh under 20 hours must not be used\n\nWCAG 2.2.1, EN 301 549 9.2.2.1"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-2.2.1",
+                  "en-301-549-9.2.2.1"
+                ]
+              }
+            },
+            {
+              "id": "meta-viewport",
+              "shortDescription": {
+                "text": "Zooming and scaling must not be disabled"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/meta-viewport?application=axeAPI",
+              "help": {
+                "text": "Zooming and scaling must not be disabled\n\nWCAG 1.4.4, EN 301 549 9.1.4.4"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-1.4.4",
+                  "en-301-549-9.1.4.4"
+                ]
+              }
+            },
+            {
+              "id": "nested-interactive",
+              "shortDescription": {
+                "text": "Interactive controls must not be nested"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/nested-interactive?application=axeAPI",
+              "help": {
+                "text": "Interactive controls must not be nested\n\nWCAG 4.1.2, EN 301 549 9.4.1.2"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-4.1.2",
+                  "en-301-549-9.4.1.2"
+                ]
+              }
+            },
+            {
+              "id": "no-autoplay-audio",
+              "shortDescription": {
+                "text": "<video> or <audio> elements must not play automatically"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/no-autoplay-audio?application=axeAPI",
+              "help": {
+                "text": "<video> or <audio> elements must not play automatically\n\nWCAG 1.4.2, EN 301 549 9.1.4.2"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-1.4.2",
+                  "en-301-549-9.1.4.2"
+                ]
+              }
+            },
+            {
+              "id": "object-alt",
+              "shortDescription": {
+                "text": "<object> elements must have alternative text"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/object-alt?application=axeAPI",
+              "help": {
+                "text": "<object> elements must have alternative text\n\nWCAG 1.1.1, EN 301 549 9.1.1.1"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-1.1.1",
+                  "en-301-549-9.1.1.1"
+                ]
+              }
+            },
+            {
+              "id": "role-img-alt",
+              "shortDescription": {
+                "text": "[role=\"img\"] and [role=\"image\"] elements must have alternative text"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/role-img-alt?application=axeAPI",
+              "help": {
+                "text": "[role=\"img\"] and [role=\"image\"] elements must have alternative text\n\nWCAG 1.1.1, EN 301 549 9.1.1.1"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-1.1.1",
+                  "en-301-549-9.1.1.1"
+                ]
+              }
+            },
+            {
+              "id": "scrollable-region-focusable",
+              "shortDescription": {
+                "text": "Scrollable region must have keyboard access"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/scrollable-region-focusable?application=axeAPI",
+              "help": {
+                "text": "Scrollable region must have keyboard access\n\nWCAG 2.1.1, WCAG 2.1.3, EN 301 549 9.2.1.1, EN 301 549 9.2.1.3"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-2.1.1",
+                  "wcag-2.1.3",
+                  "en-301-549-9.2.1.1",
+                  "en-301-549-9.2.1.3"
+                ]
+              }
+            },
+            {
+              "id": "select-name",
+              "shortDescription": {
+                "text": "Select element must have an accessible name"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/select-name?application=axeAPI",
+              "help": {
+                "text": "Select element must have an accessible name\n\nWCAG 4.1.2, EN 301 549 9.4.1.2"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-4.1.2",
+                  "en-301-549-9.4.1.2"
+                ]
+              }
+            },
+            {
+              "id": "server-side-image-map",
+              "shortDescription": {
+                "text": "Server-side image maps must not be used"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/server-side-image-map?application=axeAPI",
+              "help": {
+                "text": "Server-side image maps must not be used\n\nWCAG 2.1.1, EN 301 549 9.2.1.1"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-2.1.1",
+                  "en-301-549-9.2.1.1"
+                ]
+              }
+            },
+            {
+              "id": "summary-name",
+              "shortDescription": {
+                "text": "Summary elements must have discernible text"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/summary-name?application=axeAPI",
+              "help": {
+                "text": "Summary elements must have discernible text\n\nWCAG 4.1.2, EN 301 549 9.4.1.2"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-4.1.2",
+                  "en-301-549-9.4.1.2"
+                ]
+              }
+            },
+            {
+              "id": "svg-img-alt",
+              "shortDescription": {
+                "text": "<svg> elements with an img or image role must have alternative text"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/svg-img-alt?application=axeAPI",
+              "help": {
+                "text": "<svg> elements with an img or image role must have alternative text\n\nWCAG 1.1.1, EN 301 549 9.1.1.1"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-1.1.1",
+                  "en-301-549-9.1.1.1"
+                ]
+              }
+            },
+            {
+              "id": "target-size",
+              "shortDescription": {
+                "text": "All touch targets must be 24px large, or leave sufficient space"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/target-size?application=axeAPI",
+              "help": {
+                "text": "All touch targets must be 24px large, or leave sufficient space\n\nWCAG 2.5.8"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-2.5.8"
+                ]
+              }
+            },
+            {
+              "id": "td-headers-attr",
+              "shortDescription": {
+                "text": "Table cell headers attributes must refer to other <th> elements in the same table"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/td-headers-attr?application=axeAPI",
+              "help": {
+                "text": "Table cell headers attributes must refer to other <th> elements in the same table\n\nWCAG 1.3.1, EN 301 549 9.1.3.1"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-1.3.1",
+                  "en-301-549-9.1.3.1"
+                ]
+              }
+            },
+            {
+              "id": "th-has-data-cells",
+              "shortDescription": {
+                "text": "Table headers in a data table must refer to data cells"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/th-has-data-cells?application=axeAPI",
+              "help": {
+                "text": "Table headers in a data table must refer to data cells\n\nWCAG 1.3.1, EN 301 549 9.1.3.1"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-1.3.1",
+                  "en-301-549-9.1.3.1"
+                ]
+              }
+            },
+            {
+              "id": "valid-lang",
+              "shortDescription": {
+                "text": "lang attribute must have a valid value"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/valid-lang?application=axeAPI",
+              "help": {
+                "text": "lang attribute must have a valid value\n\nWCAG 3.1.2, EN 301 549 9.3.1.2"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-3.1.2",
+                  "en-301-549-9.3.1.2"
+                ]
+              }
+            },
+            {
+              "id": "video-caption",
+              "shortDescription": {
+                "text": "<video> elements must have captions"
+              },
+              "helpUri": "https://dequeuniversity.com/rules/axe/4.13/video-caption?application=axeAPI",
+              "help": {
+                "text": "<video> elements must have captions\n\nWCAG 1.2.2, EN 301 549 9.1.2.2"
+              },
+              "properties": {
+                "tags": [
+                  "accessibility",
+                  "wcag-1.2.2",
+                  "en-301-549-9.1.2.2"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "invocations": [
+        {
+          "executionSuccessful": true,
+          "endTimeUtc": "2026-08-20T20:05:35.669Z",
+          "toolExecutionNotifications": []
+        }
+      ],
+      "results": [
+        {
+          "ruleId": "html-has-lang",
+          "ruleIndex": 35,
+          "level": "error",
+          "kind": "fail",
+          "message": {
+            "text": "<html> element must have a lang attribute. Element: html"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/fixtures/site/index.html"
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "eaaKit/v1": "4c2a13ab4c8c0365"
+          }
+        },
+        {
+          "ruleId": "image-alt",
+          "ruleIndex": 38,
+          "level": "error",
+          "kind": "fail",
+          "message": {
+            "text": "Images must have alternative text. Element: img"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/fixtures/site/index.html"
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "eaaKit/v1": "f0e17d2582e9a5b3"
+          }
+        },
+        {
+          "ruleId": "link-name",
+          "ruleIndex": 43,
+          "level": "error",
+          "kind": "fail",
+          "message": {
+            "text": "Links must have discernible text. Element: a"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/fixtures/site/index.html"
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "eaaKit/v1": "e444708c0ffb67e0"
+          }
+        }
+      ],
+      "properties": {
+        "engine": "jsdom",
+        "pages": 5,
+        "needsReview": 1,
+        "notEvaluated": 21,
+        "notEvaluatedRules": [
+          "color-contrast",
+          "link-in-text-block",
+          "no-autoplay-audio",
+          "scrollable-region-focusable",
+          "target-size"
+        ]
+      }
+    }
+  ]
+}

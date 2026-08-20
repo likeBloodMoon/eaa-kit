@@ -1,0 +1,13 @@
+# Normalise line endings on commit and check out LF everywhere. Without this the
+# repository picks up whatever core.autocrlf the contributor happens to have.
+* text=auto eol=lf
+
+# Generated and vendored files: keep them out of diffs and language stats.
+pnpm-lock.yaml linguist-generated=true
+tests/fixtures/schema/*.json linguist-vendored=true
+examples/*.json linguist-generated=true
+examples/*.sarif linguist-generated=true
+examples/*.txt linguist-generated=true
+
+# Fixtures are deliberately inaccessible HTML, not examples to learn from.
+tests/fixtures/** linguist-vendored=true

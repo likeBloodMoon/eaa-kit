@@ -1,0 +1,1276 @@
+{
+  "schemaVersion": 1,
+  "tool": {
+    "name": "eaa-kit",
+    "version": "0.1.0",
+    "axeCore": "4.13.0"
+  },
+  "generatedAt": "2026-08-20T20:05:34.297Z",
+  "engine": "jsdom",
+  "target": {
+    "directory": "tests/fixtures/site",
+    "baseUrl": null
+  },
+  "summary": {
+    "pages": 5,
+    "pagesWithViolations": 1,
+    "pagesNotAudited": 0,
+    "violations": 3,
+    "violatingElements": 3,
+    "byImpact": {
+      "critical": 1,
+      "serious": 2,
+      "moderate": 0,
+      "minor": 0,
+      "unclassified": 0
+    },
+    "needsReview": 1,
+    "notEvaluated": 21,
+    "passes": 21,
+    "inapplicable": 269,
+    "failOn": "serious",
+    "failing": 3
+  },
+  "rules": {
+    "area-alt": {
+      "help": "Active <area> elements must have alternative text",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/area-alt?application=axeAPI",
+      "successCriteria": [
+        "2.4.4",
+        "4.1.2"
+      ],
+      "en301549": [
+        "9.2.4.4",
+        "9.4.1.2"
+      ]
+    },
+    "aria-allowed-attr": {
+      "help": "Elements must only use supported ARIA attributes",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/aria-allowed-attr?application=axeAPI",
+      "successCriteria": [
+        "4.1.2"
+      ],
+      "en301549": [
+        "9.4.1.2"
+      ]
+    },
+    "aria-braille-equivalent": {
+      "help": "aria-braille attributes must have a non-braille equivalent",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/aria-braille-equivalent?application=axeAPI",
+      "successCriteria": [
+        "4.1.2"
+      ],
+      "en301549": [
+        "9.4.1.2"
+      ]
+    },
+    "aria-command-name": {
+      "help": "ARIA commands must have an accessible name",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/aria-command-name?application=axeAPI",
+      "successCriteria": [
+        "4.1.2"
+      ],
+      "en301549": [
+        "9.4.1.2"
+      ]
+    },
+    "aria-conditional-attr": {
+      "help": "ARIA attributes must be used as specified for the element's role",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/aria-conditional-attr?application=axeAPI",
+      "successCriteria": [
+        "4.1.2"
+      ],
+      "en301549": [
+        "9.4.1.2"
+      ]
+    },
+    "aria-deprecated-role": {
+      "help": "Deprecated ARIA roles must not be used",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/aria-deprecated-role?application=axeAPI",
+      "successCriteria": [
+        "4.1.2"
+      ],
+      "en301549": [
+        "9.4.1.2"
+      ]
+    },
+    "aria-hidden-body": {
+      "help": "aria-hidden=\"true\" must not be present on the document body",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/aria-hidden-body?application=axeAPI",
+      "successCriteria": [
+        "1.3.1",
+        "4.1.2"
+      ],
+      "en301549": [
+        "9.1.3.1",
+        "9.4.1.2"
+      ]
+    },
+    "aria-hidden-focus": {
+      "help": "ARIA hidden element must not be focusable or contain focusable elements",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/aria-hidden-focus?application=axeAPI",
+      "successCriteria": [
+        "4.1.2"
+      ],
+      "en301549": [
+        "9.4.1.2"
+      ]
+    },
+    "aria-input-field-name": {
+      "help": "ARIA input fields must have an accessible name",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/aria-input-field-name?application=axeAPI",
+      "successCriteria": [
+        "4.1.2"
+      ],
+      "en301549": [
+        "9.4.1.2"
+      ]
+    },
+    "aria-meter-name": {
+      "help": "ARIA meter nodes must have an accessible name",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/aria-meter-name?application=axeAPI",
+      "successCriteria": [
+        "1.1.1"
+      ],
+      "en301549": [
+        "9.1.1.1"
+      ]
+    },
+    "aria-progressbar-name": {
+      "help": "ARIA progressbar nodes must have an accessible name",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/aria-progressbar-name?application=axeAPI",
+      "successCriteria": [
+        "1.1.1"
+      ],
+      "en301549": [
+        "9.1.1.1"
+      ]
+    },
+    "aria-prohibited-attr": {
+      "help": "Elements must only use permitted ARIA attributes",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/aria-prohibited-attr?application=axeAPI",
+      "successCriteria": [
+        "4.1.2"
+      ],
+      "en301549": [
+        "9.4.1.2"
+      ]
+    },
+    "aria-required-attr": {
+      "help": "Required ARIA attributes must be provided",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/aria-required-attr?application=axeAPI",
+      "successCriteria": [
+        "4.1.2"
+      ],
+      "en301549": [
+        "9.4.1.2"
+      ]
+    },
+    "aria-required-children": {
+      "help": "Certain ARIA roles must contain particular children",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/aria-required-children?application=axeAPI",
+      "successCriteria": [
+        "1.3.1"
+      ],
+      "en301549": [
+        "9.1.3.1"
+      ]
+    },
+    "aria-required-parent": {
+      "help": "Certain ARIA roles must be contained by particular parents",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/aria-required-parent?application=axeAPI",
+      "successCriteria": [
+        "1.3.1"
+      ],
+      "en301549": [
+        "9.1.3.1"
+      ]
+    },
+    "aria-roles": {
+      "help": "ARIA roles used must conform to valid values",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/aria-roles?application=axeAPI",
+      "successCriteria": [
+        "4.1.2"
+      ],
+      "en301549": [
+        "9.4.1.2"
+      ]
+    },
+    "aria-tab-name": {
+      "help": "ARIA tab nodes must have an accessible name",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/aria-tab-name?application=axeAPI",
+      "successCriteria": [
+        "4.1.2"
+      ],
+      "en301549": [
+        "9.4.1.2"
+      ]
+    },
+    "aria-toggle-field-name": {
+      "help": "ARIA toggle fields must have an accessible name",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/aria-toggle-field-name?application=axeAPI",
+      "successCriteria": [
+        "4.1.2"
+      ],
+      "en301549": [
+        "9.4.1.2"
+      ]
+    },
+    "aria-tooltip-name": {
+      "help": "ARIA tooltip nodes must have an accessible name",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/aria-tooltip-name?application=axeAPI",
+      "successCriteria": [
+        "4.1.2"
+      ],
+      "en301549": [
+        "9.4.1.2"
+      ]
+    },
+    "aria-valid-attr": {
+      "help": "ARIA attributes must conform to valid names",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/aria-valid-attr?application=axeAPI",
+      "successCriteria": [
+        "4.1.2"
+      ],
+      "en301549": [
+        "9.4.1.2"
+      ]
+    },
+    "aria-valid-attr-value": {
+      "help": "ARIA attributes must conform to valid values",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/aria-valid-attr-value?application=axeAPI",
+      "successCriteria": [
+        "4.1.2"
+      ],
+      "en301549": [
+        "9.4.1.2"
+      ]
+    },
+    "autocomplete-valid": {
+      "help": "autocomplete attribute must be used correctly",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/autocomplete-valid?application=axeAPI",
+      "successCriteria": [
+        "1.3.5"
+      ],
+      "en301549": [
+        "9.1.3.5"
+      ]
+    },
+    "avoid-inline-spacing": {
+      "help": "Inline text spacing must be adjustable with custom stylesheets",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/avoid-inline-spacing?application=axeAPI",
+      "successCriteria": [
+        "1.4.12"
+      ],
+      "en301549": [
+        "9.1.4.12"
+      ]
+    },
+    "blink": {
+      "help": "<blink> elements are deprecated and must not be used",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/blink?application=axeAPI",
+      "successCriteria": [
+        "2.2.2"
+      ],
+      "en301549": [
+        "9.2.2.2"
+      ]
+    },
+    "button-name": {
+      "help": "Buttons must have discernible text",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/button-name?application=axeAPI",
+      "successCriteria": [
+        "4.1.2"
+      ],
+      "en301549": [
+        "9.4.1.2"
+      ]
+    },
+    "bypass": {
+      "help": "Page must have means to bypass repeated blocks",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/bypass?application=axeAPI",
+      "successCriteria": [
+        "2.4.1"
+      ],
+      "en301549": [
+        "9.2.4.1"
+      ]
+    },
+    "color-contrast": {
+      "help": "Elements must meet minimum color contrast ratio thresholds",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/color-contrast?application=axeAPI",
+      "successCriteria": [
+        "1.4.3"
+      ],
+      "en301549": [
+        "9.1.4.3"
+      ]
+    },
+    "definition-list": {
+      "help": "<dl> elements must only directly contain properly-ordered <dt> and <dd> groups, <script>, <template> or <div> elements",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/definition-list?application=axeAPI",
+      "successCriteria": [
+        "1.3.1"
+      ],
+      "en301549": [
+        "9.1.3.1"
+      ]
+    },
+    "dlitem": {
+      "help": "<dt> and <dd> elements must be contained by a <dl>",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/dlitem?application=axeAPI",
+      "successCriteria": [
+        "1.3.1"
+      ],
+      "en301549": [
+        "9.1.3.1"
+      ]
+    },
+    "document-title": {
+      "help": "Documents must have <title> element to aid in navigation",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/document-title?application=axeAPI",
+      "successCriteria": [
+        "2.4.2"
+      ],
+      "en301549": [
+        "9.2.4.2"
+      ]
+    },
+    "duplicate-id-aria": {
+      "help": "IDs used in ARIA and labels must be unique",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/duplicate-id-aria?application=axeAPI",
+      "successCriteria": [
+        "4.1.2"
+      ],
+      "en301549": [
+        "9.4.1.2"
+      ]
+    },
+    "form-field-multiple-labels": {
+      "help": "Form field must not have multiple label elements",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/form-field-multiple-labels?application=axeAPI",
+      "successCriteria": [
+        "3.3.2"
+      ],
+      "en301549": [
+        "9.3.3.2"
+      ]
+    },
+    "frame-focusable-content": {
+      "help": "Frames with focusable content must not have tabindex=-1",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/frame-focusable-content?application=axeAPI",
+      "successCriteria": [
+        "2.1.1"
+      ],
+      "en301549": [
+        "9.2.1.1"
+      ]
+    },
+    "frame-title": {
+      "help": "Frames must have an accessible name",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/frame-title?application=axeAPI",
+      "successCriteria": [
+        "4.1.2"
+      ],
+      "en301549": [
+        "9.4.1.2"
+      ]
+    },
+    "frame-title-unique": {
+      "help": "Frames must have a unique title attribute",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/frame-title-unique?application=axeAPI",
+      "successCriteria": [
+        "4.1.2"
+      ],
+      "en301549": [
+        "9.4.1.2"
+      ]
+    },
+    "html-has-lang": {
+      "help": "<html> element must have a lang attribute",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/html-has-lang?application=axeAPI",
+      "successCriteria": [
+        "3.1.1"
+      ],
+      "en301549": [
+        "9.3.1.1"
+      ]
+    },
+    "html-lang-valid": {
+      "help": "<html> element must have a valid value for the lang attribute",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/html-lang-valid?application=axeAPI",
+      "successCriteria": [
+        "3.1.1"
+      ],
+      "en301549": [
+        "9.3.1.1"
+      ]
+    },
+    "html-xml-lang-mismatch": {
+      "help": "HTML elements with lang and xml:lang must have the same base language",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/html-xml-lang-mismatch?application=axeAPI",
+      "successCriteria": [
+        "3.1.1"
+      ],
+      "en301549": [
+        "9.3.1.1"
+      ]
+    },
+    "image-alt": {
+      "help": "Images must have alternative text",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/image-alt?application=axeAPI",
+      "successCriteria": [
+        "1.1.1"
+      ],
+      "en301549": [
+        "9.1.1.1"
+      ]
+    },
+    "input-button-name": {
+      "help": "Input buttons must have discernible text",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/input-button-name?application=axeAPI",
+      "successCriteria": [
+        "4.1.2"
+      ],
+      "en301549": [
+        "9.4.1.2"
+      ]
+    },
+    "input-image-alt": {
+      "help": "Image buttons must have alternative text",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/input-image-alt?application=axeAPI",
+      "successCriteria": [
+        "1.1.1",
+        "4.1.2"
+      ],
+      "en301549": [
+        "9.1.1.1",
+        "9.4.1.2"
+      ]
+    },
+    "label": {
+      "help": "Form elements must have labels",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/label?application=axeAPI",
+      "successCriteria": [
+        "4.1.2"
+      ],
+      "en301549": [
+        "9.4.1.2"
+      ]
+    },
+    "link-in-text-block": {
+      "help": "Links must be distinguishable without relying on color",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/link-in-text-block?application=axeAPI",
+      "successCriteria": [
+        "1.4.1"
+      ],
+      "en301549": [
+        "9.1.4.1"
+      ]
+    },
+    "link-name": {
+      "help": "Links must have discernible text",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/link-name?application=axeAPI",
+      "successCriteria": [
+        "2.4.4",
+        "4.1.2"
+      ],
+      "en301549": [
+        "9.2.4.4",
+        "9.4.1.2"
+      ]
+    },
+    "list": {
+      "help": "<ul> and <ol> must only directly contain <li>, <script> or <template> elements",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/list?application=axeAPI",
+      "successCriteria": [
+        "1.3.1"
+      ],
+      "en301549": [
+        "9.1.3.1"
+      ]
+    },
+    "listitem": {
+      "help": "<li> elements must be contained in a <ul> or <ol>",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/listitem?application=axeAPI",
+      "successCriteria": [
+        "1.3.1"
+      ],
+      "en301549": [
+        "9.1.3.1"
+      ]
+    },
+    "marquee": {
+      "help": "<marquee> elements are deprecated and must not be used",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/marquee?application=axeAPI",
+      "successCriteria": [
+        "2.2.2"
+      ],
+      "en301549": [
+        "9.2.2.2"
+      ]
+    },
+    "meta-refresh": {
+      "help": "Delayed refresh under 20 hours must not be used",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/meta-refresh?application=axeAPI",
+      "successCriteria": [
+        "2.2.1"
+      ],
+      "en301549": [
+        "9.2.2.1"
+      ]
+    },
+    "meta-viewport": {
+      "help": "Zooming and scaling must not be disabled",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/meta-viewport?application=axeAPI",
+      "successCriteria": [
+        "1.4.4"
+      ],
+      "en301549": [
+        "9.1.4.4"
+      ]
+    },
+    "nested-interactive": {
+      "help": "Interactive controls must not be nested",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/nested-interactive?application=axeAPI",
+      "successCriteria": [
+        "4.1.2"
+      ],
+      "en301549": [
+        "9.4.1.2"
+      ]
+    },
+    "no-autoplay-audio": {
+      "help": "<video> or <audio> elements must not play automatically",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/no-autoplay-audio?application=axeAPI",
+      "successCriteria": [
+        "1.4.2"
+      ],
+      "en301549": [
+        "9.1.4.2"
+      ]
+    },
+    "object-alt": {
+      "help": "<object> elements must have alternative text",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/object-alt?application=axeAPI",
+      "successCriteria": [
+        "1.1.1"
+      ],
+      "en301549": [
+        "9.1.1.1"
+      ]
+    },
+    "role-img-alt": {
+      "help": "[role=\"img\"] and [role=\"image\"] elements must have alternative text",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/role-img-alt?application=axeAPI",
+      "successCriteria": [
+        "1.1.1"
+      ],
+      "en301549": [
+        "9.1.1.1"
+      ]
+    },
+    "scrollable-region-focusable": {
+      "help": "Scrollable region must have keyboard access",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/scrollable-region-focusable?application=axeAPI",
+      "successCriteria": [
+        "2.1.1",
+        "2.1.3"
+      ],
+      "en301549": [
+        "9.2.1.1",
+        "9.2.1.3"
+      ]
+    },
+    "select-name": {
+      "help": "Select element must have an accessible name",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/select-name?application=axeAPI",
+      "successCriteria": [
+        "4.1.2"
+      ],
+      "en301549": [
+        "9.4.1.2"
+      ]
+    },
+    "server-side-image-map": {
+      "help": "Server-side image maps must not be used",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/server-side-image-map?application=axeAPI",
+      "successCriteria": [
+        "2.1.1"
+      ],
+      "en301549": [
+        "9.2.1.1"
+      ]
+    },
+    "summary-name": {
+      "help": "Summary elements must have discernible text",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/summary-name?application=axeAPI",
+      "successCriteria": [
+        "4.1.2"
+      ],
+      "en301549": [
+        "9.4.1.2"
+      ]
+    },
+    "svg-img-alt": {
+      "help": "<svg> elements with an img or image role must have alternative text",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/svg-img-alt?application=axeAPI",
+      "successCriteria": [
+        "1.1.1"
+      ],
+      "en301549": [
+        "9.1.1.1"
+      ]
+    },
+    "target-size": {
+      "help": "All touch targets must be 24px large, or leave sufficient space",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/target-size?application=axeAPI",
+      "successCriteria": [
+        "2.5.8"
+      ],
+      "en301549": []
+    },
+    "td-headers-attr": {
+      "help": "Table cell headers attributes must refer to other <th> elements in the same table",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/td-headers-attr?application=axeAPI",
+      "successCriteria": [
+        "1.3.1"
+      ],
+      "en301549": [
+        "9.1.3.1"
+      ]
+    },
+    "th-has-data-cells": {
+      "help": "Table headers in a data table must refer to data cells",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/th-has-data-cells?application=axeAPI",
+      "successCriteria": [
+        "1.3.1"
+      ],
+      "en301549": [
+        "9.1.3.1"
+      ]
+    },
+    "valid-lang": {
+      "help": "lang attribute must have a valid value",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/valid-lang?application=axeAPI",
+      "successCriteria": [
+        "3.1.2"
+      ],
+      "en301549": [
+        "9.3.1.2"
+      ]
+    },
+    "video-caption": {
+      "help": "<video> elements must have captions",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/video-caption?application=axeAPI",
+      "successCriteria": [
+        "1.2.2"
+      ],
+      "en301549": [
+        "9.1.2.2"
+      ]
+    }
+  },
+  "pages": [
+    {
+      "path": "about/index.html",
+      "url": "file:///C:/Users/krist/Desktop/Projects/eaa-kit/tests/fixtures/site/about/index.html",
+      "violations": [],
+      "incomplete": [
+        {
+          "ruleId": "color-contrast",
+          "impact": "serious",
+          "nodes": [
+            {
+              "html": "<h1>Über uns</h1>",
+              "target": [
+                "h1"
+              ],
+              "failureSummary": "Fix all of the following:\n  Axe encountered an error; test the page for this type of problem manually"
+            }
+          ],
+          "reason": "engine-limitation",
+          "reasonDetail": "needs rendered foreground and background colours"
+        },
+        {
+          "ruleId": "link-in-text-block",
+          "impact": null,
+          "nodes": [],
+          "reason": "engine-limitation",
+          "reasonDetail": "needs rendered colours and text decoration"
+        },
+        {
+          "ruleId": "no-autoplay-audio",
+          "impact": null,
+          "nodes": [],
+          "reason": "engine-limitation",
+          "reasonDetail": "needs media duration, and media is never loaded"
+        },
+        {
+          "ruleId": "scrollable-region-focusable",
+          "impact": null,
+          "nodes": [],
+          "reason": "engine-limitation",
+          "reasonDetail": "needs computed overflow"
+        }
+      ],
+      "passes": [
+        "aria-hidden-body",
+        "document-title",
+        "html-has-lang",
+        "html-lang-valid",
+        "image-alt",
+        "nested-interactive"
+      ],
+      "inapplicable": [
+        "area-alt",
+        "aria-allowed-attr",
+        "aria-braille-equivalent",
+        "aria-command-name",
+        "aria-conditional-attr",
+        "aria-deprecated-role",
+        "aria-hidden-focus",
+        "aria-input-field-name",
+        "aria-meter-name",
+        "aria-progressbar-name",
+        "aria-prohibited-attr",
+        "aria-required-attr",
+        "aria-required-children",
+        "aria-required-parent",
+        "aria-roles",
+        "aria-tab-name",
+        "aria-toggle-field-name",
+        "aria-tooltip-name",
+        "aria-valid-attr",
+        "aria-valid-attr-value",
+        "autocomplete-valid",
+        "avoid-inline-spacing",
+        "blink",
+        "button-name",
+        "bypass",
+        "definition-list",
+        "dlitem",
+        "duplicate-id-aria",
+        "form-field-multiple-labels",
+        "frame-focusable-content",
+        "frame-title",
+        "frame-title-unique",
+        "html-xml-lang-mismatch",
+        "input-button-name",
+        "input-image-alt",
+        "label",
+        "link-name",
+        "list",
+        "listitem",
+        "marquee",
+        "meta-refresh",
+        "meta-viewport",
+        "object-alt",
+        "role-img-alt",
+        "select-name",
+        "server-side-image-map",
+        "summary-name",
+        "svg-img-alt",
+        "target-size",
+        "td-headers-attr",
+        "th-has-data-cells",
+        "valid-lang",
+        "video-caption"
+      ],
+      "error": null
+    },
+    {
+      "path": "blog/post-1.html",
+      "url": "file:///C:/Users/krist/Desktop/Projects/eaa-kit/tests/fixtures/site/blog/post-1.html",
+      "violations": [],
+      "incomplete": [
+        {
+          "ruleId": "color-contrast",
+          "impact": "serious",
+          "nodes": [
+            {
+              "html": "<h1>Beitrag</h1>",
+              "target": [
+                "h1"
+              ],
+              "failureSummary": "Fix all of the following:\n  Axe encountered an error; test the page for this type of problem manually"
+            }
+          ],
+          "reason": "engine-limitation",
+          "reasonDetail": "needs rendered foreground and background colours"
+        },
+        {
+          "ruleId": "link-in-text-block",
+          "impact": null,
+          "nodes": [],
+          "reason": "engine-limitation",
+          "reasonDetail": "needs rendered colours and text decoration"
+        },
+        {
+          "ruleId": "no-autoplay-audio",
+          "impact": null,
+          "nodes": [],
+          "reason": "engine-limitation",
+          "reasonDetail": "needs media duration, and media is never loaded"
+        },
+        {
+          "ruleId": "scrollable-region-focusable",
+          "impact": null,
+          "nodes": [],
+          "reason": "engine-limitation",
+          "reasonDetail": "needs computed overflow"
+        }
+      ],
+      "passes": [
+        "aria-hidden-body",
+        "document-title",
+        "html-has-lang",
+        "html-lang-valid"
+      ],
+      "inapplicable": [
+        "area-alt",
+        "aria-allowed-attr",
+        "aria-braille-equivalent",
+        "aria-command-name",
+        "aria-conditional-attr",
+        "aria-deprecated-role",
+        "aria-hidden-focus",
+        "aria-input-field-name",
+        "aria-meter-name",
+        "aria-progressbar-name",
+        "aria-prohibited-attr",
+        "aria-required-attr",
+        "aria-required-children",
+        "aria-required-parent",
+        "aria-roles",
+        "aria-tab-name",
+        "aria-toggle-field-name",
+        "aria-tooltip-name",
+        "aria-valid-attr",
+        "aria-valid-attr-value",
+        "autocomplete-valid",
+        "avoid-inline-spacing",
+        "blink",
+        "button-name",
+        "bypass",
+        "definition-list",
+        "dlitem",
+        "duplicate-id-aria",
+        "form-field-multiple-labels",
+        "frame-focusable-content",
+        "frame-title",
+        "frame-title-unique",
+        "html-xml-lang-mismatch",
+        "image-alt",
+        "input-button-name",
+        "input-image-alt",
+        "label",
+        "link-name",
+        "list",
+        "listitem",
+        "marquee",
+        "meta-refresh",
+        "meta-viewport",
+        "nested-interactive",
+        "object-alt",
+        "role-img-alt",
+        "select-name",
+        "server-side-image-map",
+        "summary-name",
+        "svg-img-alt",
+        "target-size",
+        "td-headers-attr",
+        "th-has-data-cells",
+        "valid-lang",
+        "video-caption"
+      ],
+      "error": null
+    },
+    {
+      "path": "drafts/draft.html",
+      "url": "file:///C:/Users/krist/Desktop/Projects/eaa-kit/tests/fixtures/site/drafts/draft.html",
+      "violations": [],
+      "incomplete": [
+        {
+          "ruleId": "color-contrast",
+          "impact": "serious",
+          "nodes": [
+            {
+              "html": "<p>Nicht veröffentlicht.</p>",
+              "target": [
+                "p"
+              ],
+              "failureSummary": "Fix all of the following:\n  Axe encountered an error; test the page for this type of problem manually"
+            }
+          ],
+          "reason": "engine-limitation",
+          "reasonDetail": "needs rendered foreground and background colours"
+        },
+        {
+          "ruleId": "link-in-text-block",
+          "impact": null,
+          "nodes": [],
+          "reason": "engine-limitation",
+          "reasonDetail": "needs rendered colours and text decoration"
+        },
+        {
+          "ruleId": "no-autoplay-audio",
+          "impact": null,
+          "nodes": [],
+          "reason": "engine-limitation",
+          "reasonDetail": "needs media duration, and media is never loaded"
+        },
+        {
+          "ruleId": "scrollable-region-focusable",
+          "impact": null,
+          "nodes": [],
+          "reason": "engine-limitation",
+          "reasonDetail": "needs computed overflow"
+        }
+      ],
+      "passes": [
+        "aria-hidden-body",
+        "document-title",
+        "html-has-lang",
+        "html-lang-valid"
+      ],
+      "inapplicable": [
+        "area-alt",
+        "aria-allowed-attr",
+        "aria-braille-equivalent",
+        "aria-command-name",
+        "aria-conditional-attr",
+        "aria-deprecated-role",
+        "aria-hidden-focus",
+        "aria-input-field-name",
+        "aria-meter-name",
+        "aria-progressbar-name",
+        "aria-prohibited-attr",
+        "aria-required-attr",
+        "aria-required-children",
+        "aria-required-parent",
+        "aria-roles",
+        "aria-tab-name",
+        "aria-toggle-field-name",
+        "aria-tooltip-name",
+        "aria-valid-attr",
+        "aria-valid-attr-value",
+        "autocomplete-valid",
+        "avoid-inline-spacing",
+        "blink",
+        "button-name",
+        "bypass",
+        "definition-list",
+        "dlitem",
+        "duplicate-id-aria",
+        "form-field-multiple-labels",
+        "frame-focusable-content",
+        "frame-title",
+        "frame-title-unique",
+        "html-xml-lang-mismatch",
+        "image-alt",
+        "input-button-name",
+        "input-image-alt",
+        "label",
+        "link-name",
+        "list",
+        "listitem",
+        "marquee",
+        "meta-refresh",
+        "meta-viewport",
+        "nested-interactive",
+        "object-alt",
+        "role-img-alt",
+        "select-name",
+        "server-side-image-map",
+        "summary-name",
+        "svg-img-alt",
+        "target-size",
+        "td-headers-attr",
+        "th-has-data-cells",
+        "valid-lang",
+        "video-caption"
+      ],
+      "error": null
+    },
+    {
+      "path": "index.html",
+      "url": "file:///C:/Users/krist/Desktop/Projects/eaa-kit/tests/fixtures/site/index.html",
+      "violations": [
+        {
+          "ruleId": "html-has-lang",
+          "impact": "serious",
+          "nodes": [
+            {
+              "html": "<html><head>\n    <title>Startseite</title>\n  </head>\n  <body>\n    <img src=\"/assets/logo.svg\">\n    <a href=\"/about/\"></a>\n    <p>Willkommen.</p>\n  \n\n</body></html>",
+              "target": [
+                "html"
+              ],
+              "failureSummary": "Fix any of the following:\n  The <html> element does not have a lang attribute"
+            }
+          ]
+        },
+        {
+          "ruleId": "image-alt",
+          "impact": "critical",
+          "nodes": [
+            {
+              "html": "<img src=\"/assets/logo.svg\">",
+              "target": [
+                "img"
+              ],
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\""
+            }
+          ]
+        },
+        {
+          "ruleId": "link-name",
+          "impact": "serious",
+          "nodes": [
+            {
+              "html": "<a href=\"/about/\"></a>",
+              "target": [
+                "a"
+              ],
+              "failureSummary": "Fix all of the following:\n  Element is in tab order and does not have accessible text\n\nFix any of the following:\n  Element does not have text that is visible to screen readers\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute"
+            }
+          ]
+        }
+      ],
+      "incomplete": [
+        {
+          "ruleId": "bypass",
+          "impact": "serious",
+          "nodes": [
+            {
+              "html": "<html><head>\n    <title>Startseite</title>\n  </head>\n  <body>\n    <img src=\"/assets/logo.svg\">\n    <a href=\"/about/\"></a>\n    <p>Willkommen.</p>\n  \n\n</body></html>",
+              "target": [
+                "html"
+              ],
+              "failureSummary": "Fix any of the following:\n  No valid skip link found\n  Page does not have a heading\n  Page does not have a landmark region"
+            }
+          ],
+          "reason": "needs-review",
+          "reasonDetail": "Ensure each page has at least one mechanism for a user to bypass navigation and jump straight to the content"
+        },
+        {
+          "ruleId": "color-contrast",
+          "impact": "serious",
+          "nodes": [
+            {
+              "html": "<p>Willkommen.</p>",
+              "target": [
+                "p"
+              ],
+              "failureSummary": "Fix all of the following:\n  Axe encountered an error; test the page for this type of problem manually"
+            }
+          ],
+          "reason": "engine-limitation",
+          "reasonDetail": "needs rendered foreground and background colours"
+        },
+        {
+          "ruleId": "link-in-text-block",
+          "impact": null,
+          "nodes": [],
+          "reason": "engine-limitation",
+          "reasonDetail": "needs rendered colours and text decoration"
+        },
+        {
+          "ruleId": "no-autoplay-audio",
+          "impact": null,
+          "nodes": [],
+          "reason": "engine-limitation",
+          "reasonDetail": "needs media duration, and media is never loaded"
+        },
+        {
+          "ruleId": "scrollable-region-focusable",
+          "impact": null,
+          "nodes": [],
+          "reason": "engine-limitation",
+          "reasonDetail": "needs computed overflow"
+        },
+        {
+          "ruleId": "target-size",
+          "impact": null,
+          "nodes": [
+            {
+              "html": "<a href=\"/about/\"></a>",
+              "target": [
+                "a"
+              ],
+              "failureSummary": null
+            }
+          ],
+          "reason": "engine-limitation",
+          "reasonDetail": "needs element geometry; every box is 0x0 without layout"
+        }
+      ],
+      "passes": [
+        "aria-hidden-body",
+        "document-title",
+        "nested-interactive"
+      ],
+      "inapplicable": [
+        "area-alt",
+        "aria-allowed-attr",
+        "aria-braille-equivalent",
+        "aria-command-name",
+        "aria-conditional-attr",
+        "aria-deprecated-role",
+        "aria-hidden-focus",
+        "aria-input-field-name",
+        "aria-meter-name",
+        "aria-progressbar-name",
+        "aria-prohibited-attr",
+        "aria-required-attr",
+        "aria-required-children",
+        "aria-required-parent",
+        "aria-roles",
+        "aria-tab-name",
+        "aria-toggle-field-name",
+        "aria-tooltip-name",
+        "aria-valid-attr",
+        "aria-valid-attr-value",
+        "autocomplete-valid",
+        "avoid-inline-spacing",
+        "blink",
+        "button-name",
+        "definition-list",
+        "dlitem",
+        "duplicate-id-aria",
+        "form-field-multiple-labels",
+        "frame-focusable-content",
+        "frame-title",
+        "frame-title-unique",
+        "html-lang-valid",
+        "html-xml-lang-mismatch",
+        "input-button-name",
+        "input-image-alt",
+        "label",
+        "list",
+        "listitem",
+        "marquee",
+        "meta-refresh",
+        "meta-viewport",
+        "object-alt",
+        "role-img-alt",
+        "select-name",
+        "server-side-image-map",
+        "summary-name",
+        "svg-img-alt",
+        "td-headers-attr",
+        "th-has-data-cells",
+        "valid-lang",
+        "video-caption"
+      ],
+      "error": null
+    },
+    {
+      "path": "legacy.htm",
+      "url": "file:///C:/Users/krist/Desktop/Projects/eaa-kit/tests/fixtures/site/legacy.htm",
+      "violations": [],
+      "incomplete": [
+        {
+          "ruleId": "color-contrast",
+          "impact": "serious",
+          "nodes": [
+            {
+              "html": "<p>Alte Seite.</p>",
+              "target": [
+                "p"
+              ],
+              "failureSummary": "Fix all of the following:\n  Axe encountered an error; test the page for this type of problem manually"
+            }
+          ],
+          "reason": "engine-limitation",
+          "reasonDetail": "needs rendered foreground and background colours"
+        },
+        {
+          "ruleId": "link-in-text-block",
+          "impact": null,
+          "nodes": [],
+          "reason": "engine-limitation",
+          "reasonDetail": "needs rendered colours and text decoration"
+        },
+        {
+          "ruleId": "no-autoplay-audio",
+          "impact": null,
+          "nodes": [],
+          "reason": "engine-limitation",
+          "reasonDetail": "needs media duration, and media is never loaded"
+        },
+        {
+          "ruleId": "scrollable-region-focusable",
+          "impact": null,
+          "nodes": [],
+          "reason": "engine-limitation",
+          "reasonDetail": "needs computed overflow"
+        }
+      ],
+      "passes": [
+        "aria-hidden-body",
+        "document-title",
+        "html-has-lang",
+        "html-lang-valid"
+      ],
+      "inapplicable": [
+        "area-alt",
+        "aria-allowed-attr",
+        "aria-braille-equivalent",
+        "aria-command-name",
+        "aria-conditional-attr",
+        "aria-deprecated-role",
+        "aria-hidden-focus",
+        "aria-input-field-name",
+        "aria-meter-name",
+        "aria-progressbar-name",
+        "aria-prohibited-attr",
+        "aria-required-attr",
+        "aria-required-children",
+        "aria-required-parent",
+        "aria-roles",
+        "aria-tab-name",
+        "aria-toggle-field-name",
+        "aria-tooltip-name",
+        "aria-valid-attr",
+        "aria-valid-attr-value",
+        "autocomplete-valid",
+        "avoid-inline-spacing",
+        "blink",
+        "button-name",
+        "bypass",
+        "definition-list",
+        "dlitem",
+        "duplicate-id-aria",
+        "form-field-multiple-labels",
+        "frame-focusable-content",
+        "frame-title",
+        "frame-title-unique",
+        "html-xml-lang-mismatch",
+        "image-alt",
+        "input-button-name",
+        "input-image-alt",
+        "label",
+        "link-name",
+        "list",
+        "listitem",
+        "marquee",
+        "meta-refresh",
+        "meta-viewport",
+        "nested-interactive",
+        "object-alt",
+        "role-img-alt",
+        "select-name",
+        "server-side-image-map",
+        "summary-name",
+        "svg-img-alt",
+        "target-size",
+        "td-headers-attr",
+        "th-has-data-cells",
+        "valid-lang",
+        "video-caption"
+      ],
+      "error": null
+    }
+  ]
+}
