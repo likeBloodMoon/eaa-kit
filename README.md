@@ -20,7 +20,8 @@ An accessibility statement generator (`eaa-kit statement`) is in progress and no
 pnpm add -D eaa-kit    # npm i -D eaa-kit
 ```
 
-Node 20 or newer.
+Node 22.22 or newer. jsdom, which the browserless engine is built on, does not
+support Node 20.
 
 ## audit
 

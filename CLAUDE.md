@@ -27,7 +27,7 @@ Existing tools do one or the other, and none are DACH-localised. That gap is the
 |---|---|
 | Language | TypeScript, strict mode |
 | Module system | ESM only (`"type": "module"`) |
-| Node | >= 20 |
+| Node | >= 22.22 (was >= 20; jsdom 30, commander 15 and tsdown all require 22+) |
 | Build | `tsdown` (or `tsup` if tsdown misbehaves) |
 | CLI framework | `commander` |
 | Test runner | `vitest` |

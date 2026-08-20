@@ -14,8 +14,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # The lower bound is what package.json claims in "engines".
-        node-version: [20, 22]
+        # The lower bound is what package.json claims in "engines". Node 20 is
+        # not on the list because jsdom, commander and tsdown all require 22+.
+        node-version: [22, 24]
 
     steps:
       - uses: actions/checkout@v4
