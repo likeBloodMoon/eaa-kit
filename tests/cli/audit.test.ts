@@ -151,6 +151,16 @@ describe('--format and --output', () => {
     }
   }, 60_000)
 
+  it('writes a SARIF log with --format sarif', async () => {
+    await runAuditCommand(IMPACTS, { include: ['critical.html'], format: 'sarif' })
+
+    const log = JSON.parse(stdout.join(''))
+    expect(log.version).toBe('2.1.0')
+    expect(log.runs[0].tool.driver.name).toBe('eaa-kit')
+    expect(log.runs[0].results[0].ruleId).toBe('image-alt')
+    expect(log.runs[0].results[0].level).toBe('error')
+  }, 60_000)
+
   it('defaults to the console report', async () => {
     await runAuditCommand(IMPACTS, { include: ['critical.html'] })
 

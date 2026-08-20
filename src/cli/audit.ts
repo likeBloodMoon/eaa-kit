@@ -5,9 +5,10 @@ import { BuildDirectoryError, collectPages } from '../audit/collect.ts'
 import { countAtOrAbove, DEFAULT_FAIL_ON, type ImpactLevel } from '../audit/impact.ts'
 import { formatConsoleReport } from '../audit/report/console.ts'
 import { buildJsonReport, serialiseJsonReport } from '../audit/report/json.ts'
+import { buildSarifReport, serialiseSarifReport } from '../audit/report/sarif.ts'
 import { type PageAudit, runJsdomAudit } from '../audit/runners/jsdom.ts'
 
-export const OUTPUT_FORMATS = ['console', 'json'] as const
+export const OUTPUT_FORMATS = ['console', 'json', 'sarif'] as const
 
 export type OutputFormat = (typeof OUTPUT_FORMATS)[number]
 
@@ -110,16 +111,7 @@ async function emit(
   const format = options.format ?? 'console'
   const toFile = typeof options.output === 'string'
 
-  const body =
-    format === 'json'
-      ? serialiseJsonReport(
-          buildJsonReport(audits, {
-            directory: dir,
-            failOn,
-            ...(options.baseUrl ? { baseUrl: options.baseUrl } : {}),
-          }),
-        )
-      : `${formatConsoleReport(audits, { dir, failOn, ...(toFile ? { color: false } : {}) })}\n`
+  const body = renderReport(audits, dir, failOn, format, toFile, options)
 
   if (!options.output) {
     process.stdout.write(body)
@@ -130,4 +122,28 @@ async function emit(
   await mkdir(path.dirname(target), { recursive: true })
   await writeFile(target, body, 'utf8')
   process.stderr.write(pc.dim(`Report written to ${options.output}\n`))
+}
+
+function renderReport(
+  audits: readonly PageAudit[],
+  dir: string,
+  failOn: ImpactLevel,
+  format: OutputFormat,
+  toFile: boolean,
+  options: AuditCommandOptions,
+): string {
+  switch (format) {
+    case 'json':
+      return serialiseJsonReport(
+        buildJsonReport(audits, {
+          directory: dir,
+          failOn,
+          ...(options.baseUrl ? { baseUrl: options.baseUrl } : {}),
+        }),
+      )
+    case 'sarif':
+      return serialiseSarifReport(buildSarifReport(audits, { directory: dir }))
+    case 'console':
+      return `${formatConsoleReport(audits, { dir, failOn, ...(toFile ? { color: false } : {}) })}\n`
+  }
 }

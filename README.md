@@ -34,7 +34,7 @@ eaa-kit audit [dir]              # dir defaults to ./dist
 | `--exclude <globs...>` | Glob patterns to skip |
 | `--base-url <url>` | Audit pages under their real site URL instead of `file://` |
 | `--fail-on <impact>` | Lowest impact that fails the run: `minor`, `moderate`, `serious` (default), `critical` |
-| `--format <format>` | `console` (default) or `json` |
+| `--format <format>` | `console` (default), `json`, or `sarif` |
 | `--output <path>` | Write the report to a file instead of stdout; parent directories are created |
 
 The console report goes to stdout and progress goes to stderr, so the report can be piped
@@ -216,6 +216,43 @@ eaa-kit audit ./dist --format json --output reports/a11y.json --fail-on serious
 
 The exit code reflects `--fail-on` regardless of format, so the same command both fails
 the build and leaves an artefact behind.
+
+## SARIF output
+
+`--format sarif` emits a SARIF 2.1.0 log for GitHub code scanning:
+
+```yaml
+- run: npx eaa-kit audit ./dist --format sarif --output a11y.sarif
+  continue-on-error: true          # let the upload happen even when the audit fails
+- uses: github/codeql-action/upload-sarif@v3
+  with:
+    sarif_file: a11y.sarif
+```
+
+- Every rule the run touched becomes an entry in `tool.driver.rules`, with its help text,
+  help URL, and the WCAG and EN 301 549 references in `properties.tags`.
+- Each violating **element** becomes one result, with the page as the artifact location and
+  the CSS selector in the message: `Images must have alternative text. Element: img`.
+- Impact maps to level: `critical` and `serious` → `error`, `moderate` → `warning`,
+  `minor` → `note`. A violation axe-core left unclassified becomes `error`, on the same
+  reasoning as `--fail-on`.
+- Results carry a `partialFingerprints` entry derived from the rule, selector and element
+  markup, deliberately not the file path, so moving a page does not close one alert and
+  open an identical one.
+
+Three things worth knowing before you wire it up:
+
+1. **Artifact URIs are relative to the working directory** (for example
+   `dist/index.html`). If your build output is gitignored, GitHub will show the alerts but
+   cannot link them to source. Auditing a directory outside the repository falls back to
+   the page path alone.
+2. **No line numbers.** axe-core reports a CSS selector, not a source position, so results
+   locate the file rather than a line within it. Alerts appear at file level.
+3. **Only violations become results.** Rules needing manual review, and rules this engine
+   could not evaluate, are not defects at a source location, and filing them as alerts
+   would bury the real failures. They are counted in `runs[0].properties` so a log with no
+   results is not mistaken for "everything was checked" — and the JSON format carries them
+   in full. **A green code-scanning result is not a compliance statement.**
 
 ## License
 
