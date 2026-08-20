@@ -1,0 +1,39 @@
+# Example workflow — copy this into your own repository.
+#
+# It is set to workflow_dispatch here because this repository has no site of its
+# own to build. In your repository, use the push/pull_request triggers below.
+name: Accessibility
+
+on:
+  workflow_dispatch:
+  # push:
+  #   branches: [main]
+  # pull_request:
+
+permissions:
+  contents: read
+  # Required by github/codeql-action/upload-sarif. Without it the upload fails
+  # with "Resource not accessible by integration".
+  security-events: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # In your own repository this becomes:
+      #   uses: OWNER/eaa-kit@v1
+      - uses: ./
+        with:
+          install-command: npm ci
+          build-command: npm run build
+          directory: ./dist
+          fail-on: serious
+          # Audits pages under their real URL instead of file://. Optional.
+          # base-url: https://example.com

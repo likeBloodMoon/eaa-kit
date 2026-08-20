@@ -1,0 +1,119 @@
+name: eaa-kit accessibility audit
+description: >-
+  Build a static site, audit the built HTML against WCAG 2.2 AA with eaa-kit,
+  and upload the results to GitHub code scanning as SARIF.
+author: eaa-kit
+
+branding:
+  icon: check-circle
+  color: blue
+
+inputs:
+  directory:
+    description: Directory holding the built site, relative to working-directory.
+    required: false
+    default: ./dist
+  build-command:
+    description: >-
+      Command that produces the build, for example "npm run build". Leave empty
+      when the site is built by an earlier step.
+    required: false
+    default: ''
+  install-command:
+    description: Dependency install command, run before build-command.
+    required: false
+    default: ''
+  working-directory:
+    description: Directory to run the install, build and audit from.
+    required: false
+    default: '.'
+  fail-on:
+    description: 'Lowest impact that fails the run: minor, moderate, serious, critical.'
+    required: false
+    default: serious
+  base-url:
+    description: Audit pages under their real site URL instead of file://.
+    required: false
+    default: ''
+  sarif-file:
+    description: Where to write the SARIF log.
+    required: false
+    default: eaa-kit.sarif
+  upload-sarif:
+    description: Upload the SARIF log to GitHub code scanning.
+    required: false
+    default: 'true'
+  version:
+    description: Version of eaa-kit to run, as an npm dist-tag or version.
+    required: false
+    default: latest
+
+outputs:
+  sarif-file:
+    description: Path to the SARIF log that was written.
+    value: ${{ inputs.sarif-file }}
+  exit-code:
+    description: 'Exit code from the audit: 0 clean, 1 violations, 2 could not run.'
+    value: ${{ steps.audit.outputs.exit-code }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install dependencies
+      if: inputs.install-command != ''
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: ${{ inputs.install-command }}
+
+    - name: Build site
+      if: inputs.build-command != ''
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: ${{ inputs.build-command }}
+
+    # The audit's exit code is captured rather than allowed to end the job, so
+    # the SARIF upload below still runs when violations are found. The job is
+    # failed at the end instead, once the alerts are in place.
+    - name: Run eaa-kit audit
+      id: audit
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        EAA_DIRECTORY: ${{ inputs.directory }}
+        EAA_FAIL_ON: ${{ inputs.fail-on }}
+        EAA_SARIF: ${{ inputs.sarif-file }}
+        EAA_BASE_URL: ${{ inputs.base-url }}
+        EAA_VERSION: ${{ inputs.version }}
+      run: |
+        set -o pipefail
+        args=("$EAA_DIRECTORY" --format sarif --output "$EAA_SARIF" --fail-on "$EAA_FAIL_ON")
+        if [ -n "$EAA_BASE_URL" ]; then
+          args+=(--base-url "$EAA_BASE_URL")
+        fi
+
+        set +e
+        npx --yes "eaa-kit@${EAA_VERSION}" audit "${args[@]}"
+        code=$?
+        set -e
+
+        echo "exit-code=${code}" >> "$GITHUB_OUTPUT"
+        if [ "$code" -eq 2 ]; then
+          echo "::error::eaa-kit could not complete the audit (exit 2)."
+        fi
+
+    - name: Upload SARIF
+      if: inputs.upload-sarif == 'true' && steps.audit.outputs.exit-code != '2'
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: ${{ inputs.working-directory }}/${{ inputs.sarif-file }}
+        category: eaa-kit
+
+    # Exit 2 means the audit never produced a verdict, which is a broken run
+    # rather than a failing one. Both fail the job, but only after the alerts
+    # from a normal failing run have been uploaded.
+    - name: Fail on findings
+      if: steps.audit.outputs.exit-code != '0'
+      shell: bash
+      run: |
+        echo "eaa-kit exited with ${{ steps.audit.outputs.exit-code }}"
+        exit 1
