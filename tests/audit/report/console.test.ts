@@ -39,7 +39,30 @@ describe('formatConsoleReport', () => {
   })
 
   it('marks a clean page as clean', () => {
-    expect(report).toMatch(/about\/index\.html\n {2}(✓|ok) no violations, \d+ rules evaluated/)
+    expect(report).toMatch(/about\/index\.html\n {2}(✓|\+) no violations/)
+  })
+
+  it('separates what was checked from what had nothing to check', () => {
+    const coverage = lineAfter(report, 'about/index.html', /passed/)
+
+    expect(coverage).toMatch(/\d+ passed/)
+    expect(coverage).toMatch(/\d+ not applicable/)
+    // The two must never be added together into one "checked" figure.
+    expect(coverage).not.toMatch(/\d+ rules evaluated/)
+  })
+
+  it('explains what not-applicable means, since it reads like good news', () => {
+    expect(report).toContain('not applicable = nothing to check')
+  })
+
+  it('reports coverage for pages with violations too', () => {
+    expect(lineAfter(report, 'index.html', /passed/)).toMatch(/\d+ passed · \d+ not applicable/)
+  })
+
+  it('counts unevaluated rules apart from applicable ones', () => {
+    const coverage = lineAfter(report, 'index.html', /passed/)
+
+    expect(coverage).toMatch(/\d+ not evaluated/)
   })
 
   it('counts violations, pages and elements in the summary', () => {
@@ -97,6 +120,7 @@ describe('report edge cases', () => {
       violations: [],
       incomplete: [],
       passes: [],
+      inapplicable: [],
       durationMs: 12,
       error: 'axe-core timed out after 30000ms',
     }
@@ -138,8 +162,19 @@ function withViolationNode(html: string, target: string[], count = 1): PageAudit
     ],
     incomplete: [],
     passes: [],
+    inapplicable: [],
     durationMs: 5,
   }
+}
+
+/** First line matching `pattern` at or after the line containing `anchor`. */
+function lineAfter(text: string, anchor: string, pattern: RegExp): string {
+  const lines = text.split('\n')
+  const start = lines.findIndex((line) => line.includes(anchor))
+  if (start === -1) throw new Error(`no line containing ${anchor}`)
+  const found = lines.slice(start).find((line) => pattern.test(line))
+  if (!found) throw new Error(`no line matching ${pattern} after ${anchor}`)
+  return found
 }
 
 function lineContaining(text: string, needle: string): string {

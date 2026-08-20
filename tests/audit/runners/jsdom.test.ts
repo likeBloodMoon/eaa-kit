@@ -7,6 +7,7 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { type CollectedPage, collectPages } from '../../../src/audit/collect.ts'
 import {
   auditPage,
+  DEFAULT_TAGS,
   ENGINE_BLIND_RULES,
   type PageAudit,
   runJsdomAudit,
@@ -22,6 +23,10 @@ function page(audits: PageAudit[], relativePath: string): PageAudit {
 
 function inlinePage(html: string, relativePath = 'inline.html'): CollectedPage {
   return { html, relativePath, absolutePath: path.join(SITE, relativePath) }
+}
+
+function ruleIds(outcomes: readonly { ruleId: string }[]): string[] {
+  return outcomes.map((outcome) => outcome.ruleId)
 }
 
 function engineLimitations(audit: PageAudit): string[] {
@@ -111,10 +116,92 @@ describe('runJsdomAudit', () => {
   })
 })
 
+describe('the four result buckets', () => {
+  it('keeps inapplicable rules out of passes', () => {
+    // blog/post-1.html has no images and no forms, so these rules matched
+    // nothing. Counting them as passes would turn an empty page into a
+    // near-perfect score.
+    const post = page(audits, 'blog/post-1.html')
+
+    expect(ruleIds(post.inapplicable)).toContain('image-alt')
+    expect(ruleIds(post.passes)).not.toContain('image-alt')
+    expect(ruleIds(post.inapplicable)).toContain('label')
+    expect(ruleIds(post.passes)).not.toContain('label')
+  })
+
+  it('reports a rule as passing only where it had something to check', () => {
+    // The same rule, applicable on one page and not the other.
+    expect(ruleIds(page(audits, 'about/index.html').passes)).toContain('image-alt')
+    expect(ruleIds(page(audits, 'blog/post-1.html').inapplicable)).toContain('image-alt')
+  })
+
+  it('accounts for every rule axe-core actually runs', () => {
+    // A rule missing from all four buckets is a silent coverage gap: the report
+    // would imply it was looked at when it never ran. axe-core leaves
+    // experimental and deprecated rules off by default, so those are excluded
+    // here rather than being quietly absent.
+    const expected = axe
+      .getRules([...DEFAULT_TAGS])
+      .filter((rule) => !rule.tags.includes('experimental') && !rule.tags.includes('deprecated'))
+      .map((rule) => rule.ruleId)
+      .sort()
+
+    for (const audit of audits) {
+      const accounted = [
+        ...ruleIds(audit.violations),
+        ...ruleIds(audit.incomplete),
+        ...ruleIds(audit.passes),
+        ...ruleIds(audit.inapplicable),
+      ].sort()
+
+      expect(accounted).toEqual(expected)
+    }
+  })
+
+  it('files every rule in exactly one bucket', () => {
+    for (const audit of audits) {
+      const all = [
+        ...ruleIds(audit.violations),
+        ...ruleIds(audit.incomplete),
+        ...ruleIds(audit.passes),
+        ...ruleIds(audit.inapplicable),
+      ]
+
+      expect(all.length).toBe(new Set(all).size)
+    }
+  })
+
+  it('populates all four buckets on a real page', () => {
+    const index = page(audits, 'index.html')
+
+    expect(index.violations.length).toBeGreaterThan(0)
+    expect(index.incomplete.length).toBeGreaterThan(0)
+    expect(index.passes.length).toBeGreaterThan(0)
+    expect(index.inapplicable.length).toBeGreaterThan(0)
+  })
+
+  it('carries standards references on passes and inapplicable rules too', () => {
+    const imageAlt = page(audits, 'about/index.html').passes.find(
+      (outcome) => outcome.ruleId === 'image-alt',
+    )
+
+    expect(imageAlt?.successCriteria).toContain('1.1.1')
+    expect(imageAlt?.enClauses).toContain('9.1.1.1')
+  })
+
+  it('leaves buckets empty for a page that could not be audited', async () => {
+    const audit = await auditPage(inlinePage('<!doctype html><title>T</title>'), { timeoutMs: 1 })
+
+    expect(audit.error).toBeTruthy()
+    expect(audit.passes).toEqual([])
+    expect(audit.inapplicable).toEqual([])
+  })
+})
+
 describe('layout-dependent rules', () => {
   it('never reports a blind rule as a pass, on any page', () => {
     for (const audit of audits) {
-      for (const ruleId of audit.passes) {
+      for (const ruleId of ruleIds(audit.passes)) {
         expect(ENGINE_BLIND_RULES).not.toHaveProperty(ruleId)
       }
     }
@@ -132,7 +219,7 @@ describe('layout-dependent rules', () => {
 
     const audit = await auditPage(inlinePage(html), { tags: ['wcag22aa'] })
 
-    expect(audit.passes).not.toContain('target-size')
+    expect(ruleIds(audit.passes)).not.toContain('target-size')
     const targetSize = audit.incomplete.find((finding) => finding.ruleId === 'target-size')
     expect(targetSize?.reason).toBe('engine-limitation')
     expect(targetSize?.reasonDetail).toContain('geometry')
@@ -145,7 +232,7 @@ describe('layout-dependent rules', () => {
 
     expect(contrast?.reason).toBe('engine-limitation')
     expect(index.violations.map((finding) => finding.ruleId)).not.toContain('color-contrast')
-    expect(index.passes).not.toContain('color-contrast')
+    expect(ruleIds(index.passes)).not.toContain('color-contrast')
   })
 
   it('declares blind rules axe-core called inapplicable, which it cannot judge either', () => {
@@ -169,8 +256,23 @@ describe('layout-dependent rules', () => {
     // blog/post-1.html has no interactive elements, so axe-core calling
     // target-size inapplicable is a plain DOM fact that needs no layout.
     // Declaring it unevaluated there would be noise, not honesty.
-    expect(engineLimitations(page(audits, 'blog/post-1.html'))).not.toContain('target-size')
+    const post = page(audits, 'blog/post-1.html')
+
+    expect(engineLimitations(post)).not.toContain('target-size')
     expect(engineLimitations(page(audits, 'index.html'))).toContain('target-size')
+    // It belongs in "nothing to check", and still never in passes.
+    expect(ruleIds(post.inapplicable)).toContain('target-size')
+    expect(ruleIds(post.passes)).not.toContain('target-size')
+  })
+
+  it('never files an unreliably-matched rule as inapplicable', () => {
+    // Applicability itself needs layout here, so "nothing to check" would be a
+    // claim this engine cannot make. It has to stay unevaluated instead.
+    for (const audit of audits) {
+      expect(ruleIds(audit.inapplicable)).not.toContain('scrollable-region-focusable')
+      expect(ruleIds(audit.inapplicable)).not.toContain('no-autoplay-audio')
+      expect(engineLimitations(audit)).toContain('scrollable-region-focusable')
+    }
   })
 
   it('does not tell the user to re-run experimental rules in a browser', () => {
@@ -224,9 +326,9 @@ describe('incomplete results', () => {
   it('still reports rules the engine can evaluate as passes', () => {
     const about = page(audits, 'about/index.html')
 
-    expect(about.passes).toContain('document-title')
-    expect(about.passes).toContain('html-has-lang')
-    expect(about.passes).toContain('image-alt')
+    expect(ruleIds(about.passes)).toContain('document-title')
+    expect(ruleIds(about.passes)).toContain('html-has-lang')
+    expect(ruleIds(about.passes)).toContain('image-alt')
   })
 })
 

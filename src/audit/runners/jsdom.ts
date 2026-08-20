@@ -93,9 +93,9 @@ export interface FindingNode {
   failureSummary?: string
 }
 
-export interface Finding {
+/** A rule and what it maps to in the standards, without a verdict attached. */
+export interface RuleOutcome {
   ruleId: string
-  impact: ImpactValue
   help: string
   helpUrl: string
   /** WCAG success criteria, e.g. ['1.1.1']. */
@@ -103,6 +103,10 @@ export interface Finding {
   /** EN 301 549 clauses, e.g. ['9.1.1.1'] — quoted by the statement generator. */
   enClauses: string[]
   tags: string[]
+}
+
+export interface Finding extends RuleOutcome {
+  impact: ImpactValue
   nodes: FindingNode[]
 }
 
@@ -116,19 +120,39 @@ export interface IncompleteFinding extends Finding {
   reasonDetail: string
 }
 
+/**
+ * One page's result, keeping axe-core's four outcomes distinct.
+ *
+ * Every in-scope rule lands in exactly one of the four arrays. They are not
+ * interchangeable and must not be summed into a single "checked" number: only
+ * `passes` is evidence that a criterion was met on this page. `inapplicable`
+ * means the rule found nothing to check, which says nothing about compliance —
+ * a page with no images trivially "passes" nothing about image alternatives.
+ */
 export interface PageAudit {
   relativePath: string
   absolutePath: string
   /** Document URL used while auditing; affects how relative hrefs resolve. */
   url: string
   engine: 'jsdom'
+  /** Rules that matched elements and failed. */
   violations: Finding[]
+  /** No verdict reached: either a human must decide, or this engine is blind. */
   incomplete: IncompleteFinding[]
   /**
-   * Rule ids that genuinely passed. Never contains a rule from
+   * Rules that matched elements and were met. Never contains a rule from
    * ENGINE_BLIND_RULES, so a pass here always means the rule was evaluated.
+   *
+   * Deliberately carries no element count: `resultTypes` limits node detail to
+   * the buckets shown to the user, so any count taken from here would be capped
+   * at one and read as a lie.
    */
-  passes: string[]
+  passes: RuleOutcome[]
+  /**
+   * Rules with no matching elements on this page. Not a pass, not a failure,
+   * and never evidence of compliance.
+   */
+  inapplicable: RuleOutcome[]
   durationMs: number
   /** Set when the page could not be audited at all; other fields stay empty. */
   error?: string
@@ -192,6 +216,7 @@ export async function auditPage(
       violations: [],
       incomplete: [],
       passes: [],
+      inapplicable: [],
       durationMs: Date.now() - startedAt,
       error: cause instanceof Error ? cause.message : String(cause),
     }
@@ -253,40 +278,58 @@ function toPageAudit(
 ): PageAudit {
   const blind = blindRulesInScope(tags)
 
+  const violations: Finding[] = []
+  const incomplete: IncompleteFinding[] = []
+  const passes: RuleOutcome[] = []
+  const inapplicable: RuleOutcome[] = []
+
   // A blind rule's verdict is discarded whichever bucket axe-core put it in: a
-  // violation derived from a 0x0 box is as untrustworthy as a pass.
-  const violations = results.violations
-    .filter((result) => !blind.has(result.id))
-    .map((result) => toFinding(result))
-
-  const incomplete: IncompleteFinding[] = results.incomplete.map((result) => {
+  // violation derived from a 0x0 box is as untrustworthy as a pass. Its nodes
+  // are kept, since they are still the elements a human needs to look at.
+  for (const result of results.violations) {
     const rule = blind.get(result.id)
-    return rule
-      ? toIncomplete(result, 'engine-limitation', rule.detail)
-      : toIncomplete(result, 'needs-review', result.description)
-  })
+    if (rule) incomplete.push(toIncomplete(result, 'engine-limitation', rule.detail))
+    else violations.push(toFinding(result))
+  }
 
-  const declared = new Set(incomplete.map((finding) => finding.ruleId))
+  for (const result of results.passes) {
+    const rule = blind.get(result.id)
+    if (rule) incomplete.push(toIncomplete(result, 'engine-limitation', rule.detail))
+    else passes.push(toOutcome(result))
+  }
+
+  for (const result of results.incomplete) {
+    const rule = blind.get(result.id)
+    incomplete.push(
+      rule
+        ? toIncomplete(result, 'engine-limitation', rule.detail)
+        : toIncomplete(result, 'needs-review', result.description),
+    )
+  }
+
+  // An inapplicable verdict is only worth recording when the rule's own matcher
+  // could do its job. Where it could not, filing it as "nothing to check" would
+  // hide the finding — no-autoplay-audio reports inapplicable even on a page
+  // with autoplaying audio.
+  for (const result of results.inapplicable) {
+    const rule = blind.get(result.id)
+    if (rule?.applicabilityUnreliable) {
+      incomplete.push(toIncomplete(result, 'engine-limitation', rule.detail))
+    } else {
+      inapplicable.push(toOutcome(result))
+    }
+  }
+
+  // Rules axe-core skipped entirely, e.g. the preload-dependent ones. Silence
+  // would read as coverage this run never had.
+  const seen = new Set([
+    ...violations.map((finding) => finding.ruleId),
+    ...incomplete.map((finding) => finding.ruleId),
+    ...passes.map((outcome) => outcome.ruleId),
+    ...inapplicable.map((outcome) => outcome.ruleId),
+  ])
   for (const [ruleId, rule] of blind) {
-    if (declared.has(ruleId)) continue
-
-    // axe-core reached a verdict this engine has no business trusting. Keep its
-    // nodes: they are still the elements a human needs to look at.
-    const judged =
-      results.violations.find((result) => result.id === ruleId) ??
-      results.passes.find((result) => result.id === ruleId)
-    if (judged) {
-      incomplete.push(toIncomplete(judged, 'engine-limitation', rule.detail))
-      continue
-    }
-
-    // An inapplicable verdict is worth keeping only when the rule's own matcher
-    // could do its job. Where it could not, silence would hide the finding —
-    // no-autoplay-audio says inapplicable even on a page with autoplaying audio.
-    if (results.inapplicable.some((result) => result.id === ruleId)) {
-      if (!rule.applicabilityUnreliable) continue
-    }
-
+    if (seen.has(ruleId)) continue
     const metadata = ruleMetadata(ruleId)
     if (!metadata) continue
     incomplete.push({
@@ -309,24 +352,32 @@ function toPageAudit(
     url,
     engine: 'jsdom',
     violations,
-    incomplete: incomplete.sort((a, b) => a.ruleId.localeCompare(b.ruleId)),
-    passes: results.passes
-      .map((result) => result.id)
-      .filter((ruleId) => !blind.has(ruleId))
-      .sort(),
+    incomplete: incomplete.sort(byRuleId),
+    passes: passes.sort(byRuleId),
+    inapplicable: inapplicable.sort(byRuleId),
     durationMs,
   }
 }
 
-function toFinding(result: Result): Finding {
+function byRuleId(a: RuleOutcome, b: RuleOutcome): number {
+  return a.ruleId.localeCompare(b.ruleId)
+}
+
+function toOutcome(result: Result): RuleOutcome {
   return {
     ruleId: result.id,
-    impact: result.impact ?? null,
     help: result.help,
     helpUrl: result.helpUrl,
     successCriteria: successCriteria(result.tags),
     enClauses: enClauses(result.tags),
     tags: result.tags,
+  }
+}
+
+function toFinding(result: Result): Finding {
+  return {
+    ...toOutcome(result),
+    impact: result.impact ?? null,
     nodes: result.nodes.map(toFindingNode),
   }
 }

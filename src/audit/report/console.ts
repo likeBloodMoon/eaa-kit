@@ -33,7 +33,7 @@ export function formatConsoleReport(
   options: ConsoleReportOptions = {},
 ): string {
   const ctx = context(options)
-  const lines: string[] = ['', headerLine(audits, ctx), '']
+  const lines: string[] = ['', ...headerLines(audits, ctx), '']
 
   for (const audit of audits) {
     lines.push(...pageSection(audit, ctx))
@@ -112,13 +112,19 @@ function render(ctx: Context, segments: Segment[]): string {
   return parts.join('')
 }
 
-function headerLine(audits: readonly PageAudit[], ctx: Context): string {
+function headerLines(audits: readonly PageAudit[], ctx: Context): string[] {
   const engine = audits[0]?.engine ?? 'jsdom'
   const pageCount = `${audits.length} ${plural(audits.length, 'page')}`
-  return render(ctx, [
-    { text: 'eaa-kit audit', paint: ctx.c.bold },
-    { text: ` ${pageCount} · ${engine} (browserless)`, paint: ctx.c.dim },
-  ])
+  return [
+    render(ctx, [
+      { text: 'eaa-kit audit', paint: ctx.c.bold },
+      { text: ` ${pageCount} · ${engine} (browserless)`, paint: ctx.c.dim },
+    ]),
+    // "Not applicable" reads like good news unless it is spelled out.
+    render(ctx, [
+      { text: 'passed = checked and met · not applicable = nothing to check', paint: ctx.c.dim },
+    ]),
+  ]
 }
 
 function pageSection(audit: PageAudit, ctx: Context): string[] {
@@ -150,17 +156,35 @@ function pageSection(audit: PageAudit, ctx: Context): string[] {
   }
 
   if (audit.violations.length === 0) {
-    const evaluated = `${audit.passes.length} ${plural(audit.passes.length, 'rule')} evaluated`
     lines.push(
       render(ctx, [
         { text: `  ${ctx.symbol('clean')} `, paint: ctx.c.green },
-        { text: `no violations, ${evaluated}`, paint: ctx.c.dim },
+        { text: 'no violations', paint: ctx.c.green },
       ]),
     )
   }
 
+  lines.push(coverageLine(audit, ctx))
   lines.push('')
   return lines
+}
+
+/**
+ * What this page's result actually rests on.
+ *
+ * The four counts stay separate on purpose. Only `passed` is evidence that a
+ * criterion was met here; `not applicable` means the rule found nothing to
+ * check, and adding the two together would turn an empty page into a
+ * near-perfect score.
+ */
+function coverageLine(audit: PageAudit, ctx: Context): string {
+  const blind = audit.incomplete.filter((finding) => finding.reason === 'engine-limitation').length
+  const review = audit.incomplete.length - blind
+  const parts = [`${audit.passes.length} passed`, `${audit.inapplicable.length} not applicable`]
+  if (review > 0) parts.push(`${review} to review`)
+  if (blind > 0) parts.push(`${blind} not evaluated`)
+
+  return render(ctx, [{ text: `    ${parts.join(' · ')}`, paint: ctx.c.dim }])
 }
 
 function violationLines(finding: Finding, ctx: Context): string[] {
