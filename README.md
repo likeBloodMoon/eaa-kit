@@ -243,7 +243,7 @@ path, findings by rule id, and the rule index by key, so two reports diff cleanl
   "schemaVersion": 1,
   "tool": {
     "name": "eaa-kit",
-    "version": "0.0.0",
+    "version": "0.1.0",
     "axeCore": "4.13.0"
   },
   "generatedAt": "2026-08-20T18:00:00.000Z",   // ISO 8601, UTC
@@ -329,7 +329,7 @@ Real results from the fixture run above, abbreviated:
   "version": "2.1.0",
   "runs": [
     {
-      "tool": { "driver": { "name": "eaa-kit", "version": "0.0.0", "rules": [ /* 63 rules */ ] } },
+      "tool": { "driver": { "name": "eaa-kit", "version": "0.1.0", "rules": [ /* 63 rules */ ] } },
       "results": [
         {
           "ruleId": "html-has-lang",
@@ -426,7 +426,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - uses: OWNER/eaa-kit@v1        # replace OWNER with this repository's owner
+      - uses: likeBloodMoon/eaa-kit@v1
         with:
           install-command: npm ci
           build-command: npm run build

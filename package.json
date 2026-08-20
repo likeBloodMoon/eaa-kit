@@ -1,9 +1,17 @@
 {
   "name": "eaa-kit",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Build-time WCAG 2.2 AA auditor and EU accessibility statement generator for static sites (EAA / BFSG / BaFG, DACH-localised).",
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/likeBloodMoon/eaa-kit.git"
+  },
+  "homepage": "https://github.com/likeBloodMoon/eaa-kit#readme",
+  "bugs": {
+    "url": "https://github.com/likeBloodMoon/eaa-kit/issues"
+  },
   "keywords": [
     "accessibility",
     "a11y",
@@ -68,5 +76,9 @@
     "tsdown": "^0.22.14",
     "typescript": "^7.0.2",
     "vitest": "^4.1.11"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }

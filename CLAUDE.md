@@ -59,8 +59,8 @@ import { defineConfig } from 'eaa-kit'
 
 export default defineConfig({
   site: {
-    name: "Musterbetrieb",
-    url: 'https://example.com',
+    name: 'Musterbetrieb',
+    url: 'https://example.at',
     locale: 'de-AT',
   },
   provider: {
@@ -136,10 +136,11 @@ examples/
 
 ## Dogfood targets
 
-Run every audit change against these real sites before committing:
+Run every audit change against at least one real, deployed build before committing —
+not just the fixtures. The current rotation is a restaurant site, a booking site and a
+personal site.
 
-- `example.com` (Astro, restaurant)
-- `example.org` (barbershop booking)
-- `example.net` (own site)
-
-Their audit output becomes the `examples/` folder and the README screenshots.
+Keep the specific domains out of this repository. It is public, and naming a client
+alongside their site's accessibility defects is the client's call to make, not a detail
+to leave lying in a config file. Their audit output is likewise not `examples/` material
+without asking first.

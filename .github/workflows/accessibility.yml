@@ -28,7 +28,7 @@ jobs:
           node-version: 22
 
       # In your own repository this becomes:
-      #   uses: OWNER/eaa-kit@v1
+      #   uses: likeBloodMoon/eaa-kit@v1
       - uses: ./
         with:
           install-command: npm ci
