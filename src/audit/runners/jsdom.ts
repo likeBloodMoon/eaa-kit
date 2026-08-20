@@ -263,8 +263,9 @@ function runOptions(tags: readonly string[]): RunOptions {
     resultTypes: ['violations', 'incomplete'],
     // axe-core preloads stylesheets and media metadata for a handful of rules.
     // Nothing is ever fetched here, so each of those rules instead burns its
-    // full 10s timeout: example.com took 10.4s with preload on and 654ms with it
-    // off, for identical findings. The affected rules are blind to us anyway.
+    // full 10s timeout: a real 300-node page took 10.4s with preload on and
+    // 654ms with it off, for identical findings. The affected rules are blind
+    // to us anyway.
     preload: false,
   }
 }

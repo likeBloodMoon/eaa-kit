@@ -28,47 +28,65 @@ Node 20 or newer.
 eaa-kit audit [dir]              # dir defaults to ./dist
 ```
 
-Real output, auditing a 4-page Astro build:
+Output from the test fixtures in this repository, which carry known violations:
 
 ```
-eaa-kit audit 4 pages · jsdom (browserless)
+eaa-kit audit 5 pages · jsdom (browserless)
 passed = checked and met · not applicable = nothing to check
 
-404.html
+about/index.html
   ✓ no violations
-    17 passed · 41 not applicable · 5 not evaluated
+    6 passed · 53 not applicable · 4 not evaluated
 
-datenschutz/index.html
+blog/post-1.html
   ✓ no violations
-    19 passed · 39 not applicable · 5 not evaluated
+    4 passed · 55 not applicable · 4 not evaluated
 
-impressum/index.html
+drafts/draft.html
   ✓ no violations
-    19 passed · 39 not applicable · 5 not evaluated
+    4 passed · 55 not applicable · 4 not evaluated
 
 index.html
+  ✗ image-alt critical, WCAG 1.1.1
+      Images must have alternative text
+      img
+        <img src="/assets/logo.svg">
+  ✗ html-has-lang serious, WCAG 3.1.1
+      <html> element must have a lang attribute
+      html
+        <html><head> <title>Startseite</title> </head> <body> <img src="/assets…
+  ✗ link-name serious, WCAG 2.4.4 4.1.2
+      Links must have discernible text
+      a
+        <a href="/about/"></a>
+  ? bypass needs manual review, WCAG 2.4.1
+    3 passed · 51 not applicable · 1 to review · 5 not evaluated
+
+legacy.htm
   ✓ no violations
-    22 passed · 35 not applicable · 6 not evaluated
+    4 passed · 55 not applicable · 4 not evaluated
 
 Summary
-  No violations across 4 pages.
+  3 violations on 1 of 5 pages (3 elements)
+  3 at or above serious (--fail-on serious)
+  1 rule needs manual review
 
 Not evaluated
   This engine reached no verdict on these.
   They are never reported as passing.
-  · color-contrast 4 pages, WCAG 1.4.3
+  · color-contrast 5 pages, WCAG 1.4.3
       needs rendered foreground and background colours
-  · link-in-text-block 4 pages, WCAG 1.4.1
+  · link-in-text-block 5 pages, WCAG 1.4.1
       needs rendered colours and text decoration
-  · no-autoplay-audio 4 pages, WCAG 1.4.2
+  · no-autoplay-audio 5 pages, WCAG 1.4.2
       needs media duration, and media is never loaded
-  · scrollable-region-focusable 4 pages, WCAG 2.1.1 2.1.3
+  · scrollable-region-focusable 5 pages, WCAG 2.1.1 2.1.3
       needs computed overflow
-  · target-size 4 pages, WCAG 2.5.8
+  · target-size 1 page, WCAG 2.5.8
       needs element geometry; every box is 0x0 without layout
-  · avoid-inline-spacing 1 page, WCAG 1.4.12
-      needs computed spacing after the full cascade
 ```
+
+That run exits 1.
 
 The report goes to stdout and progress goes to stderr, so it can be piped without the
 chatter coming along.
@@ -90,32 +108,24 @@ replace the defaults rather than adding to them.
 #### `--fail-on <impact>`
 
 `minor`, `moderate`, `serious` (default) or `critical`. Any violation at or above the
-level fails the run. The same audit against the deployed site rather than the local build:
+level fails the run.
+
+Violations below the threshold are still reported; they just do not fail the build, and
+the summary says why rather than leaving you to guess:
 
 ```
-index.html
-  ✗ frame-title serious, WCAG 4.1.2
-      Frames must have an accessible name
-      iframe
-        <iframe src="https://maps.example.c..." loading="lazy" referrerpolicy="no…
-  ✗ link-name serious, WCAG 2.4.4 4.1.2
-      Links must have discernible text
-      .social-link
-        <a href="https://social.example.com/profile" class="social-link" target="_bl…
-  ? video-caption needs manual review, WCAG 1.2.2
-    18 passed · 38 not applicable · 1 to review · 5 not evaluated
-
 Summary
-  2 violations on 1 of 1 page (2 elements)
-  2 at or above serious (--fail-on serious)
+  1 violation on 1 of 1 page (1 element)
+  none at or above serious (--fail-on serious), so this run passes
+```
+
+Raising the threshold on the run shown above narrows what counts:
+
+```
+Summary
+  3 violations on 1 of 5 pages (3 elements)
+  1 at or above critical (--fail-on critical)
   1 rule needs manual review
-```
-
-That run exits 1. With `--fail-on critical` it exits 0, and the summary says so rather
-than leaving you to guess why a report full of findings passed:
-
-```
-  none at or above critical (--fail-on critical), so this run passes
 ```
 
 A violation axe-core did not classify counts at every threshold. A missing impact is a gap
@@ -312,7 +322,7 @@ When `error` is non-null, all four category arrays on that page are empty.
 `--format sarif` emits a SARIF 2.1.0 log for GitHub code scanning. See
 [GitHub Actions](#github-actions) for wiring it up.
 
-Real results from the audit shown above, abbreviated:
+Real results from the fixture run above, abbreviated:
 
 ```jsonc
 {
@@ -322,30 +332,45 @@ Real results from the audit shown above, abbreviated:
       "tool": { "driver": { "name": "eaa-kit", "version": "0.0.0", "rules": [ /* 63 rules */ ] } },
       "results": [
         {
-          "ruleId": "frame-title",
-          "ruleIndex": 33,
+          "ruleId": "html-has-lang",
+          "ruleIndex": 35,
           "level": "error",
           "kind": "fail",
-          "message": { "text": "Frames must have an accessible name. Element: iframe" },
+          "message": { "text": "<html> element must have a lang attribute. Element: html" },
           "locations": [
-            { "physicalLocation": { "artifactLocation": { "uri": "index.html" } } }
+            {
+              "physicalLocation": {
+                "artifactLocation": { "uri": "tests/fixtures/site/index.html" }
+              }
+            }
           ],
-          "partialFingerprints": { "eaaKit/v1": "d2662067eee40735" }
+          "partialFingerprints": { "eaaKit/v1": "4c2a13ab4c8c0365" }
         },
         {
-          "ruleId": "link-name",
-          "ruleIndex": 43,
+          "ruleId": "image-alt",
+          "ruleIndex": 38,
           "level": "error",
           "kind": "fail",
-          "message": { "text": "Links must have discernible text. Element: .social-link" },
+          "message": { "text": "Images must have alternative text. Element: img" },
           "locations": [
-            { "physicalLocation": { "artifactLocation": { "uri": "index.html" } } }
+            {
+              "physicalLocation": {
+                "artifactLocation": { "uri": "tests/fixtures/site/index.html" }
+              }
+            }
           ],
-          "partialFingerprints": { "eaaKit/v1": "47b14044a8b899a8" }
+          "partialFingerprints": { "eaaKit/v1": "f0e17d2582e9a5b3" }
         }
       ],
       "invocations": [{ "executionSuccessful": true, "toolExecutionNotifications": [] }],
-      "properties": { "engine": "jsdom", "pages": 1, "needsReview": 1, "notEvaluated": 5 }
+      "properties": {
+        "engine": "jsdom",
+        "pages": 5,
+        "needsReview": 1,
+        "notEvaluated": 21,
+        "notEvaluatedRules": ["color-contrast", "link-in-text-block", "no-autoplay-audio",
+                              "scrollable-region-focusable", "target-size"]
+      }
     }
   ]
 }
