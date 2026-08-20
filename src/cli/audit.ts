@@ -1,5 +1,6 @@
 import pc from 'picocolors'
 import { BuildDirectoryError, collectPages } from '../audit/collect.ts'
+import { countAtOrAbove, DEFAULT_FAIL_ON, type ImpactLevel } from '../audit/impact.ts'
 import { formatConsoleReport } from '../audit/report/console.ts'
 import { type PageAudit, runJsdomAudit } from '../audit/runners/jsdom.ts'
 
@@ -7,11 +8,18 @@ export interface AuditCommandOptions {
   include?: string[]
   exclude?: string[]
   baseUrl?: string
+  /** Lowest impact that fails the run. Defaults to 'serious'. */
+  failOn?: ImpactLevel
+  /** Per-page timeout handed to the runner. */
+  timeoutMs?: number
 }
 
 export interface AuditCommandResult {
   audits: PageAudit[]
-  /** 0 clean, 1 violations found, 2 the audit could not run. */
+  /**
+   * 0 clean, 1 violations at or above the --fail-on threshold, 2 the audit
+   * could not run or could not finish.
+   */
   exitCode: number
 }
 
@@ -53,11 +61,22 @@ export async function runAuditCommand(
 
   const audits = await runJsdomAudit(pages, {
     ...(options.baseUrl ? { baseUrl: options.baseUrl } : {}),
+    ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
   })
 
-  process.stdout.write(`${formatConsoleReport(audits, { dir })}\n`)
+  const failOn = options.failOn ?? DEFAULT_FAIL_ON
+  process.stdout.write(`${formatConsoleReport(audits, { dir, failOn })}\n`)
 
-  const hasViolations = audits.some((audit) => audit.violations.length > 0)
-  const hasErrors = audits.some((audit) => audit.error)
-  return { audits, exitCode: hasViolations || hasErrors ? 1 : 0 }
+  // A page that could not be audited is not a clean page. Exiting 0 here would
+  // hand back a pass for markup nothing ever looked at, so it is reported as a
+  // failed run rather than as a verdict.
+  const unaudited = audits.filter((audit) => audit.error)
+  if (unaudited.length > 0) {
+    process.stderr.write(
+      `${pc.red('error')} ${unaudited.length} of ${audits.length} pages could not be audited\n`,
+    )
+    return { audits, exitCode: 2 }
+  }
+
+  return { audits, exitCode: countAtOrAbove(audits, failOn) > 0 ? 1 : 0 }
 }

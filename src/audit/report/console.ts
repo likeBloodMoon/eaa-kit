@@ -1,4 +1,5 @@
 import pc from 'picocolors'
+import { countAtOrAbove, DEFAULT_FAIL_ON, IMPACT_LEVELS, type ImpactLevel } from '../impact.ts'
 import type { Finding, IncompleteFinding, PageAudit } from '../runners/jsdom.ts'
 
 export interface ConsoleReportOptions {
@@ -10,9 +11,10 @@ export interface ConsoleReportOptions {
   color?: boolean
   /** Elements listed per rule before the rest are summarised. */
   maxNodes?: number
+  /** Threshold the run will be judged against, echoed in the summary. */
+  failOn?: ImpactLevel
 }
 
-const IMPACT_ORDER = ['critical', 'serious', 'moderate', 'minor'] as const
 const DEFAULT_MAX_NODES = 3
 const MIN_WIDTH = 40
 const MAX_WIDTH = 100
@@ -51,6 +53,7 @@ interface Segment {
 interface Context {
   width: number
   maxNodes: number
+  failOn: ImpactLevel
   c: ReturnType<typeof pc.createColors>
   symbol: (kind: 'violation' | 'review' | 'blind' | 'clean' | 'error') => string
 }
@@ -64,6 +67,7 @@ function context(options: ConsoleReportOptions): Context {
   return {
     width,
     maxNodes: options.maxNodes ?? DEFAULT_MAX_NODES,
+    failOn: options.failOn ?? DEFAULT_FAIL_ON,
     c,
     symbol: (kind) => {
       switch (kind) {
@@ -241,6 +245,7 @@ function summary(audits: readonly PageAudit[], ctx: Context): string[] {
         { text: ` (${elementCount} ${plural(elementCount, 'element')})`, paint: ctx.c.dim },
       ]),
     )
+    lines.push(thresholdLine(audits, ctx))
   }
 
   if (reviewCount > 0) {
@@ -267,6 +272,31 @@ function summary(audits: readonly PageAudit[], ctx: Context): string[] {
 
   lines.push(...blindSection(audits, ctx))
   return lines
+}
+
+/**
+ * Why the run passed or failed. Without this, a build that exits 0 while the
+ * report lists violations looks like a bug rather than a threshold choice.
+ */
+function thresholdLine(audits: readonly PageAudit[], ctx: Context): string {
+  const failOn = ctx.failOn
+  const failing = countAtOrAbove(audits, failOn)
+
+  if (failing === 0) {
+    return render(ctx, [
+      {
+        text: `  none at or above ${failOn} (--fail-on ${failOn}), so this run passes`,
+        paint: ctx.c.green,
+      },
+    ])
+  }
+
+  return render(ctx, [
+    {
+      text: `  ${failing} at or above ${failOn} (--fail-on ${failOn})`,
+      paint: ctx.c.red,
+    },
+  ])
 }
 
 /**
@@ -324,9 +354,10 @@ function sortByImpact(findings: readonly Finding[]): Finding[] {
   })
 }
 
+/** Most severe first; anything axe-core left unclassified sorts last. */
 function impactRank(finding: Finding): number {
-  const index = IMPACT_ORDER.indexOf(finding.impact as (typeof IMPACT_ORDER)[number])
-  return index === -1 ? IMPACT_ORDER.length : index
+  const index = IMPACT_LEVELS.indexOf(finding.impact as ImpactLevel)
+  return index === -1 ? IMPACT_LEVELS.length : IMPACT_LEVELS.length - index
 }
 
 function criteria(finding: Finding): string {
