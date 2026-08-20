@@ -1,8 +1,19 @@
+import { mkdir, writeFile } from 'node:fs/promises'
+import path from 'node:path'
 import pc from 'picocolors'
 import { BuildDirectoryError, collectPages } from '../audit/collect.ts'
 import { countAtOrAbove, DEFAULT_FAIL_ON, type ImpactLevel } from '../audit/impact.ts'
 import { formatConsoleReport } from '../audit/report/console.ts'
+import { buildJsonReport, serialiseJsonReport } from '../audit/report/json.ts'
 import { type PageAudit, runJsdomAudit } from '../audit/runners/jsdom.ts'
+
+export const OUTPUT_FORMATS = ['console', 'json'] as const
+
+export type OutputFormat = (typeof OUTPUT_FORMATS)[number]
+
+export function isOutputFormat(value: string): value is OutputFormat {
+  return (OUTPUT_FORMATS as readonly string[]).includes(value)
+}
 
 export interface AuditCommandOptions {
   include?: string[]
@@ -12,6 +23,10 @@ export interface AuditCommandOptions {
   failOn?: ImpactLevel
   /** Per-page timeout handed to the runner. */
   timeoutMs?: number
+  /** What to emit. Defaults to the human-readable console report. */
+  format?: OutputFormat
+  /** Write the report here instead of stdout. Parent directories are created. */
+  output?: string
 }
 
 export interface AuditCommandResult {
@@ -65,7 +80,7 @@ export async function runAuditCommand(
   })
 
   const failOn = options.failOn ?? DEFAULT_FAIL_ON
-  process.stdout.write(`${formatConsoleReport(audits, { dir, failOn })}\n`)
+  await emit(audits, dir, failOn, options)
 
   // A page that could not be audited is not a clean page. Exiting 0 here would
   // hand back a pass for markup nothing ever looked at, so it is reported as a
@@ -79,4 +94,40 @@ export async function runAuditCommand(
   }
 
   return { audits, exitCode: countAtOrAbove(audits, failOn) > 0 ? 1 : 0 }
+}
+
+/**
+ * Emit the chosen format, to a file when --output is given and to stdout
+ * otherwise. Colour is dropped when writing to a file, since escape codes in a
+ * saved report are noise.
+ */
+async function emit(
+  audits: readonly PageAudit[],
+  dir: string,
+  failOn: ImpactLevel,
+  options: AuditCommandOptions,
+): Promise<void> {
+  const format = options.format ?? 'console'
+  const toFile = typeof options.output === 'string'
+
+  const body =
+    format === 'json'
+      ? serialiseJsonReport(
+          buildJsonReport(audits, {
+            directory: dir,
+            failOn,
+            ...(options.baseUrl ? { baseUrl: options.baseUrl } : {}),
+          }),
+        )
+      : `${formatConsoleReport(audits, { dir, failOn, ...(toFile ? { color: false } : {}) })}\n`
+
+  if (!options.output) {
+    process.stdout.write(body)
+    return
+  }
+
+  const target = path.resolve(options.output)
+  await mkdir(path.dirname(target), { recursive: true })
+  await writeFile(target, body, 'utf8')
+  process.stderr.write(pc.dim(`Report written to ${options.output}\n`))
 }

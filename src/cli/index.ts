@@ -1,10 +1,8 @@
 #!/usr/bin/env node
-import { createRequire } from 'node:module'
 import { Command, InvalidArgumentError } from 'commander'
 import { DEFAULT_FAIL_ON, IMPACT_LEVELS, type ImpactLevel, isImpactLevel } from '../audit/impact.ts'
-import { runAuditCommand } from './audit.ts'
-
-const { version } = createRequire(import.meta.url)('../../package.json') as { version: string }
+import { TOOL_VERSION } from '../version.ts'
+import { isOutputFormat, OUTPUT_FORMATS, type OutputFormat, runAuditCommand } from './audit.ts'
 
 const program = new Command()
 
@@ -18,7 +16,7 @@ program
     'WCAG 2.2 AA auditor and EU accessibility statement generator for static sites.\n' +
       'Not legal advice.',
   )
-  .version(version, '-v, --version')
+  .version(TOOL_VERSION, '-v, --version')
 
 program
   .command('audit')
@@ -33,12 +31,21 @@ program
     parseImpact,
     DEFAULT_FAIL_ON,
   )
+  .option(
+    '--format <format>',
+    `output format (${OUTPUT_FORMATS.join('|')})`,
+    parseFormat,
+    'console',
+  )
+  .option('--output <path>', 'write the report to a file instead of stdout')
   .action(async (dir: string, options: Record<string, unknown>) => {
     const { exitCode } = await runAuditCommand(dir, {
       ...(Array.isArray(options['include']) ? { include: options['include'] as string[] } : {}),
       ...(Array.isArray(options['exclude']) ? { exclude: options['exclude'] as string[] } : {}),
       ...(typeof options['baseUrl'] === 'string' ? { baseUrl: options['baseUrl'] } : {}),
       failOn: options['failOn'] as ImpactLevel,
+      format: options['format'] as OutputFormat,
+      ...(typeof options['output'] === 'string' ? { output: options['output'] } : {}),
     })
     process.exitCode = exitCode
   })
@@ -46,6 +53,13 @@ program
 function parseImpact(value: string): ImpactLevel {
   if (!isImpactLevel(value)) {
     throw new InvalidArgumentError(`expected one of ${IMPACT_LEVELS.join(', ')}`)
+  }
+  return value
+}
+
+function parseFormat(value: string): OutputFormat {
+  if (!isOutputFormat(value)) {
+    throw new InvalidArgumentError(`expected one of ${OUTPUT_FORMATS.join(', ')}`)
   }
   return value
 }

@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -90,6 +90,73 @@ describe('--fail-on', () => {
       expect(exitCode).toBe(1)
     }
   }, 120_000)
+})
+
+describe('--format and --output', () => {
+  it('writes a JSON document to stdout with --format json', async () => {
+    await runAuditCommand(IMPACTS, { include: ['critical.html'], format: 'json' })
+
+    const document = JSON.parse(stdout.join(''))
+    expect(document.schemaVersion).toBe(1)
+    expect(document.pages[0].path).toBe('critical.html')
+    expect(stdout.join('')).not.toContain('eaa-kit audit')
+  }, 60_000)
+
+  it('writes the report to a file with --output, leaving stdout empty', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'eaa-kit-out-'))
+    const target = path.join(dir, 'nested', 'report.json')
+    try {
+      const { exitCode } = await runAuditCommand(IMPACTS, {
+        include: ['critical.html'],
+        format: 'json',
+        output: target,
+      })
+
+      const written = JSON.parse(await readFile(target, 'utf8'))
+      expect(written.schemaVersion).toBe(1)
+      expect(written.summary.violations).toBe(1)
+      expect(stdout.join('')).toBe('')
+      expect(stderr.join('')).toContain('Report written to')
+      // The threshold still decides the exit code, whatever the format.
+      expect(exitCode).toBe(1)
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  }, 60_000)
+
+  it('creates missing parent directories for --output', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'eaa-kit-out-'))
+    const target = path.join(dir, 'a', 'b', 'c', 'report.json')
+    try {
+      await runAuditCommand(IMPACTS, { include: ['minor.html'], format: 'json', output: target })
+
+      await expect(readFile(target, 'utf8')).resolves.toContain('"schemaVersion"')
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  }, 60_000)
+
+  it('writes the console report to a file without colour codes', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'eaa-kit-out-'))
+    const target = path.join(dir, 'report.txt')
+    try {
+      await runAuditCommand(IMPACTS, { include: ['critical.html'], output: target })
+
+      const written = await readFile(target, 'utf8')
+      expect(written).toContain('image-alt')
+      // biome-ignore lint/suspicious/noControlCharactersInRegex: checking for ANSI
+      expect(written).not.toMatch(/\[/)
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  }, 60_000)
+
+  it('defaults to the console report', async () => {
+    await runAuditCommand(IMPACTS, { include: ['critical.html'] })
+
+    expect(stdout.join('')).toContain('eaa-kit audit')
+    expect(() => JSON.parse(stdout.join(''))).toThrow()
+  }, 60_000)
 })
 
 describe('runAuditCommand', () => {
