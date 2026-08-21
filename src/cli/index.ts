@@ -45,6 +45,7 @@ program
     'console',
   )
   .option('--output <path>', 'write the report to a file instead of stdout')
+  .option('--browser', 'audit in real Chromium, covering the rules jsdom cannot evaluate')
   .action(async (dir: string, options: Record<string, unknown>) => {
     const { exitCode } = await runAuditCommand(dir, {
       ...(Array.isArray(options['include']) ? { include: options['include'] as string[] } : {}),
@@ -53,6 +54,7 @@ program
       failOn: options['failOn'] as ImpactLevel,
       format: options['format'] as OutputFormat,
       ...(typeof options['output'] === 'string' ? { output: options['output'] } : {}),
+      ...(options['browser'] === true ? { browser: true } : {}),
     })
     process.exitCode = exitCode
   })
@@ -74,6 +76,7 @@ program
       ...(options['lang'] ? { locale: options['lang'] as StatementLocale } : {}),
       ...(options['country'] ? { country: options['country'] as Country } : {}),
       ...(typeof options['output'] === 'string' ? { output: options['output'] } : {}),
+      ...(options['browser'] === true ? { browser: true } : {}),
     })
     process.exitCode = exitCode
   })

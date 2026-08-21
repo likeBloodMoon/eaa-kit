@@ -106,6 +106,7 @@ chatter coming along.
 | `--fail-on <impact>` | `serious` | Lowest impact that fails the run |
 | `--format <format>` | `console` | `console`, `json`, or `sarif` |
 | `--output <path>` | stdout | Write the report to a file; parent directories are created |
+| `--browser` | off | Audit in real Chromium instead of jsdom |
 
 Dot directories such as build caches are skipped by default. `--include` and `--exclude`
 replace the defaults rather than adding to them.
@@ -308,8 +309,48 @@ Two further consequences worth knowing:
   a small number of passed rules to match.
 - **Content inside iframes is not audited**, since nothing is fetched.
 
-A `--browser` mode using Playwright as an optional peer dependency is planned for the
-rules that need a real rendering engine.
+`--browser` closes that gap; see below.
+
+## Browser mode
+
+```bash
+pnpm add -D playwright          # optional peer dependency
+npx playwright install chromium # the browser binary is separate
+eaa-kit audit ./dist --browser
+```
+
+Same audit, same report shape, in real Chromium. The difference is what it can decide.
+On a page whose only defect is `#cccccc` text on white:
+
+```
+# jsdom
+  ✓ no violations
+    6 passed · 52 not applicable · 5 not evaluated
+
+# --browser
+  ✗ color-contrast serious, WCAG 1.4.3
+    8 passed · 55 not applicable
+```
+
+Nothing is reported as unevaluated in browser mode, because with layout and CSS there is
+no reason to. Both engines cover the same rule set, so the two reports compare directly.
+
+Three things it does differently, all deliberate:
+
+1. **The build is served over loopback**, not opened as `file://` URLs. Root-absolute asset
+   paths — `/assets/site.css`, which every static site generator emits — do not resolve
+   under `file://`. Measured on a page whose stylesheet sets `color: #ccc`: the computed
+   colour is the default black over `file://` and the real value over `http://`. Auditing
+   contrast against an unstyled page would be worse than not auditing it.
+2. **Your JavaScript runs.** Client-rendered content is audited as a visitor sees it, which
+   is the other half of what the browserless engine cannot reach.
+3. **Content-Security-Policy is bypassed** for the audited page, or a site that sets one
+   would refuse the injected axe-core and every page would come back unaudited.
+
+Playwright stays an optional peer dependency: the default path never downloads a browser,
+and `--browser` without it exits 2 with the two commands above rather than a stack trace.
+Pages are rendered at 1280×720, which is what `target-size` and anything else
+layout-dependent is measured against.
 
 ## The four result categories
 

@@ -118,11 +118,14 @@ function render(ctx: Context, segments: Segment[]): string {
 
 function headerLines(audits: readonly PageAudit[], ctx: Context): string[] {
   const engine = audits[0]?.engine ?? 'jsdom'
+  // The label has to follow the engine: calling a Chromium run "browserless"
+  // was the first thing wrong with the browser mode's output.
+  const engineLabel = engine === 'browser' ? 'chromium' : 'jsdom (browserless)'
   const pageCount = `${audits.length} ${plural(audits.length, 'page')}`
   return [
     render(ctx, [
       { text: 'eaa-kit audit', paint: ctx.c.bold },
-      { text: ` ${pageCount} · ${engine} (browserless)`, paint: ctx.c.dim },
+      { text: ` ${pageCount} · ${engineLabel}`, paint: ctx.c.dim },
     ]),
     // "Not applicable" reads like good news unless it is spelled out.
     render(ctx, [

@@ -33,6 +33,10 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # Browser mode is covered by the test suite, so the runner needs the
+      # binary. Playwright itself is a devDependency; the browser is not.
+      - run: npx playwright install --with-deps chromium
+
       # The published artefact is the built one, so it gets the same checks the
       # rest of CI runs before it goes out.
       - run: pnpm lint

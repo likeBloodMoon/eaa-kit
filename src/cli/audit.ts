@@ -7,6 +7,7 @@ import { formatConsoleReport } from '../audit/report/console.ts'
 import { buildJsonReport, serialiseJsonReport } from '../audit/report/json.ts'
 import { buildSarifReport, serialiseSarifReport } from '../audit/report/sarif.ts'
 import { type PageAudit, runJsdomAudit } from '../audit/runners/jsdom.ts'
+import { BrowserUnavailableError, runBrowserAudit } from '../audit/runners/playwright.ts'
 
 export const OUTPUT_FORMATS = ['console', 'json', 'sarif'] as const
 
@@ -28,6 +29,8 @@ export interface AuditCommandOptions {
   format?: OutputFormat
   /** Write the report here instead of stdout. Parent directories are created. */
   output?: string
+  /** Audit in real Chromium instead of jsdom. Needs the playwright peer. */
+  browser?: boolean
 }
 
 export interface AuditCommandResult {
@@ -71,14 +74,31 @@ export async function runAuditCommand(
     return { audits: [], exitCode: 2 }
   }
 
+  const engineNote = options.browser ? ' with Chromium' : ''
   process.stderr.write(
-    pc.dim(`Auditing ${pages.length} ${pages.length === 1 ? 'page' : 'pages'} in ${dir}…\n`),
+    pc.dim(
+      `Auditing ${pages.length} ${pages.length === 1 ? 'page' : 'pages'} in ${dir}${engineNote}…\n`,
+    ),
   )
 
-  const audits = await runJsdomAudit(pages, {
+  const runnerOptions = {
     ...(options.baseUrl ? { baseUrl: options.baseUrl } : {}),
     ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
-  })
+  }
+
+  let audits: PageAudit[]
+  try {
+    audits = options.browser
+      ? await runBrowserAudit(dir, pages, runnerOptions)
+      : await runJsdomAudit(pages, runnerOptions)
+  } catch (cause) {
+    // Playwright missing is a setup problem with a specific fix, not a crash.
+    if (cause instanceof BrowserUnavailableError) {
+      process.stderr.write(`${pc.red('error')} ${cause.message}\n`)
+      return { audits: [], exitCode: 2 }
+    }
+    throw cause
+  }
 
   const failOn = options.failOn ?? DEFAULT_FAIL_ON
   await emit(audits, dir, failOn, options)
