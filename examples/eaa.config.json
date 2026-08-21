@@ -1,0 +1,31 @@
+{
+  "site": {
+    "name": "Musterbetrieb",
+    "url": "https://example.at",
+    "locale": "de-AT"
+  },
+  "provider": {
+    "legalName": "Musterbetrieb GmbH",
+    "email": "office@example.at",
+    "phone": "+43 1 2345678",
+    "address": "Hauptstraße 1, 1010 Wien"
+  },
+  "compliance": {
+    "status": "partially-compliant",
+    "knownIssues": [
+      {
+        "description": "Die eingebettete Karte hat keinen Titel.",
+        "successCriteria": ["4.1.2"],
+        "en301549": ["9.4.1.2"],
+        "reason": "fix-planned",
+        "remedyBy": "2026-12-31"
+      },
+      "Ältere PDF-Dokumente sind nicht barrierefrei."
+    ],
+    "assessedOn": "2026-08-21",
+    "assessmentMethod": "self-assessment"
+  },
+  "enforcement": {
+    "country": "AT"
+  }
+}

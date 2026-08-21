@@ -10,7 +10,9 @@ the DACH region who have to comply with the European Accessibility Act (in force
 npx eaa-kit audit ./dist
 ```
 
-An accessibility statement generator (`eaa-kit statement`) is in progress and not usable yet.
+```bash
+npx eaa-kit statement             # Barrierefreiheitserklärung from eaa.config
+```
 
 > **Not legal advice.** eaa-kit reports what an automated engine can and cannot determine
 > about your markup. Automated testing catches a minority of accessibility barriers; it is
@@ -163,6 +165,116 @@ eaa-kit audit ./dist --format sarif --output a11y.sarif   # SARIF, for code scan
 A page that could not be audited exits `2` rather than `0`. It is neither clean nor
 failing, and reporting a pass for markup nothing read would be worse than reporting a
 broken run.
+
+## statement
+
+Generates an accessibility statement (Barrierefreiheitserklärung) from a config file, in
+German or English, with the statute and supervisory body of the country you name.
+
+```bash
+eaa-kit statement                                   # to stdout
+eaa-kit statement --output src/content/a11y.md      # to a file
+eaa-kit statement --lang en --country DE            # override both
+```
+
+| Flag | Default | Meaning |
+| --- | --- | --- |
+| `--config <path>` | searched for | Path to the config file |
+| `--lang <locale>` | from `site.locale` | `de` or `en` |
+| `--country <code>` | from `enforcement.country` | `AT` or `DE` |
+| `--output <path>` | stdout | Write to a file; parent directories are created |
+
+Exit codes are `0` when the statement was produced and `2` when it could not be: no
+config, an invalid one, or a country whose template does not exist yet.
+
+### The config file
+
+`eaa.config.ts`, `.mts`, `.js`, `.mjs` or `.json`, found by walking up from the working
+directory. TypeScript configs are read directly — Node strips the types, so there is no
+build step and no loader dependency.
+
+```ts
+import { defineConfig } from 'eaa-kit'
+
+export default defineConfig({
+  site: {
+    name: 'Musterbetrieb',
+    url: 'https://example.at',
+    locale: 'de-AT',              // decides the statement language unless --lang is given
+  },
+  provider: {
+    legalName: 'Musterbetrieb GmbH',
+    email: 'office@example.at',   // required: the feedback address the EAA obliges you to offer
+    phone: '+43 1 2345678',       // optional
+    address: 'Hauptstraße 1, 1010 Wien',  // optional
+  },
+  compliance: {
+    status: 'partially-compliant',        // 'compliant' | 'partially-compliant' | 'non-compliant'
+    standard: 'EN 301 549 V3.2.1 (WCAG 2.2 AA)',   // optional, this is the default
+    assessedOn: '2026-08-21',             // ISO date, validated
+    assessmentMethod: 'self-assessment',  // or 'external-audit'
+    knownIssues: [
+      {
+        description: 'Die eingebettete Karte hat keinen Titel.',
+        successCriteria: ['4.1.2'],       // WCAG
+        en301549: ['9.4.1.2'],            // EN 301 549 clauses
+        reason: 'fix-planned',            // or 'disproportionate-burden' | 'out-of-scope'
+        remedyBy: '2026-12-31',
+      },
+      'Ältere PDF-Dokumente sind nicht barrierefrei.',   // shorthand for { description }
+    ],
+  },
+  enforcement: {
+    country: 'AT',   // AT and DE today; CH is not written yet
+  },
+})
+```
+
+A complete example config is at [examples/eaa.config.json](examples/eaa.config.json), and
+the statements it produces are at [examples/statement.de.md](examples/statement.de.md) and
+[examples/statement.en.md](examples/statement.en.md).
+
+### What it produces
+
+```markdown
+# Erklärung zur Barrierefreiheit
+
+Musterbetrieb GmbH ist bemüht, die Website Musterbetrieb im Einklang mit dem
+österreichischen Barrierefreiheitsgesetz (BaFG) barrierefrei zugänglich zu machen. Das
+BaFG setzt die Richtlinie (EU) 2019/882 (European Accessibility Act) in österreichisches
+Recht um.
+
+…
+
+## Nicht barrierefreie Inhalte
+
+- Die eingebettete Karte hat keinen Titel.
+  Betroffene Anforderung: WCAG 4.1.2, EN 301 549 9.4.1.2
+  Grund: die Barriere ist bekannt und wird behoben.
+  Geplante Behebung bis: 31. Dezember 2026
+- Ältere PDF-Dokumente sind nicht barrierefrei.
+
+## Beschwerdeverfahren
+
+Wenn Sie mit unserer Antwort nicht zufrieden sind, können Sie sich an das
+Sozialministeriumservice wenden. …
+```
+
+The `AT` template names the Barrierefreiheitsgesetz and the Sozialministeriumservice; the
+`DE` template names the Barrierefreiheitsstärkungsgesetz and the Marktüberwachungsstelle
+der Länder (MLBF). Both transpose Directive (EU) 2019/882.
+
+### Read it before you publish it
+
+**The generated statement is a draft, not legal advice, and it says so in its own last
+paragraph.** It states what you told it: the status you declared and the barriers you
+listed. eaa-kit cannot check whether those claims are true, and a statement claiming full
+conformance for a site that is not conformant is worse than no statement at all.
+
+Known issues are also not filled in from an audit run. Rule descriptions from axe-core are
+English, and dropping English rule text into a German legal document is not something to
+do behind your back — describe the barriers in your own words, in the language the
+statement is written in.
 
 ## What the browserless engine can and cannot tell you
 

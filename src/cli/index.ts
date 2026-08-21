@@ -1,8 +1,15 @@
 #!/usr/bin/env node
 import { Command, InvalidArgumentError } from 'commander'
 import { DEFAULT_FAIL_ON, IMPACT_LEVELS, type ImpactLevel, isImpactLevel } from '../audit/impact.ts'
+import {
+  COUNTRIES,
+  type Country,
+  STATEMENT_LOCALES,
+  type StatementLocale,
+} from '../config/define.ts'
 import { TOOL_VERSION } from '../version.ts'
 import { isOutputFormat, OUTPUT_FORMATS, type OutputFormat, runAuditCommand } from './audit.ts'
+import { runStatementCommand } from './statement.ts'
 
 const program = new Command()
 
@@ -49,6 +56,42 @@ program
     })
     process.exitCode = exitCode
   })
+
+program
+  .command('statement')
+  .description('Generate an EU accessibility statement from eaa.config')
+  .option('--config <path>', 'path to the config file, otherwise it is searched for')
+  .option('--lang <locale>', `statement language (${STATEMENT_LOCALES.join('|')})`, parseLocale)
+  .option(
+    '--country <code>',
+    `override the country template (${COUNTRIES.join('|')})`,
+    parseCountry,
+  )
+  .option('--output <path>', 'write the statement to a file instead of stdout')
+  .action(async (options: Record<string, unknown>) => {
+    const { exitCode } = await runStatementCommand({
+      ...(typeof options['config'] === 'string' ? { config: options['config'] } : {}),
+      ...(options['lang'] ? { locale: options['lang'] as StatementLocale } : {}),
+      ...(options['country'] ? { country: options['country'] as Country } : {}),
+      ...(typeof options['output'] === 'string' ? { output: options['output'] } : {}),
+    })
+    process.exitCode = exitCode
+  })
+
+function parseLocale(value: string): StatementLocale {
+  if (!(STATEMENT_LOCALES as readonly string[]).includes(value)) {
+    throw new InvalidArgumentError(`expected one of ${STATEMENT_LOCALES.join(', ')}`)
+  }
+  return value as StatementLocale
+}
+
+function parseCountry(value: string): Country {
+  const upper = value.toUpperCase()
+  if (!(COUNTRIES as readonly string[]).includes(upper)) {
+    throw new InvalidArgumentError(`expected one of ${COUNTRIES.join(', ')}`)
+  }
+  return upper as Country
+}
 
 function parseImpact(value: string): ImpactLevel {
   if (!isImpactLevel(value)) {

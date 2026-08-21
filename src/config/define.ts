@@ -39,16 +39,17 @@ const knownIssueObject = z.object({
   remedyBy: z.iso.date().optional(),
 })
 
-/** A bare string is accepted as shorthand for `{ description }`. */
+/**
+ * A bare string is accepted as shorthand for `{ description }`. It is piped
+ * through the object schema so both branches produce the same output type,
+ * rather than a union that callers have to narrow before reading `remedyBy`.
+ */
 const knownIssueSchema = z.union([
   z
     .string()
     .min(1)
-    .transform((description) => ({
-      description,
-      successCriteria: [] as string[],
-      en301549: [] as string[],
-    })),
+    .transform((description) => ({ description }))
+    .pipe(knownIssueObject),
   knownIssueObject,
 ])
 

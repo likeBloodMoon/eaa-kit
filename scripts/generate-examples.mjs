@@ -17,6 +17,11 @@ const outputs = [
   { format: 'sarif', file: 'examples/report.sarif' },
 ]
 
+const statements = [
+  { args: ['--lang', 'de'], file: 'examples/statement.de.md' },
+  { args: ['--lang', 'en'], file: 'examples/statement.en.md' },
+]
+
 await mkdir('examples', { recursive: true })
 
 for (const { format, file } of outputs) {
@@ -29,6 +34,19 @@ for (const { format, file } of outputs) {
   // 0 clean, 1 violations found; both produced a report. 2 means it could not
   // run at all, which is a real failure.
   if (result.status === 2 || result.error) {
+    console.error(`failed to generate ${file}`)
+    process.exit(1)
+  }
+  console.log(`wrote ${file}`)
+}
+
+for (const { args, file } of statements) {
+  const result = spawnSync(
+    process.execPath,
+    [CLI, 'statement', '--config', 'examples/eaa.config.json', ...args, '--output', file],
+    { stdio: ['ignore', 'inherit', 'inherit'] },
+  )
+  if (result.status !== 0 || result.error) {
     console.error(`failed to generate ${file}`)
     process.exit(1)
   }
