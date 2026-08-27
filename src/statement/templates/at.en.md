@@ -28,6 +28,9 @@ following section is not accessible, for the reasons given.
 {{#if standards}}
   Requirement affected: {{ standards }}
 {{/if}}
+{{#if pageList}}
+  Pages affected: {{ pageList }}{{#if hasMorePages}} and {{ morePages }} more{{/if}}
+{{/if}}
 {{#if isDisproportionateBurden}}
   Reason: disproportionate burden.
 {{/if}}
@@ -39,6 +42,9 @@ following section is not accessible, for the reasons given.
 {{/if}}
 {{#if remedyByFormatted}}
   Expected to be resolved by: {{ remedyByFormatted }}
+{{/if}}
+{{#if isFromAudit}}
+  Detected by automated testing (axe-core, rule {{ ruleId }}); describe it in your own words.
 {{/if}}
 {{/each}}
 {{/if}}
@@ -57,6 +63,29 @@ It is based on a self-assessment carried out by {{ provider.legalName }}.
 It is based on an assessment carried out by a third party.
 {{/if}}
 
+{{#if audit.isSinglePage}}
+The automated test run of {{ audit.checkedOnFormatted }} covered one page of this website.
+{{/if}}
+{{#if audit.isMultiPage}}
+The automated test run of {{ audit.checkedOnFormatted }} covered {{ audit.pages }}
+pages of this website.
+{{/if}}
+{{#if audit.needsReviewIsSingle}}
+One further rule check requires a manual decision.
+{{/if}}
+{{#if audit.needsReviewIsPlural}}
+{{ audit.needsReview }} further rule checks require a manual decision.
+{{/if}}
+{{#if audit.notEvaluatedIsSingle}}
+One rule check could not be decided by the tool that was used; it is not reported as met.
+{{/if}}
+{{#if audit.notEvaluatedIsPlural}}
+{{ audit.notEvaluated }} rule checks could not be decided by the tool that was used; they
+are not reported as met.
+{{/if}}
+{{#if hasAudit}}
+
+{{/if}}
 The assessment relies in part on automated testing. Automated tools detect only a subset
 of possible barriers; they are not a substitute for manual testing or for testing with
 assistive technologies.
@@ -66,6 +95,9 @@ assistive technologies.
 Found a barrier, or need information in an accessible format? Please get in touch:
 
 - Email: {{ provider.email }}
+{{#if provider.feedbackUrl}}
+- Contact form: {{ provider.feedbackUrl }}
+{{/if}}
 {{#if provider.phone}}
 - Phone: {{ provider.phone }}
 {{/if}}

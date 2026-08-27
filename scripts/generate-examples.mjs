@@ -17,9 +17,16 @@ const outputs = [
   { format: 'sarif', file: 'examples/report.sarif' },
 ]
 
+// The last one is generated from examples/report.json, which the audit above
+// has just rewritten, so the barriers it lists match the report next to it.
 const statements = [
   { args: ['--lang', 'de'], file: 'examples/statement.de.md' },
   { args: ['--lang', 'en'], file: 'examples/statement.en.md' },
+  { args: ['--lang', 'de'], file: 'examples/statement.de.html' },
+  {
+    args: ['--lang', 'de', '--audit', 'examples/report.json'],
+    file: 'examples/statement.audit.de.md',
+  },
 ]
 
 await mkdir('examples', { recursive: true })

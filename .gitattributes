@@ -8,6 +8,8 @@ tests/fixtures/schema/*.json linguist-vendored=true
 examples/*.json linguist-generated=true
 examples/*.sarif linguist-generated=true
 examples/*.txt linguist-generated=true
+examples/statement.*.md linguist-generated=true
+examples/statement.*.html linguist-generated=true
 
 # Fixtures are deliberately inaccessible HTML, not examples to learn from.
 tests/fixtures/** linguist-vendored=true

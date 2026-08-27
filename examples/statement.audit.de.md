@@ -19,12 +19,33 @@ Abschnitt aufgeführten Inhalte sind aus den jeweils genannten Gründen nicht ba
   Grund: die Barriere ist bekannt und wird behoben.
   Geplante Behebung bis: 31. Dezember 2026
 - Ältere PDF-Dokumente sind nicht barrierefrei.
+- Images must have alternative text
+  Betroffene Anforderung: WCAG 1.1.1, EN 301 549 9.1.1.1
+  Betroffene Seiten: index.html
+  Grund: die Barriere ist bekannt und wird behoben.
+  Automatisiert erkannt (axe-core, Regel image-alt); bitte in eigenen Worten beschreiben.
+- <html> element must have a lang attribute
+  Betroffene Anforderung: WCAG 3.1.1, EN 301 549 9.3.1.1
+  Betroffene Seiten: index.html
+  Grund: die Barriere ist bekannt und wird behoben.
+  Automatisiert erkannt (axe-core, Regel html-has-lang); bitte in eigenen Worten beschreiben.
+- Links must have discernible text
+  Betroffene Anforderung: WCAG 2.4.4, WCAG 4.1.2, EN 301 549 9.2.4.4, EN 301 549 9.4.1.2
+  Betroffene Seiten: index.html
+  Grund: die Barriere ist bekannt und wird behoben.
+  Automatisiert erkannt (axe-core, Regel link-name); bitte in eigenen Worten beschreiben.
 
 ## Erstellung dieser Erklärung
 
 Diese Erklärung wurde am 21. August 2026 erstellt.
 
 Grundlage ist eine Selbstbewertung durch Musterbetrieb GmbH.
+
+Die automatisierte Prüfung vom 21. August 2026 umfasste 5
+Seiten dieser Website.
+Bei einer weiteren Regelprüfung ist eine manuelle Beurteilung erforderlich.
+Bei 21 Regelprüfungen erreichte das verwendete Werkzeug kein
+Ergebnis; sie werden nicht als erfüllt ausgewiesen.
 
 Die Bewertung stützt sich unter anderem auf eine automatisierte Prüfung. Automatisierte
 Werkzeuge erkennen nur einen Teil der möglichen Barrieren; sie ersetzen keine manuelle

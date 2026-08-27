@@ -169,13 +169,16 @@ broken run.
 
 ## statement
 
-Generates an accessibility statement (Barrierefreiheitserklärung) from a config file, in
-German or English, with the statute and supervisory body of the country you name.
+Generates an accessibility statement (Barrierefreiheitserklärung) from a config file and,
+optionally, from an audit report — in German or English, as Markdown or HTML, with the
+statute and supervisory body of the country you name.
 
 ```bash
 eaa-kit statement                                   # to stdout
 eaa-kit statement --output src/content/a11y.md      # to a file
 eaa-kit statement --lang en --country DE            # override both
+eaa-kit statement --output public/a11y.html         # a standalone HTML page
+eaa-kit statement --audit a11y.json                 # list what the audit found
 ```
 
 | Flag | Default | Meaning |
@@ -183,10 +186,31 @@ eaa-kit statement --lang en --country DE            # override both
 | `--config <path>` | searched for | Path to the config file |
 | `--lang <locale>` | from `site.locale` | `de` or `en` |
 | `--country <code>` | from `enforcement.country` | `AT` or `DE` |
+| `--audit <path>` | — | A report from `eaa-kit audit --format json`; its violations are listed as non-accessible content |
+| `--format <format>` | from `--output` | `markdown` or `html` |
 | `--output <path>` | stdout | Write to a file; parent directories are created |
 
 Exit codes are `0` when the statement was produced and `2` when it could not be: no
-config, an invalid one, or a country whose template does not exist yet.
+config, an invalid one, a country whose template does not exist yet, or an audit report
+that could not be read.
+
+Every statement carries the five sections the EU model requires: conformance status,
+non-accessible content with a reason for each barrier, how to send feedback, the
+enforcement procedure, and when the statement was prepared.
+
+### Markdown or HTML
+
+`--format` decides what is produced and `--output` where it goes. With no `--format`, an
+`--output` path ending in `.html` or `.htm` produces HTML and anything else produces
+Markdown, so `--output public/a11y.html` needs no second flag.
+
+The HTML is one self-contained page: a `<title>`, `lang` on the root element, `<main>`,
+real headings and lists, and a small `<style>` block that follows the reader's light or
+dark preference. It has no external assets and no scripts, which is what makes it
+publishable by copying one file. The markup inside `<main>` carries no classes, so pasting
+that part into your own layout and dropping the `<style>` block works too. The page is
+audited by the test suite with eaa-kit's own engine, on the principle that a statement
+generator emitting an inaccessible statement has failed at the one job it has.
 
 ### The config file
 
@@ -208,12 +232,14 @@ export default defineConfig({
     email: 'office@example.at',   // required: the feedback address the EAA obliges you to offer
     phone: '+43 1 2345678',       // optional
     address: 'Hauptstraße 1, 1010 Wien',  // optional
+    feedbackUrl: 'https://example.at/kontakt',  // optional: a contact or feedback form
   },
   compliance: {
     status: 'partially-compliant',        // 'compliant' | 'partially-compliant' | 'non-compliant'
     standard: 'EN 301 549 V3.2.1 (WCAG 2.2 AA)',   // optional, this is the default
     assessedOn: '2026-08-21',             // ISO date, validated
     assessmentMethod: 'self-assessment',  // or 'external-audit'
+    auditReason: 'fix-planned',           // reason given to barriers from --audit
     knownIssues: [
       {
         description: 'Die eingebettete Karte hat keinen Titel.',
@@ -232,8 +258,9 @@ export default defineConfig({
 ```
 
 A complete example config is at [examples/eaa.config.json](examples/eaa.config.json), and
-the statements it produces are at [examples/statement.de.md](examples/statement.de.md) and
-[examples/statement.en.md](examples/statement.en.md).
+the statements it produces are at [examples/statement.de.md](examples/statement.de.md),
+[examples/statement.en.md](examples/statement.en.md) and
+[examples/statement.de.html](examples/statement.de.html).
 
 ### What it produces
 
@@ -265,6 +292,52 @@ The `AT` template names the Barrierefreiheitsgesetz and the Sozialministeriumser
 `DE` template names the Barrierefreiheitsstärkungsgesetz and the Marktüberwachungsstelle
 der Länder (MLBF). Both transpose Directive (EU) 2019/882.
 
+### Barriers from an audit run
+
+```bash
+eaa-kit audit ./dist --format json --output a11y.json
+eaa-kit statement --audit a11y.json --output src/content/a11y.md
+```
+
+Each rule the audit found failing becomes one entry under non-accessible content, folded
+across every page it failed on, and the entries the config describes stay first:
+
+```markdown
+- Ältere PDF-Dokumente sind nicht barrierefrei.
+- Images must have alternative text
+  Betroffene Anforderung: WCAG 1.1.1, EN 301 549 9.1.1.1
+  Betroffene Seiten: index.html
+  Grund: die Barriere ist bekannt und wird behoben.
+  Automatisiert erkannt (axe-core, Regel image-alt); bitte in eigenen Worten beschreiben.
+```
+
+**Those descriptions are axe-core's, and axe-core speaks English.** Generating German
+legal prose out of an English rule description behind your back would be worse than
+showing you where it came from, so each entry says so and asks to be rewritten — in the
+statement's language, in your own words, about your own site. The wording is in the
+document rather than only in a warning on stderr, because the person who publishes the
+statement is not always the person who ran the command.
+
+Four more things this does deliberately:
+
+- **Only violations become barriers.** A rule that needs manual review has not been found
+  inaccessible, and a rule this engine could not evaluate has not been found anything at
+  all. Both are reported as counts in the "preparation" section instead, so a reader can
+  see how much the automated run left open rather than mistaking the list for the whole
+  picture.
+- **The reason is a setting, not a guess.** An audit report carries no reason for a
+  barrier existing, so every derived entry gets `compliance.auditReason`, which defaults
+  to `fix-planned`. Disproportionate burden and out-of-scope are claims only you can make.
+- **Affected pages are listed, up to five**, and counted after that, so a site-wide
+  barrier does not turn the statement into a sitemap.
+- **Barriers are ordered worst first**, with an unclassified impact leading, on the same
+  reasoning as `--fail-on`: not knowing how bad a barrier is is not evidence that it is
+  mild.
+
+The statement never repeats the audit's verdict on your behalf either: `--audit` does not
+touch `compliance.status`. Declaring the site partially or fully conformant stays a
+decision you make in the config.
+
 ### Read it before you publish it
 
 **The generated statement is a draft, not legal advice, and it says so in its own last
@@ -272,10 +345,10 @@ paragraph.** It states what you told it: the status you declared and the barrier
 listed. eaa-kit cannot check whether those claims are true, and a statement claiming full
 conformance for a site that is not conformant is worse than no statement at all.
 
-Known issues are also not filled in from an audit run. Rule descriptions from axe-core are
-English, and dropping English rule text into a German legal document is not something to
-do behind your back — describe the barriers in your own words, in the language the
-statement is written in.
+That applies twice over to barriers taken from `--audit`: they arrive as English rule
+descriptions with a line asking you to rewrite them, and publishing them as they stand
+means publishing a German legal document containing English tool output — and a to-do
+note addressed to yourself.
 
 ## What the browserless engine can and cannot tell you
 

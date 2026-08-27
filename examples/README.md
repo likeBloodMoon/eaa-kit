@@ -11,6 +11,20 @@ this engine cannot evaluate.
 | [`report.json`](report.json) | `… --format json` |
 | [`report.sarif`](report.sarif) | `… --format sarif` |
 
+The statements come from [`eaa.config.json`](eaa.config.json), which is a complete
+config with every optional field filled in:
+
+| File | Produced by |
+| --- | --- |
+| [`statement.de.md`](statement.de.md) | `eaa-kit statement --lang de` |
+| [`statement.en.md`](statement.en.md) | `… --lang en` |
+| [`statement.de.html`](statement.de.html) | `… --lang de --output …html` |
+| [`statement.audit.de.md`](statement.audit.de.md) | `… --audit examples/report.json` |
+
+The last one lists the barriers from the audit report next to it, in the form the
+statement gives them — English rule text and all, which is exactly why it is
+labelled in the document as coming from a tool.
+
 The README quotes excerpts; these are the complete documents, which is the
 easier way to check the JSON contract against your own tooling.
 

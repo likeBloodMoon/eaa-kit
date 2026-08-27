@@ -2,21 +2,32 @@ import { readdir, readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Country, EaaConfig, KnownIssue, StatementLocale } from '../config/define.ts'
+import { StatementError } from './error.ts'
+import type { AuditFinding, AuditSummary } from './findings.ts'
+import { toHtmlDocument } from './html.ts'
 import { renderTemplate, type TemplateScope } from './template.ts'
+
+export { StatementError } from './error.ts'
+
+/** How many affected pages a barrier lists before it starts counting instead. */
+const MAX_LISTED_PAGES = 5
 
 export interface RenderStatementOptions {
   /** Language to render in. Defaults to the site's own language when it is German. */
   locale?: StatementLocale
   /** Overrides the country from the config, for previewing another template. */
   country?: Country
-}
-
-export class StatementError extends Error {
-  override readonly name = 'StatementError'
+  /**
+   * Findings from `eaa-kit audit --format json`, appended to the barriers the
+   * config lists. Left out, the statement says only what the config says.
+   */
+  audit?: AuditSummary
 }
 
 export interface RenderedStatement {
   markdown: string
+  /** The same document as a standalone HTML page. */
+  html: string
   locale: StatementLocale
   country: Country
   /** Template the text came from, e.g. 'at.de'. */
@@ -39,9 +50,10 @@ export async function renderStatement(
   const template = `${country.toLowerCase()}.${locale}`
 
   const source = await loadTemplate(template)
-  const markdown = renderTemplate(source, buildScope(config, locale))
+  const markdown = tidy(renderTemplate(source, buildScope(config, locale, options.audit)))
+  const html = toHtmlDocument(markdown, { lang: locale, fallbackTitle: config.site.name })
 
-  return { markdown: tidy(markdown), locale, country, template }
+  return { markdown, html, locale, country, template }
 }
 
 /** A German-language site gets a German statement unless told otherwise. */
@@ -56,8 +68,19 @@ function defaultLocale(config: EaaConfig): StatementLocale {
  * template, which keeps the template language trivial and puts the mapping
  * somewhere that can be typechecked.
  */
-function buildScope(config: EaaConfig, locale: StatementLocale): TemplateScope {
-  const issues = config.compliance.knownIssues.map((issue) => toIssueScope(issue, locale))
+function buildScope(
+  config: EaaConfig,
+  locale: StatementLocale,
+  audit: AuditSummary | undefined,
+): TemplateScope {
+  // Configured barriers come first: they are written by a human, in the
+  // statement's own language, and are the ones a reader should meet first.
+  const issues = [
+    ...config.compliance.knownIssues.map((issue) => toIssueScope(issue, locale)),
+    ...(audit?.findings ?? []).map((finding) =>
+      toFindingScope(finding, config.compliance.auditReason),
+    ),
+  ]
 
   return {
     site: { ...config.site },
@@ -72,25 +95,97 @@ function buildScope(config: EaaConfig, locale: StatementLocale): TemplateScope {
       isSelfAssessment: config.compliance.assessmentMethod === 'self-assessment',
       isExternalAudit: config.compliance.assessmentMethod === 'external-audit',
     },
+    audit: audit ? toAuditScope(audit, locale) : undefined,
+    hasAudit: audit !== undefined,
     hasKnownIssues: issues.length > 0,
     hasNoKnownIssues: issues.length === 0,
   }
 }
 
+/**
+ * What the automated run itself contributes to the "preparation" section.
+ *
+ * The counts are here because leaving them out would let a reader take the
+ * barrier list for the whole picture. A rule the engine could not evaluate was
+ * not checked, and saying so is the same commitment the audit report makes.
+ */
+function toAuditScope(audit: AuditSummary, locale: StatementLocale): TemplateScope {
+  return {
+    pages: audit.pages,
+    isSinglePage: audit.pages === 1,
+    isMultiPage: audit.pages > 1,
+    needsReview: audit.needsReview,
+    // Singular and plural are separate template branches rather than a count
+    // pasted into one sentence: "1 Regelprüfungen" is wrong in German and
+    // "1 rule checks" is wrong in English, and neither belongs in a document
+    // somebody publishes under their own name.
+    needsReviewIsSingle: audit.needsReview === 1,
+    needsReviewIsPlural: audit.needsReview > 1,
+    notEvaluated: audit.notEvaluated,
+    notEvaluatedIsSingle: audit.notEvaluated === 1,
+    notEvaluatedIsPlural: audit.notEvaluated > 1,
+    checkedOnFormatted: formatDate(audit.generatedAt.slice(0, 10), locale),
+  }
+}
+
 function toIssueScope(issue: KnownIssue, locale: StatementLocale): TemplateScope {
-  const references = [
-    ...issue.successCriteria.map((criterion) => `WCAG ${criterion}`),
-    ...issue.en301549.map((clause) => `EN 301 549 ${clause}`),
-  ]
+  return {
+    ...reasonScope(issue.reason),
+    description: issue.description,
+    standards: standardsReference(issue.successCriteria, issue.en301549),
+    remedyByFormatted: issue.remedyBy ? formatDate(issue.remedyBy, locale) : '',
+    // Every key a barrier can carry is set on every barrier, including the ones
+    // only an audit finding has. A missing key would fall through to the outer
+    // scope during lookup, and a configured barrier would inherit whatever the
+    // document happened to have under that name.
+    isFromAudit: false,
+    ruleId: '',
+    pageList: '',
+    morePages: 0,
+    hasMorePages: false,
+  }
+}
+
+/**
+ * An audit finding as a barrier.
+ *
+ * `description` is axe-core's help text, which is English however the statement
+ * is written, so the templates mark it as the tool's words rather than the
+ * provider's and tell the reader to replace it. Generating German legal prose
+ * from an English rule description is not something to do behind someone's
+ * back, and a statement is published under their name, not ours.
+ */
+function toFindingScope(finding: AuditFinding, reason: KnownIssue['reason']): TemplateScope {
+  const listed = finding.pages.slice(0, MAX_LISTED_PAGES)
+  const remaining = finding.pages.length - listed.length
 
   return {
-    description: issue.description,
-    standards: references.join(', '),
-    isDisproportionateBurden: issue.reason === 'disproportionate-burden',
-    isOutOfScope: issue.reason === 'out-of-scope',
-    isFixPlanned: issue.reason === 'fix-planned',
-    remedyByFormatted: issue.remedyBy ? formatDate(issue.remedyBy, locale) : '',
+    ...reasonScope(reason),
+    description: finding.help,
+    standards: standardsReference(finding.successCriteria, finding.en301549),
+    remedyByFormatted: '',
+    isFromAudit: true,
+    ruleId: finding.ruleId,
+    pageList: listed.join(', '),
+    morePages: remaining,
+    hasMorePages: remaining > 0,
   }
+}
+
+/** Enum to booleans, so no template has to compare strings. */
+function reasonScope(reason: KnownIssue['reason']): TemplateScope {
+  return {
+    isDisproportionateBurden: reason === 'disproportionate-burden',
+    isOutOfScope: reason === 'out-of-scope',
+    isFixPlanned: reason === 'fix-planned',
+  }
+}
+
+function standardsReference(successCriteria: string[], en301549: string[]): string {
+  return [
+    ...successCriteria.map((criterion) => `WCAG ${criterion}`),
+    ...en301549.map((clause) => `EN 301 549 ${clause}`),
+  ].join(', ')
 }
 
 /** 2026-08-20 becomes 20. August 2026 or 20 August 2026. */

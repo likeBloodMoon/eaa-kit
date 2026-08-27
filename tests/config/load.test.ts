@@ -36,6 +36,27 @@ describe('parseConfig', () => {
     expect(config.compliance.standard).toBe('EN 301 549 V3.2.1 (WCAG 2.2 AA)')
     expect(config.compliance.assessmentMethod).toBe('self-assessment')
     expect(config.compliance.knownIssues).toEqual([])
+    // A barrier an automated run just found is one somebody means to fix; the
+    // other two reasons are claims only a human can make.
+    expect(config.compliance.auditReason).toBe('fix-planned')
+  })
+
+  it('accepts a feedback form alongside the address', () => {
+    const config = parseConfig({
+      ...VALID,
+      provider: { ...VALID.provider, feedbackUrl: 'https://example.at/kontakt' },
+    })
+
+    expect(config.provider.feedbackUrl).toBe('https://example.at/kontakt')
+  })
+
+  it('takes the reason to give barriers found by an audit', () => {
+    const config = parseConfig({
+      ...VALID,
+      compliance: { ...VALID.compliance, auditReason: 'disproportionate-burden' },
+    })
+
+    expect(config.compliance.auditReason).toBe('disproportionate-burden')
   })
 
   it('accepts a plain string as shorthand for a known issue', () => {
@@ -88,6 +109,16 @@ describe('parseConfig', () => {
       'a date that is not a date',
       { compliance: { ...VALID.compliance, assessedOn: '20.08.2026' } },
       'compliance.assessedOn',
+    ],
+    [
+      'a feedback form that is not a URL',
+      { provider: { ...VALID.provider, feedbackUrl: '/kontakt' } },
+      'provider.feedbackUrl',
+    ],
+    [
+      'a reason the regime does not recognise',
+      { compliance: { ...VALID.compliance, auditReason: 'we-are-busy' } },
+      'compliance.auditReason',
     ],
   ])('rejects %s', (_label, override, expectedPath) => {
     let thrown: unknown

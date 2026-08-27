@@ -19,6 +19,7 @@ Abschnitt aufgeführten Inhalte sind aus den jeweils genannten Gründen nicht ba
   Grund: die Barriere ist bekannt und wird behoben.
   Geplante Behebung bis: 31. Dezember 2026
 - Ältere PDF-Dokumente sind nicht barrierefrei.
+  Grund: unverhältnismäßige Belastung.
 
 ## Erstellung dieser Erklärung
 
