@@ -1,4 +1,3 @@
-import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { AxeResults } from 'axe-core'
 import axe from 'axe-core'
@@ -101,7 +100,7 @@ async function auditOne(
   const tab = await context.newPage()
   try {
     tab.setDefaultTimeout(options.timeout)
-    const target = `${origin}/${page.relativePath.split(path.sep).join('/')}`
+    const target = servedUrl(origin, page.relativePath)
     const response = await tab.goto(target, { waitUntil: 'load', timeout: options.timeout })
 
     if (response && response.status() >= 400) {
@@ -133,6 +132,18 @@ async function auditOne(
   } finally {
     await tab.close()
   }
+}
+
+/**
+ * Where the local server will hand this page over.
+ *
+ * Encoded per segment: a build with `#` or `?` in a filename would otherwise
+ * have the browser read the rest of the path as a fragment or a query and audit
+ * the wrong page, or none at all. The browserless engine gets this for free
+ * from pathToFileURL; this path has to do it by hand.
+ */
+export function servedUrl(origin: string, relativePath: string): string {
+  return `${origin}/${relativePath.split('/').map(encodeURIComponent).join('/')}`
 }
 
 function reportedUrl(page: CollectedPage, baseUrl?: string): string {

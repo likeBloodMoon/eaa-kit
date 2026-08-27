@@ -109,4 +109,43 @@ describe('serveDirectory', () => {
 
     await expect(fetch(`${origin}/index.html`)).rejects.toThrow()
   })
+
+  // Both of these took the whole process down before they were fixed: the first
+  // as an unhandled rejection out of decodeURIComponent, the second as a
+  // writeHead after the 200 had already gone out. A crashed server means every
+  // remaining page of a --browser run comes back unaudited.
+  it.each([
+    ['a stray percent', '/%'],
+    ['a truncated escape', '/a%2'],
+    ['a percent mid-path', '/as%sets/a.css'],
+  ])('404s on %s rather than dying', async (_label, url) => {
+    const server = await serve({ 'index.html': '<!doctype html><title>T</title>' })
+
+    const response = await fetch(`${server.origin}${url}`)
+
+    expect(response.status).toBe(404)
+  })
+
+  it('404s for a directory with no index.html, and keeps serving', async () => {
+    // `<a href="/assets/">` on any real site gets here.
+    const server = await serve({
+      'index.html': '<!doctype html><title>T</title>',
+      'assets/site.css': 'body{}',
+    })
+
+    const missing = await fetch(`${server.origin}/assets`)
+    const after = await fetch(`${server.origin}/`)
+
+    expect(missing.status).toBe(404)
+    expect(after.status).toBe(200)
+  })
+
+  it('stays up after a request it could not answer', async () => {
+    const server = await serve({ 'index.html': '<!doctype html><title>T</title>' })
+
+    await fetch(`${server.origin}/%`).catch(() => undefined)
+    await fetch(`${server.origin}/nope`).catch(() => undefined)
+
+    expect((await fetch(`${server.origin}/`)).status).toBe(200)
+  })
 })

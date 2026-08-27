@@ -72,6 +72,11 @@ export interface PooledRunnerOptions extends JsdomRunnerOptions {
    * this process, with no threads and no start-up cost.
    */
   concurrency?: number
+  /**
+   * Where to load the worker from, for a bundle whose layout `findWorkerEntry`
+   * does not recognise. Defaults to whatever it finds.
+   */
+  workerEntry?: URL
 }
 
 /** Roughly how long these pages would take to audit on one thread. */
@@ -119,9 +124,9 @@ export async function runPooledAudit(
 ): Promise<PageAudit[]> {
   if (pages.length === 0) return []
 
-  const { concurrency, ...runnerOptions } = options
+  const { concurrency, workerEntry, ...runnerOptions } = options
   const workers = concurrency ?? plannedWorkers(pages)
-  const entry = workers > 1 ? await findWorkerEntry() : undefined
+  const entry = workers > 1 ? (workerEntry ?? (await findWorkerEntry())) : undefined
 
   // No threads asked for, or no worker entry to run in them: this is not a
   // failure, it is the single-threaded runner, which is always correct.
@@ -146,9 +151,15 @@ async function runWorkers(
 ): Promise<PageAudit[]> {
   // Indexed by position, not by completion order: two runs of the same build
   // must produce the same report, and the workers finish out of order.
-  const audits = new Array<PageAudit | undefined>(pages.length)
+  //
+  // Filled rather than merely sized. `new Array(n)` is sparse, and map, flatMap
+  // and filter all skip holes — so a page no worker ever reported on would not
+  // appear in the sweep below, would not be turned into a failed page by the
+  // map at the end, and would vanish from the report instead of being counted
+  // as unaudited. Every safety net in this function depends on the slot
+  // existing.
+  const audits: Array<PageAudit | undefined> = Array.from({ length: pages.length })
   let next = 0
-  let alive = count
 
   await Promise.all(
     Array.from({ length: count }, () => {
@@ -157,9 +168,8 @@ async function runWorkers(
         try {
           worker = new Worker(entry, { workerData: options })
         } catch {
-          // A thread that could never start leaves its share to the others,
-          // and to the sweep below if there are none left.
-          alive -= 1
+          // A thread that could never start leaves its share to the others, and
+          // whatever nobody reaches is swept up below.
           resolve()
           return
         }
@@ -167,9 +177,12 @@ async function runWorkers(
         // The page this worker is currently holding, so that a thread which
         // dies mid-page is recorded against the page that killed it.
         let inFlight: number | undefined
+        // Pages this worker has actually reported on. A thread that dies having
+        // reported none never worked at all, which says something about the
+        // thread rather than about the page it happened to be holding.
+        let completed = 0
 
         const finish = (): void => {
-          alive -= 1
           void worker.terminate()
           resolve()
         }
@@ -187,16 +200,29 @@ async function runWorkers(
         }
 
         worker.on('message', (audit: PageAudit) => {
-          if (inFlight !== undefined) audits[inFlight] = audit
+          if (inFlight !== undefined) {
+            audits[inFlight] = audit
+            completed += 1
+          }
           feed()
         })
 
-        // Reached only when the thread itself dies — running out of memory on a
-        // pathological page is the realistic cause. The page is recorded as
-        // unaudited, which the CLI already reports as a run that could not
+        // Reached when the thread itself dies. Two very different things look
+        // the same here, and blaming the page for both would be wrong:
+        //
+        // A worker that has already reported on pages and then dies was most
+        // likely killed by the page it was holding — running out of memory on a
+        // pathological document is the realistic cause — so that page is
+        // recorded as unaudited, which the CLI reports as a run that could not
         // finish rather than as a clean page.
+        //
+        // A worker that dies having reported nothing never worked at all: the
+        // entry point is missing from the install, or unloadable on this
+        // runtime. The page it was holding has nothing wrong with it, so it is
+        // left for the sweep below to audit in this process. Threads that
+        // cannot start are meant to make a run slower, not fail it.
         worker.on('error', (cause: Error) => {
-          if (inFlight !== undefined) {
+          if (inFlight !== undefined && completed > 0) {
             audits[inFlight] = failedPage(
               identity(pages[inFlight] as CollectedPage, options),
               `audit worker failed: ${cause.message}`,
@@ -210,9 +236,12 @@ async function runWorkers(
     }),
   )
 
-  // Anything the workers never got to, because they all died first.
+  // Anything no worker produced: pages they never reached, and pages held by a
+  // worker that turned out never to have worked. A page a worker actually died
+  // on is not here — it carries its own error, and handing it to this process
+  // would just repeat whatever killed the thread.
   const missing = audits.flatMap((audit, index) => (audit ? [] : [index]))
-  if (missing.length > 0 && alive === 0) {
+  if (missing.length > 0) {
     const swept = await auditHere(
       missing.map((index) => pages[index] as CollectedPage),
       options,
