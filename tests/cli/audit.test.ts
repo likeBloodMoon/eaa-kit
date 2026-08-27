@@ -235,7 +235,10 @@ describe('runAuditCommand', () => {
   })
 })
 
-describe('--concurrency', () => {
+/** See the note in tests/audit/runners/pool.ts: threads need a longer ceiling. */
+const THREAD_TIMEOUT_MS = 30_000
+
+describe('--concurrency', { timeout: THREAD_TIMEOUT_MS }, () => {
   it('audits across threads and reports the same findings as one thread', async () => {
     const [threaded, single] = await Promise.all([
       runAuditCommand(SITE, { concurrency: 2 }),

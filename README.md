@@ -688,7 +688,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - uses: likeBloodMoon/eaa-kit@v1
+      - uses: likeBloodMoon/eaa-kit@v0.1.0
         with:
           install-command: npm ci
           build-command: npm run build
@@ -697,6 +697,11 @@ jobs:
 ```
 
 A runnable copy lives in [.github/workflows/accessibility.yml](.github/workflows/accessibility.yml).
+
+Pin the action to an exact release tag, as above. There is deliberately no moving `v0` or
+`v1` tag to follow: this is a 0.x package, the flags and the JSON contract can still move
+between releases, and an action that silently updates itself under a build you are not
+watching is the wrong default for something whose job is to fail that build.
 
 ### Inputs
 

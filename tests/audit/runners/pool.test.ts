@@ -36,6 +36,17 @@ function sized(count: number, bytes: number): CollectedPage[] {
   }))
 }
 
+/**
+ * Tests that spawn worker threads get a longer ceiling than vitest's 5 s
+ * default. A worker spends ~700 ms loading jsdom before it audits anything, and
+ * on a machine with nothing to spare — a CI runner sharing four cores with the
+ * rest of the suite — several of them starting at once stretch well past it.
+ * Measured: this file passes in ~8 s idle and times out at 5 s under four-way
+ * CPU load. The ceiling matches the runner's own per-page timeout, so a real
+ * hang is still caught, just not mistaken for a busy machine.
+ */
+const THREAD_TIMEOUT_MS = 30_000
+
 /** About what a real marketing or blog page costs. */
 const REAL = 12_000
 /** About what a stub page costs. */
@@ -122,7 +133,7 @@ describe('findWorkerEntry', () => {
   })
 })
 
-describe('runPooledAudit', () => {
+describe('runPooledAudit', { timeout: THREAD_TIMEOUT_MS }, () => {
   it('produces exactly what the single-threaded runner produces', async () => {
     const pages = await fixturePages()
 
