@@ -1,7 +1,9 @@
 import { defineConfig } from 'tsdown'
 
 export default defineConfig({
-  entry: ['src/index.ts', 'src/cli/index.ts'],
+  // The audit worker is a third entry, not a chunk: worker_threads loads it by
+  // path at runtime, so it has to survive bundling as a file of its own.
+  entry: ['src/index.ts', 'src/cli/index.ts', 'src/audit/runners/worker.ts'],
   format: ['esm'],
   target: 'node20',
   dts: true,

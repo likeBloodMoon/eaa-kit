@@ -107,6 +107,7 @@ chatter coming along.
 | `--format <format>` | `console` | `console`, `json`, or `sarif` |
 | `--output <path>` | stdout | Write the report to a file; parent directories are created |
 | `--browser` | off | Audit in real Chromium instead of jsdom |
+| `--concurrency <n>` | from page and core count | Worker threads to audit with; `1` audits in one thread |
 
 Dot directories such as build caches are skipped by default. `--include` and `--exclude`
 replace the defaults rather than adding to them.
@@ -154,6 +155,34 @@ eaa-kit audit ./dist                                      # console, to the term
 eaa-kit audit ./dist --format json --output a11y.json     # JSON, to a file
 eaa-kit audit ./dist --format sarif --output a11y.sarif   # SARIF, for code scanning
 ```
+
+#### `--concurrency <n>`
+
+The browserless engine audits pages across worker threads. Roughly 80% of a page's audit
+time is spent inside axe-core with the CPU pinned, so this is the one place where more
+cores actually buy something. On a 4-core machine, over 100 pages of a typical marketing
+site:
+
+| Threads | Total | Per page |
+| --- | --- | --- |
+| `--concurrency 1` | 19.9 s | 199 ms |
+| 3 (the default here) | 10.0 s | 100 ms |
+
+How many threads are used is decided from how much work the run looks like, not from the
+page count: five pages of a real site are worth threading and forty pages of stubs are
+not, and what separates them is how much markup there is to walk. Below roughly half a
+second of estimated work the run stays on one thread, where a worker would spend longer
+loading jsdom than it saves; above it, one worker per ~1.6 s of work, capped at eight and
+at one fewer than the core count. A two-core machine never threads. `--concurrency <n>`
+overrides all of it, and `--concurrency 1` is the single-threaded path.
+
+Threads change how long the audit takes and nothing else. Pages are reported in the order
+they were collected rather than the order they finished, so two runs of the same build
+produce byte-identical reports — a test asserts that the threaded and single-threaded
+runs agree page for page.
+
+The Chromium engine is unaffected: `--browser` drives one browser context sequentially,
+where the bottleneck is the browser rather than this process.
 
 ### Exit codes
 
