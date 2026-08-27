@@ -15,6 +15,7 @@ const outputs = [
   { format: 'console', file: 'examples/console.txt' },
   { format: 'json', file: 'examples/report.json' },
   { format: 'sarif', file: 'examples/report.sarif' },
+  { format: 'html', file: 'examples/report.html' },
 ]
 
 // The last one is generated from examples/report.json, which the audit above

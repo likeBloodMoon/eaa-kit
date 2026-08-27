@@ -1,3 +1,4 @@
+import { escapeAttribute, escapeText } from '../escape.ts'
 import { TOOL_VERSION } from '../version.ts'
 
 /**
@@ -235,12 +236,4 @@ function trailingPunctuation(candidate: string): string {
     break
   }
   return candidate.slice(end)
-}
-
-function escapeText(value: string): string {
-  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-}
-
-function escapeAttribute(value: string): string {
-  return escapeText(value).replace(/"/g, '&quot;').replace(/'/g, '&#39;')
 }

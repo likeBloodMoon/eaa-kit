@@ -104,7 +104,7 @@ chatter coming along.
 | `--exclude <globs...>` | `node_modules`, `.git` | Glob patterns to skip |
 | `--base-url <url>` | — | Audit pages under their real site URL instead of `file://` |
 | `--fail-on <impact>` | `serious` | Lowest impact that fails the run |
-| `--format <format>` | `console` | `console`, `json`, or `sarif` |
+| `--format <format>` | `console` | `console`, `json`, `sarif`, or `html` |
 | `--output <path>` | stdout | Write the report to a file; parent directories are created |
 | `--browser` | off | Audit in real Chromium instead of jsdom |
 | `--concurrency <n>` | from page and core count | Worker threads to audit with; `1` audits in one thread |
@@ -154,6 +154,7 @@ when the console format is written to a file.
 eaa-kit audit ./dist                                      # console, to the terminal
 eaa-kit audit ./dist --format json --output a11y.json     # JSON, to a file
 eaa-kit audit ./dist --format sarif --output a11y.sarif   # SARIF, for code scanning
+eaa-kit audit ./dist --format html --output a11y.html     # a report you can send someone
 ```
 
 #### `--concurrency <n>`
@@ -697,6 +698,37 @@ Three things worth knowing before you wire it up:
    results is not mistaken for "everything was checked" — and the JSON format carries them
    in full. **A green code-scanning result is not a compliance statement.**
 
+## HTML report
+
+`--format html` writes a single self-contained page. The console report is for whoever ran
+the command and JSON and SARIF are for other programs; this one is for somebody who was
+not at the terminal — the client whose site it is, or whoever has to fix it.
+
+```bash
+eaa-kit audit ./dist --format html --output a11y.html
+```
+
+A complete generated report is at [examples/report.html](examples/report.html). It opens
+with the verdict, then what the run was, then the summary, then a section per page, then
+the rules the engine could not evaluate.
+
+- **One file, no assets, no scripts.** It can be attached to an email and opened. Nothing
+  in it fetches anything, which also means it cannot phone home from a client's machine.
+- **The element markup is escaped.** This is the one document eaa-kit produces that quotes
+  arbitrary HTML from somebody's build, and a page that fails an audit for carrying a
+  stray `<script>` must not hand that script to whoever opens the report.
+- **It follows the reader's light or dark preference**, and prints on white.
+- **It says the same things the console report says**, in the same order and with the same
+  refusals: the four result categories stay apart, unevaluated rules are named rather than
+  dropped, and the footer says in as many words that a report with no findings is not a
+  compliance statement.
+- **The output is deterministic** apart from the timestamp, so two reports of the same
+  build diff cleanly.
+
+The report is audited by eaa-kit's own engine in the test suite, and every colour pair in
+it is checked against WCAG AA — the worst is 6.3:1 against a 4.5:1 requirement. A tool
+that emitted an inaccessible accessibility report would have failed at the one job it has.
+
 ## GitHub Actions
 
 A composite action is included. It builds the site, audits it, uploads the SARIF log to
@@ -749,6 +781,7 @@ watching is the wrong default for something whose job is to fail that build.
 | `base-url` | — | Audit pages under their real site URL |
 | `sarif-file` | `eaa-kit.sarif` | Where to write the SARIF log |
 | `upload-sarif` | `true` | Upload to GitHub code scanning |
+| `concurrency` | from page and core count | Worker threads for the browserless engine; `1` for none |
 | `version` | `latest` | Version of eaa-kit to run |
 
 ### Outputs

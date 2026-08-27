@@ -43,6 +43,11 @@ inputs:
     description: Upload the SARIF log to GitHub code scanning.
     required: false
     default: 'true'
+  concurrency:
+    description: 'Worker threads the browserless engine may use, or 1 for none. Default: from the page and core count.'
+    required: false
+    default: ''
+
   version:
     description: Version of eaa-kit to run, as an npm dist-tag or version.
     required: false
@@ -84,11 +89,15 @@ runs:
         EAA_SARIF: ${{ inputs.sarif-file }}
         EAA_BASE_URL: ${{ inputs.base-url }}
         EAA_VERSION: ${{ inputs.version }}
+        EAA_CONCURRENCY: ${{ inputs.concurrency }}
       run: |
         set -o pipefail
         args=("$EAA_DIRECTORY" --format sarif --output "$EAA_SARIF" --fail-on "$EAA_FAIL_ON")
         if [ -n "$EAA_BASE_URL" ]; then
           args+=(--base-url "$EAA_BASE_URL")
+        fi
+        if [ -n "$EAA_CONCURRENCY" ]; then
+          args+=(--concurrency "$EAA_CONCURRENCY")
         fi
 
         set +e

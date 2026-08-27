@@ -16,7 +16,7 @@ import type { PageAudit } from '../audit/runners/jsdom.ts'
  * pays the same cost either way, a few milliseconds later.
  */
 
-export const OUTPUT_FORMATS = ['console', 'json', 'sarif'] as const
+export const OUTPUT_FORMATS = ['console', 'json', 'sarif', 'html'] as const
 
 export type OutputFormat = (typeof OUTPUT_FORMATS)[number]
 
@@ -205,6 +205,14 @@ async function renderReport(
     case 'sarif': {
       const { buildSarifReport, serialiseSarifReport } = await import('../audit/report/sarif.ts')
       return serialiseSarifReport(buildSarifReport(audits, { directory: dir }))
+    }
+    case 'html': {
+      const { buildHtmlReport } = await import('../audit/report/html.ts')
+      return buildHtmlReport(audits, {
+        directory: dir,
+        failOn,
+        ...(options.baseUrl ? { baseUrl: options.baseUrl } : {}),
+      })
     }
     case 'console':
       return `${formatConsoleReport(audits, { dir, failOn, ...(toFile ? { color: false } : {}) })}\n`
