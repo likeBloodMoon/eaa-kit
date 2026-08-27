@@ -1,13 +1,20 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import pc from 'picocolors'
-import { BuildDirectoryError, collectPages } from '../audit/collect.ts'
+import { BuildDirectoryError, type CollectedPage, collectPages } from '../audit/collect.ts'
 import { countAtOrAbove, DEFAULT_FAIL_ON, type ImpactLevel } from '../audit/impact.ts'
 import { formatConsoleReport } from '../audit/report/console.ts'
-import { buildJsonReport, serialiseJsonReport } from '../audit/report/json.ts'
-import { buildSarifReport, serialiseSarifReport } from '../audit/report/sarif.ts'
-import { type PageAudit, runJsdomAudit } from '../audit/runners/jsdom.ts'
-import { BrowserUnavailableError, runBrowserAudit } from '../audit/runners/playwright.ts'
+import type { PageAudit } from '../audit/runners/jsdom.ts'
+
+/**
+ * The engines and the machine-readable reporters are imported where they are
+ * used, not at the top of the file.
+ *
+ * jsdom costs 630 ms to load and axe-core another 94 ms, and a static import
+ * here charges that to every invocation — `eaa-kit statement`, `--help` and a
+ * mistyped flag included, none of which parse a single page. The audit path
+ * pays the same cost either way, a few milliseconds later.
+ */
 
 export const OUTPUT_FORMATS = ['console', 'json', 'sarif'] as const
 
@@ -31,6 +38,11 @@ export interface AuditCommandOptions {
   output?: string
   /** Audit in real Chromium instead of jsdom. Needs the playwright peer. */
   browser?: boolean
+  /**
+   * Worker threads the browserless engine may use. Defaults to what the page
+   * count and the machine's core count justify; 1 audits in this process.
+   */
+  concurrency?: number
 }
 
 export interface AuditCommandResult {
@@ -74,7 +86,7 @@ export async function runAuditCommand(
     return { audits: [], exitCode: 2 }
   }
 
-  const engineNote = options.browser ? ' with Chromium' : ''
+  const engineNote = await describeEngine(pages, options)
   process.stderr.write(
     pc.dim(
       `Auditing ${pages.length} ${pages.length === 1 ? 'page' : 'pages'} in ${dir}${engineNote}…\n`,
@@ -87,17 +99,26 @@ export async function runAuditCommand(
   }
 
   let audits: PageAudit[]
-  try {
-    audits = options.browser
-      ? await runBrowserAudit(dir, pages, runnerOptions)
-      : await runJsdomAudit(pages, runnerOptions)
-  } catch (cause) {
-    // Playwright missing is a setup problem with a specific fix, not a crash.
-    if (cause instanceof BrowserUnavailableError) {
-      process.stderr.write(`${pc.red('error')} ${cause.message}\n`)
-      return { audits: [], exitCode: 2 }
+  if (options.browser) {
+    const { BrowserUnavailableError, runBrowserAudit } = await import(
+      '../audit/runners/playwright.ts'
+    )
+    try {
+      audits = await runBrowserAudit(dir, pages, runnerOptions)
+    } catch (cause) {
+      // Playwright missing is a setup problem with a specific fix, not a crash.
+      if (cause instanceof BrowserUnavailableError) {
+        process.stderr.write(`${pc.red('error')} ${cause.message}\n`)
+        return { audits: [], exitCode: 2 }
+      }
+      throw cause
     }
-    throw cause
+  } else {
+    const { runPooledAudit } = await import('../audit/runners/pool.ts')
+    audits = await runPooledAudit(pages, {
+      ...runnerOptions,
+      ...(options.concurrency === undefined ? {} : { concurrency: options.concurrency }),
+    })
   }
 
   const failOn = options.failOn ?? DEFAULT_FAIL_ON
@@ -118,6 +139,24 @@ export async function runAuditCommand(
 }
 
 /**
+ * What the progress line says about the engine.
+ *
+ * The thread count is on it because it is the difference between a run that
+ * looks stalled and one that is working, and because a user comparing two
+ * timings deserves to know which one used the machine.
+ */
+async function describeEngine(
+  pages: readonly CollectedPage[],
+  options: AuditCommandOptions,
+): Promise<string> {
+  if (options.browser) return ' with Chromium'
+
+  const { plannedWorkers } = await import('../audit/runners/pool.ts')
+  const workers = options.concurrency ?? plannedWorkers(pages)
+  return workers > 1 ? ` across ${workers} threads` : ''
+}
+
+/**
  * Emit the chosen format, to a file when --output is given and to stdout
  * otherwise. Colour is dropped when writing to a file, since escape codes in a
  * saved report are noise.
@@ -131,7 +170,7 @@ async function emit(
   const format = options.format ?? 'console'
   const toFile = typeof options.output === 'string'
 
-  const body = renderReport(audits, dir, failOn, format, toFile, options)
+  const body = await renderReport(audits, dir, failOn, format, toFile, options)
 
   if (!options.output) {
     process.stdout.write(body)
@@ -144,16 +183,17 @@ async function emit(
   process.stderr.write(pc.dim(`Report written to ${options.output}\n`))
 }
 
-function renderReport(
+async function renderReport(
   audits: readonly PageAudit[],
   dir: string,
   failOn: ImpactLevel,
   format: OutputFormat,
   toFile: boolean,
   options: AuditCommandOptions,
-): string {
+): Promise<string> {
   switch (format) {
-    case 'json':
+    case 'json': {
+      const { buildJsonReport, serialiseJsonReport } = await import('../audit/report/json.ts')
       return serialiseJsonReport(
         buildJsonReport(audits, {
           directory: dir,
@@ -161,8 +201,11 @@ function renderReport(
           ...(options.baseUrl ? { baseUrl: options.baseUrl } : {}),
         }),
       )
-    case 'sarif':
+    }
+    case 'sarif': {
+      const { buildSarifReport, serialiseSarifReport } = await import('../audit/report/sarif.ts')
       return serialiseSarifReport(buildSarifReport(audits, { directory: dir }))
+    }
     case 'console':
       return `${formatConsoleReport(audits, { dir, failOn, ...(toFile ? { color: false } : {}) })}\n`
   }

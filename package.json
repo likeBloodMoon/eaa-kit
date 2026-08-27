@@ -49,7 +49,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
     "format": "biome check --write .",
-    "smoke": "pnpm build && node dist/cli/index.js audit tests/fixtures/site --include about/** --format json && node dist/cli/index.js statement --config examples/eaa.config.json && node dist/cli/index.js statement --config examples/eaa.config.json --audit examples/report.json --format html",
+    "smoke": "pnpm build && node dist/cli/index.js audit tests/fixtures/site --include about/** --format json && node dist/cli/index.js audit tests/fixtures/site --include 'about/**' 'blog/**' 'drafts/**' 'legacy.htm' --concurrency 2 && node dist/cli/index.js statement --config examples/eaa.config.json && node dist/cli/index.js statement --config examples/eaa.config.json --audit examples/report.json --format html",
     "examples": "pnpm build && node scripts/generate-examples.mjs"
   },
   "peerDependencies": {

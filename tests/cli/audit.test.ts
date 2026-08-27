@@ -234,3 +234,32 @@ describe('runAuditCommand', () => {
     }
   })
 })
+
+describe('--concurrency', () => {
+  it('audits across threads and reports the same findings as one thread', async () => {
+    const [threaded, single] = await Promise.all([
+      runAuditCommand(SITE, { concurrency: 2 }),
+      runAuditCommand(SITE, { concurrency: 1 }),
+    ])
+
+    expect(threaded.exitCode).toBe(single.exitCode)
+    expect(threaded.audits.map((audit) => audit.relativePath)).toEqual(
+      single.audits.map((audit) => audit.relativePath),
+    )
+    expect(threaded.audits.map((audit) => audit.violations.length)).toEqual(
+      single.audits.map((audit) => audit.violations.length),
+    )
+  })
+
+  it('says on stderr how many threads it is using', async () => {
+    await runAuditCommand(SITE, { concurrency: 3 })
+
+    expect(stderr.join('')).toContain('across 3 threads')
+  })
+
+  it('says nothing about threads when it is not using any', async () => {
+    await runAuditCommand(SITE, { concurrency: 1 })
+
+    expect(stderr.join('')).not.toContain('threads')
+  })
+})

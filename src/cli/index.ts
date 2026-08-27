@@ -51,6 +51,11 @@ program
   )
   .option('--output <path>', 'write the report to a file instead of stdout')
   .option('--browser', 'audit in real Chromium, covering the rules jsdom cannot evaluate')
+  .option(
+    '--concurrency <n>',
+    'worker threads to audit with, or 1 for none (default: from the page and core count)',
+    parseConcurrency,
+  )
   .action(async (dir: string, options: Record<string, unknown>) => {
     const { exitCode } = await runAuditCommand(dir, {
       ...(Array.isArray(options['include']) ? { include: options['include'] as string[] } : {}),
@@ -60,6 +65,9 @@ program
       format: options['format'] as OutputFormat,
       ...(typeof options['output'] === 'string' ? { output: options['output'] } : {}),
       ...(options['browser'] === true ? { browser: true } : {}),
+      ...(typeof options['concurrency'] === 'number'
+        ? { concurrency: options['concurrency'] }
+        : {}),
     })
     process.exitCode = exitCode
   })
@@ -113,6 +121,14 @@ function parseStatementFormat(value: string): StatementFormat {
     throw new InvalidArgumentError(`expected one of ${STATEMENT_FORMATS.join(', ')}`)
   }
   return value
+}
+
+function parseConcurrency(value: string): number {
+  const parsed = Number(value)
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    throw new InvalidArgumentError('expected a whole number of 1 or more')
+  }
+  return parsed
 }
 
 function parseImpact(value: string): ImpactLevel {
