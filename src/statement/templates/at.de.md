@@ -29,6 +29,9 @@ aufgeführten Inhalte sind aus den jeweils genannten Gründen nicht barrierefrei
 {{#if standards}}
   Betroffene Anforderung: {{ standards }}
 {{/if}}
+{{#if pageList}}
+  Betroffene Seiten: {{ pageList }}{{#if hasMorePages}} und {{ morePages }} weitere{{/if}}
+{{/if}}
 {{#if isDisproportionateBurden}}
   Grund: unverhältnismäßige Belastung.
 {{/if}}
@@ -40,6 +43,9 @@ aufgeführten Inhalte sind aus den jeweils genannten Gründen nicht barrierefrei
 {{/if}}
 {{#if remedyByFormatted}}
   Geplante Behebung bis: {{ remedyByFormatted }}
+{{/if}}
+{{#if isFromAudit}}
+  Automatisiert erkannt (axe-core, Regel {{ ruleId }}); bitte in eigenen Worten beschreiben.
 {{/if}}
 {{/each}}
 {{/if}}
@@ -58,6 +64,32 @@ Grundlage ist eine Selbstbewertung durch {{ provider.legalName }}.
 Grundlage ist eine Prüfung durch Dritte.
 {{/if}}
 
+{{#if audit.isSinglePage}}
+Die automatisierte Prüfung vom {{ audit.checkedOnFormatted }} umfasste eine Seite dieser
+Website.
+{{/if}}
+{{#if audit.isMultiPage}}
+Die automatisierte Prüfung vom {{ audit.checkedOnFormatted }} umfasste {{ audit.pages }}
+Seiten dieser Website.
+{{/if}}
+{{#if audit.needsReviewIsSingle}}
+Bei einer weiteren Regelprüfung ist eine manuelle Beurteilung erforderlich.
+{{/if}}
+{{#if audit.needsReviewIsPlural}}
+Bei {{ audit.needsReview }} weiteren Regelprüfungen ist eine manuelle Beurteilung
+erforderlich.
+{{/if}}
+{{#if audit.notEvaluatedIsSingle}}
+Bei einer Regelprüfung erreichte das verwendete Werkzeug kein Ergebnis; sie wird nicht als
+erfüllt ausgewiesen.
+{{/if}}
+{{#if audit.notEvaluatedIsPlural}}
+Bei {{ audit.notEvaluated }} Regelprüfungen erreichte das verwendete Werkzeug kein
+Ergebnis; sie werden nicht als erfüllt ausgewiesen.
+{{/if}}
+{{#if hasAudit}}
+
+{{/if}}
 Die Bewertung stützt sich unter anderem auf eine automatisierte Prüfung. Automatisierte
 Werkzeuge erkennen nur einen Teil der möglichen Barrieren; sie ersetzen keine manuelle
 Prüfung und keine Prüfung mit assistiven Technologien.
@@ -68,6 +100,9 @@ Sie haben eine Barriere gefunden oder benötigen Informationen in einer barriere
 Form? Melden Sie sich bitte bei uns:
 
 - E-Mail: {{ provider.email }}
+{{#if provider.feedbackUrl}}
+- Kontaktformular: {{ provider.feedbackUrl }}
+{{/if}}
 {{#if provider.phone}}
 - Telefon: {{ provider.phone }}
 {{/if}}

@@ -9,7 +9,12 @@ import {
 } from '../config/define.ts'
 import { TOOL_VERSION } from '../version.ts'
 import { isOutputFormat, OUTPUT_FORMATS, type OutputFormat, runAuditCommand } from './audit.ts'
-import { runStatementCommand } from './statement.ts'
+import {
+  isStatementFormat,
+  runStatementCommand,
+  STATEMENT_FORMATS,
+  type StatementFormat,
+} from './statement.ts'
 
 const program = new Command()
 
@@ -69,14 +74,21 @@ program
     `override the country template (${COUNTRIES.join('|')})`,
     parseCountry,
   )
+  .option('--audit <path>', 'list the barriers from an eaa-kit audit --format json report')
+  .option(
+    '--format <format>',
+    `output format (${STATEMENT_FORMATS.join('|')}), otherwise from the --output extension`,
+    parseStatementFormat,
+  )
   .option('--output <path>', 'write the statement to a file instead of stdout')
   .action(async (options: Record<string, unknown>) => {
     const { exitCode } = await runStatementCommand({
       ...(typeof options['config'] === 'string' ? { config: options['config'] } : {}),
       ...(options['lang'] ? { locale: options['lang'] as StatementLocale } : {}),
       ...(options['country'] ? { country: options['country'] as Country } : {}),
+      ...(typeof options['audit'] === 'string' ? { audit: options['audit'] } : {}),
+      ...(options['format'] ? { format: options['format'] as StatementFormat } : {}),
       ...(typeof options['output'] === 'string' ? { output: options['output'] } : {}),
-      ...(options['browser'] === true ? { browser: true } : {}),
     })
     process.exitCode = exitCode
   })
@@ -94,6 +106,13 @@ function parseCountry(value: string): Country {
     throw new InvalidArgumentError(`expected one of ${COUNTRIES.join(', ')}`)
   }
   return upper as Country
+}
+
+function parseStatementFormat(value: string): StatementFormat {
+  if (!isStatementFormat(value)) {
+    throw new InvalidArgumentError(`expected one of ${STATEMENT_FORMATS.join(', ')}`)
+  }
+  return value
 }
 
 function parseImpact(value: string): ImpactLevel {

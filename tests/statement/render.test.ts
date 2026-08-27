@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { EaaConfigInput } from '../../src/config/define.ts'
 import { parseConfig } from '../../src/config/define.ts'
+import type { AuditFinding, AuditSummary } from '../../src/statement/findings.ts'
 import { renderStatement, StatementError } from '../../src/statement/render.ts'
 
 const BASE: EaaConfigInput = {
@@ -16,6 +17,34 @@ function config(overrides: Partial<EaaConfigInput> = {}) {
 
 async function render(overrides: Partial<EaaConfigInput> = {}, options = {}) {
   return renderStatement(config(overrides), options)
+}
+
+/** The templates hard-wrap, so a sentence is matched on one line. */
+function flat(markdown: string): string {
+  return markdown.replace(/\n/g, ' ')
+}
+
+function finding(overrides: Partial<AuditFinding> = {}): AuditFinding {
+  return {
+    ruleId: 'image-alt',
+    help: 'Images must have alternative text',
+    impact: 'critical',
+    successCriteria: ['1.1.1'],
+    en301549: ['9.1.1.1'],
+    pages: ['index.html'],
+    ...overrides,
+  }
+}
+
+function audit(overrides: Partial<AuditSummary> = {}): AuditSummary {
+  return {
+    findings: [finding()],
+    pages: 5,
+    needsReview: 0,
+    notEvaluated: 0,
+    generatedAt: '2026-08-25T09:30:00.000Z',
+    ...overrides,
+  }
 }
 
 describe('template selection', () => {
@@ -221,6 +250,25 @@ describe('every template', () => {
     { country: 'DE', locale: 'en' },
   ] as const
 
+  it.each(combinations)(
+    'leaves no unrendered tags with an audit in $country/$locale',
+    async (c) => {
+      const statement = await renderStatement(config(), {
+        ...c,
+        audit: {
+          findings: [finding(), finding({ ruleId: 'x', successCriteria: [], en301549: [] })],
+          pages: 5,
+          needsReview: 1,
+          notEvaluated: 3,
+          generatedAt: '2026-08-25T09:30:00.000Z',
+        },
+      })
+
+      expect(statement.markdown).not.toContain('{{')
+      expect(statement.html).not.toContain('{{')
+    },
+  )
+
   it.each(combinations)('leaves no unrendered tags in $country/$locale', async (combination) => {
     const statement = await renderStatement(
       config({
@@ -256,5 +304,259 @@ describe('every template', () => {
 
     expect(statement.markdown.endsWith('\n')).toBe(true)
     expect(statement.markdown.endsWith('\n\n')).toBe(false)
+  })
+})
+
+describe('feedback mechanism', () => {
+  it('offers the feedback form when one is configured', async () => {
+    const statement = await render({
+      provider: { ...BASE.provider, feedbackUrl: 'https://example.at/kontakt' },
+    })
+
+    expect(statement.markdown).toContain('Kontaktformular: https://example.at/kontakt')
+  })
+
+  it('names it in English too', async () => {
+    const statement = await render(
+      { provider: { ...BASE.provider, feedbackUrl: 'https://example.at/contact' } },
+      { locale: 'en' },
+    )
+
+    expect(statement.markdown).toContain('Contact form: https://example.at/contact')
+  })
+
+  it('leaves the line out when there is no form', async () => {
+    const statement = await render()
+
+    expect(statement.markdown).not.toContain('Kontaktformular')
+  })
+})
+
+describe('barriers taken from an audit', () => {
+  it('lists them after the ones the config describes', async () => {
+    const statement = await renderStatement(
+      config({
+        compliance: { ...BASE.compliance, knownIssues: ['Eine bekannte Barriere.'] },
+      } as Partial<EaaConfigInput>),
+      { audit: audit() },
+    )
+    const configured = statement.markdown.indexOf('Eine bekannte Barriere.')
+    const derived = statement.markdown.indexOf('Images must have alternative text')
+
+    // The configured ones are written by a human, in the statement's language.
+    expect(configured).toBeGreaterThan(-1)
+    expect(derived).toBeGreaterThan(configured)
+  })
+
+  it('quotes the standards the rule maps to', async () => {
+    const statement = await renderStatement(config(), { audit: audit() })
+
+    expect(statement.markdown).toContain('Betroffene Anforderung: WCAG 1.1.1, EN 301 549 9.1.1.1')
+  })
+
+  it('omits the standards line for a rule that maps to none', async () => {
+    const statement = await renderStatement(config(), {
+      audit: audit({ findings: [finding({ successCriteria: [], en301549: [] })] }),
+    })
+
+    expect(statement.markdown).not.toContain('Betroffene Anforderung:')
+  })
+
+  it('names the pages the rule failed on', async () => {
+    const statement = await renderStatement(config(), {
+      audit: audit({ findings: [finding({ pages: ['index.html', 'about/index.html'] })] }),
+    })
+
+    expect(statement.markdown).toContain('Betroffene Seiten: index.html, about/index.html')
+    expect(statement.markdown).not.toContain('weitere')
+  })
+
+  it('counts the rest once the list would get long', async () => {
+    const pages = ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((name) => `${name}.html`)
+    const statement = await renderStatement(config(), {
+      audit: audit({ findings: [finding({ pages })] }),
+    })
+
+    expect(statement.markdown).toContain(
+      'Betroffene Seiten: a.html, b.html, c.html, d.html, e.html und 2 weitere',
+    )
+  })
+
+  it('counts the rest in English too', async () => {
+    const pages = ['a', 'b', 'c', 'd', 'e', 'f'].map((name) => `${name}.html`)
+    const statement = await renderStatement(config(), {
+      locale: 'en',
+      audit: audit({ findings: [finding({ pages })] }),
+    })
+
+    expect(statement.markdown).toContain(
+      'Pages affected: a.html, b.html, c.html, d.html, e.html and 1 more',
+    )
+  })
+
+  it('says the description came from a tool, and names the rule', async () => {
+    const statement = await renderStatement(config(), { audit: audit() })
+
+    // axe-core's help text is English whatever the statement is written in, so
+    // the document has to admit whose words those are.
+    expect(statement.markdown).toContain(
+      'Automatisiert erkannt (axe-core, Regel image-alt); bitte in eigenen Worten beschreiben.',
+    )
+  })
+
+  it('says so in English too', async () => {
+    const statement = await renderStatement(config(), { locale: 'en', audit: audit() })
+
+    expect(statement.markdown).toContain(
+      'Detected by automated testing (axe-core, rule image-alt); describe it in your own words.',
+    )
+  })
+
+  it('gives a barrier a reason, since an audit report carries none', async () => {
+    const statement = await renderStatement(config(), { audit: audit() })
+
+    expect(statement.markdown).toContain('Grund: die Barriere ist bekannt und wird behoben.')
+  })
+
+  it('uses the reason the config chose for them', async () => {
+    const statement = await renderStatement(
+      config({
+        compliance: { ...BASE.compliance, auditReason: 'disproportionate-burden' },
+      } as Partial<EaaConfigInput>),
+      { audit: audit() },
+    )
+
+    expect(statement.markdown).toContain('Grund: unverhältnismäßige Belastung.')
+  })
+
+  it('never invents a remedy date for one', async () => {
+    const statement = await renderStatement(config(), { audit: audit() })
+
+    expect(statement.markdown).not.toContain('Geplante Behebung bis:')
+  })
+
+  it('says nothing is known when a clean run is the only source', async () => {
+    const statement = await renderStatement(config(), { audit: audit({ findings: [] }) })
+
+    expect(statement.markdown).toContain('keine nicht barrierefreien Inhalte bekannt')
+  })
+})
+
+describe('what the audit run covered', () => {
+  it('says when it ran and how much it covered', async () => {
+    const statement = await renderStatement(config(), { audit: audit() })
+
+    expect(flat(statement.markdown)).toContain(
+      'Die automatisierte Prüfung vom 25. August 2026 umfasste 5 Seiten dieser Website.',
+    )
+  })
+
+  it('says it in the singular for a one-page site', async () => {
+    const statement = await renderStatement(config(), { audit: audit({ pages: 1 }) })
+
+    expect(flat(statement.markdown)).toContain('umfasste eine Seite dieser Website.')
+    expect(statement.markdown).not.toContain('1 Seiten')
+  })
+
+  it('says it in English', async () => {
+    const statement = await renderStatement(config(), { locale: 'en', audit: audit() })
+
+    expect(flat(statement.markdown)).toContain(
+      'The automated test run of 25 August 2026 covered 5 pages of this website.',
+    )
+  })
+
+  it('says it in the English singular', async () => {
+    const statement = await renderStatement(config(), {
+      locale: 'en',
+      audit: audit({ pages: 1 }),
+    })
+
+    expect(flat(statement.markdown)).toContain('covered one page of this website.')
+  })
+
+  it.each([
+    [1, 'Bei einer weiteren Regelprüfung ist eine manuelle Beurteilung erforderlich.'],
+    [4, 'Bei 4 weiteren Regelprüfungen ist eine manuelle Beurteilung erforderlich.'],
+  ])('reports %i rules needing a human decision', async (needsReview, phrase) => {
+    const statement = await renderStatement(config(), { audit: audit({ needsReview }) })
+
+    expect(flat(statement.markdown)).toContain(phrase)
+  })
+
+  it.each([
+    [1, 'One further rule check requires a manual decision.'],
+    [4, '4 further rule checks require a manual decision.'],
+  ])('reports %i rules needing a human decision in English', async (needsReview, phrase) => {
+    const statement = await renderStatement(config(), {
+      locale: 'en',
+      audit: audit({ needsReview }),
+    })
+
+    expect(statement.markdown).toContain(phrase)
+  })
+
+  it.each([
+    [1, 'Bei einer Regelprüfung erreichte das verwendete Werkzeug kein Ergebnis'],
+    [7, 'Bei 7 Regelprüfungen erreichte das verwendete Werkzeug kein Ergebnis'],
+  ])('reports %i rules it could not evaluate', async (notEvaluated, phrase) => {
+    const statement = await renderStatement(config(), { audit: audit({ notEvaluated }) })
+
+    // Never reported as met, in the statement as much as in the audit report.
+    expect(flat(statement.markdown)).toContain(phrase)
+    expect(flat(statement.markdown)).toContain('nicht als erfüllt ausgewiesen')
+  })
+
+  it.each([
+    [1, 'One rule check could not be decided by the tool that was used'],
+    [7, '7 rule checks could not be decided by the tool that was used'],
+  ])('reports %i rules it could not evaluate in English', async (notEvaluated, phrase) => {
+    const statement = await renderStatement(config(), {
+      locale: 'en',
+      audit: audit({ notEvaluated }),
+    })
+
+    expect(flat(statement.markdown)).toContain(phrase)
+  })
+
+  it('stays silent about counts that are zero', async () => {
+    const statement = await renderStatement(config(), { audit: audit() })
+
+    expect(statement.markdown).not.toContain('manuelle Beurteilung')
+    expect(statement.markdown).not.toContain('kein Ergebnis')
+  })
+
+  it('says nothing about an audit run when there was none', async () => {
+    const statement = await render()
+
+    expect(statement.markdown).not.toContain('Die automatisierte Prüfung vom')
+    // The standing caveat about automated testing is not conditional on one.
+    expect(statement.markdown).toContain('Automatisierte\nWerkzeuge erkennen nur einen Teil')
+  })
+})
+
+describe('html output', () => {
+  it('is produced alongside the markdown, from the same document', async () => {
+    const statement = await render()
+
+    expect(statement.html).toContain('<h1>Erklärung zur Barrierefreiheit</h1>')
+    expect(statement.html).toContain('<h2>Beschwerdeverfahren</h2>')
+  })
+
+  it('declares the language the statement was rendered in', async () => {
+    expect((await render()).html).toContain('<html lang="de">')
+    expect((await render({}, { locale: 'en' })).html).toContain('<html lang="en">')
+  })
+
+  it('falls back to the site name for the title when there is no heading', async () => {
+    // Every template starts with one, so this only guards the fallback wiring.
+    const statement = await render()
+
+    expect(statement.html).not.toContain('<title>Musterbetrieb</title>')
+    expect(statement.html).toContain('<title>Erklärung zur Barrierefreiheit</title>')
+  })
+
+  it('links the feedback address', async () => {
+    expect((await render()).html).toContain('<a href="mailto:office@example.at">')
   })
 })

@@ -71,6 +71,12 @@ export const configSchema = z.object({
     email: z.email(),
     phone: z.string().min(1).optional(),
     address: z.string().min(1).optional(),
+    /**
+     * A contact or feedback form, offered alongside the address rather than
+     * instead of it: the EAA requires a way to report barriers, and a form is
+     * the one channel a visitor who cannot use email may still be able to use.
+     */
+    feedbackUrl: z.url().optional(),
   }),
   compliance: z.object({
     status: z.enum(COMPLIANCE_STATUSES),
@@ -79,6 +85,12 @@ export const configSchema = z.object({
     /** When the assessment was carried out. */
     assessedOn: z.iso.date(),
     assessmentMethod: z.enum(ASSESSMENT_METHODS).default('self-assessment'),
+    /**
+     * Reason attached to barriers taken from an audit report, which carries no
+     * reason of its own. 'fix-planned' is the honest default for a barrier an
+     * automated run just found; the other two are claims only a human can make.
+     */
+    auditReason: z.enum(ISSUE_REASONS).default('fix-planned'),
   }),
   enforcement: z.object({
     /** Drives which supervisory body and statute the template names. */

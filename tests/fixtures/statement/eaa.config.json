@@ -21,7 +21,10 @@
         "reason": "fix-planned",
         "remedyBy": "2026-12-31"
       },
-      "Ältere PDF-Dokumente sind nicht barrierefrei."
+      {
+        "description": "Ältere PDF-Dokumente sind nicht barrierefrei.",
+        "reason": "disproportionate-burden"
+      }
     ],
     "assessedOn": "2026-08-21",
     "assessmentMethod": "self-assessment"

@@ -1,0 +1,202 @@
+{
+  "schemaVersion": 1,
+  "tool": {
+    "name": "eaa-kit",
+    "version": "0.1.0",
+    "axeCore": "4.13.0"
+  },
+  "generatedAt": "2026-08-21T09:30:00.000Z",
+  "engine": "jsdom",
+  "target": {
+    "directory": "./dist",
+    "baseUrl": null
+  },
+  "summary": {
+    "pages": 8,
+    "pagesWithViolations": 7,
+    "pagesNotAudited": 0,
+    "violations": 11,
+    "violatingElements": 14,
+    "byImpact": {
+      "critical": 1,
+      "serious": 7,
+      "moderate": 2,
+      "minor": 0,
+      "unclassified": 1
+    },
+    "needsReview": 2,
+    "notEvaluated": 12,
+    "passes": 46,
+    "inapplicable": 388,
+    "failOn": "serious",
+    "failing": 9
+  },
+  "rules": {
+    "color-contrast": {
+      "help": "Elements must meet minimum color contrast ratio thresholds",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/color-contrast",
+      "successCriteria": ["1.4.3"],
+      "en301549": ["9.1.4.3"]
+    },
+    "form-field-multiple-labels": {
+      "help": "Form field must not have multiple label elements",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/form-field-multiple-labels",
+      "successCriteria": [],
+      "en301549": []
+    },
+    "html-has-lang": {
+      "help": "<html> element must have a lang attribute",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/html-has-lang",
+      "successCriteria": ["3.1.1"],
+      "en301549": ["9.3.1.1"]
+    },
+    "image-alt": {
+      "help": "Images must have alternative text",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/image-alt",
+      "successCriteria": ["1.1.1"],
+      "en301549": ["9.1.1.1"]
+    },
+    "landmark-one-main": {
+      "help": "Document should have one main landmark",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/landmark-one-main",
+      "successCriteria": ["1.3.1"],
+      "en301549": ["9.1.3.1"]
+    }
+  },
+  "pages": [
+    {
+      "path": "index.html",
+      "url": "file:///dist/index.html",
+      "violations": [
+        {
+          "ruleId": "image-alt",
+          "impact": "critical",
+          "nodes": [{ "html": "<img src=\"/logo.svg\">", "target": ["img"], "failureSummary": null }]
+        },
+        {
+          "ruleId": "color-contrast",
+          "impact": "serious",
+          "nodes": [{ "html": "<p class=\"muted\">…</p>", "target": [".muted"], "failureSummary": null }]
+        },
+        {
+          "ruleId": "form-field-multiple-labels",
+          "impact": null,
+          "nodes": [{ "html": "<input id=\"q\">", "target": ["#q"], "failureSummary": null }]
+        }
+      ],
+      "incomplete": [],
+      "passes": [],
+      "inapplicable": [],
+      "error": null
+    },
+    {
+      "path": "impressum.html",
+      "url": "file:///dist/impressum.html",
+      "violations": [
+        {
+          "ruleId": "color-contrast",
+          "impact": "serious",
+          "nodes": [{ "html": "<p class=\"muted\">…</p>", "target": [".muted"], "failureSummary": null }]
+        }
+      ],
+      "incomplete": [],
+      "passes": [],
+      "inapplicable": [],
+      "error": null
+    },
+    {
+      "path": "kontakt.html",
+      "url": "file:///dist/kontakt.html",
+      "violations": [
+        {
+          "ruleId": "color-contrast",
+          "impact": "serious",
+          "nodes": [{ "html": "<p class=\"muted\">…</p>", "target": [".muted"], "failureSummary": null }]
+        },
+        {
+          "ruleId": "landmark-one-main",
+          "impact": "moderate",
+          "nodes": [{ "html": "<body>", "target": ["body"], "failureSummary": null }]
+        }
+      ],
+      "incomplete": [],
+      "passes": [],
+      "inapplicable": [],
+      "error": null
+    },
+    {
+      "path": "leistungen.html",
+      "url": "file:///dist/leistungen.html",
+      "violations": [
+        {
+          "ruleId": "color-contrast",
+          "impact": "serious",
+          "nodes": [{ "html": "<p class=\"muted\">…</p>", "target": [".muted"], "failureSummary": null }]
+        }
+      ],
+      "incomplete": [],
+      "passes": [],
+      "inapplicable": [],
+      "error": null
+    },
+    {
+      "path": "team.html",
+      "url": "file:///dist/team.html",
+      "violations": [
+        {
+          "ruleId": "color-contrast",
+          "impact": "serious",
+          "nodes": [{ "html": "<p class=\"muted\">…</p>", "target": [".muted"], "failureSummary": null }]
+        },
+        {
+          "ruleId": "landmark-one-main",
+          "impact": "moderate",
+          "nodes": [{ "html": "<body>", "target": ["body"], "failureSummary": null }]
+        }
+      ],
+      "incomplete": [],
+      "passes": [],
+      "inapplicable": [],
+      "error": null
+    },
+    {
+      "path": "blog/2026-06-eaa.html",
+      "url": "file:///dist/blog/2026-06-eaa.html",
+      "violations": [
+        {
+          "ruleId": "color-contrast",
+          "impact": "serious",
+          "nodes": [{ "html": "<p class=\"muted\">…</p>", "target": [".muted"], "failureSummary": null }]
+        }
+      ],
+      "incomplete": [],
+      "passes": [],
+      "inapplicable": [],
+      "error": null
+    },
+    {
+      "path": "blog/index.html",
+      "url": "file:///dist/blog/index.html",
+      "violations": [
+        {
+          "ruleId": "color-contrast",
+          "impact": "serious",
+          "nodes": [{ "html": "<p class=\"muted\">…</p>", "target": [".muted"], "failureSummary": null }]
+        }
+      ],
+      "incomplete": [],
+      "passes": [],
+      "inapplicable": [],
+      "error": null
+    },
+    {
+      "path": "datenschutz.html",
+      "url": "file:///dist/datenschutz.html",
+      "violations": [],
+      "incomplete": [],
+      "passes": [],
+      "inapplicable": [],
+      "error": null
+    }
+  ]
+}
