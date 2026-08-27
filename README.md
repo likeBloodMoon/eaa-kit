@@ -214,7 +214,7 @@ eaa-kit statement --audit a11y.json                 # list what the audit found
 | --- | --- | --- |
 | `--config <path>` | searched for | Path to the config file |
 | `--lang <locale>` | from `site.locale` | `de` or `en` |
-| `--country <code>` | from `enforcement.country` | `AT` or `DE` |
+| `--country <code>` | from `enforcement.country` | `AT`, `CH` or `DE` |
 | `--audit <path>` | — | A report from `eaa-kit audit --format json`; its violations are listed as non-accessible content |
 | `--format <format>` | from `--output` | `markdown` or `html` |
 | `--output <path>` | stdout | Write to a file; parent directories are created |
@@ -281,7 +281,7 @@ export default defineConfig({
     ],
   },
   enforcement: {
-    country: 'AT',   // AT and DE today; CH is not written yet
+    country: 'AT',   // AT, CH or DE
   },
 })
 ```
@@ -319,7 +319,41 @@ Sozialministeriumservice wenden. …
 
 The `AT` template names the Barrierefreiheitsgesetz and the Sozialministeriumservice; the
 `DE` template names the Barrierefreiheitsstärkungsgesetz and the Marktüberwachungsstelle
-der Länder (MLBF). Both transpose Directive (EU) 2019/882.
+der Länder (MLBF). Both statutes transpose Directive (EU) 2019/882.
+
+### Switzerland is not the EU
+
+`CH` is a different document, not a translation of the other two, because Swiss law is
+genuinely different and a statement that pretended otherwise would be stating something
+false about it.
+
+- **The BehiG is not an EAA transposition.** The Behindertengleichstellungsgesetz
+  (SR 151.3) predates Directive (EU) 2019/882 and does not implement it. The Swiss
+  template says so, and adds that a provider selling products or services into the EU may
+  fall under the EAA regardless — which is presumably why a Swiss user is running a tool
+  called eaa-kit in the first place.
+- **There is no supervisory body to complain to.** Austria has the Sozialministeriumservice
+  and Germany the MLBF; Switzerland has no market surveillance authority for the websites
+  of private providers. Rather than invent one, the `CH` enforcement section names the
+  remedies that do exist — a court action under Article 8 BehiG, an action brought by a
+  disability organisation under Article 9 — and points at the EBGB for general information.
+- **The technical standard is eCH-0059**, which the federal government made a binding ICT
+  requirement in 2021 and which requires WCAG 2.1 AA. `compliance.standard` still defaults
+  to EN 301 549 for every country, because what you assessed against is a fact about your
+  assessment rather than about your address — a Swiss provider selling into the EU may
+  well mean EN 301 549. Set it explicitly if you mean the Swiss standard:
+
+  ```ts
+  compliance: {
+    standard: 'eCH-0059 V3.0 (WCAG 2.1 AA)',
+  }
+  ```
+
+One thing the template deliberately leaves out: today the revised BehiG binds public
+bodies, not private companies, and the Federal Council is still reviewing whether to
+extend it. Whether you are obliged to publish a statement at all is a question for you and
+your lawyer, and it is not something a generated document should assert on your behalf —
+so it says nothing about it, and neither does this README.
 
 ### Barriers from an audit run
 

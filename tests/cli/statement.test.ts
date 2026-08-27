@@ -3,6 +3,13 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { runStatementCommand } from '../../src/cli/statement.ts'
+import type { Country } from '../../src/config/define.ts'
+
+/**
+ * Stands in for a country added to COUNTRIES before its template is written.
+ * AT, CH and DE all have one, so the guard needs a country that does not.
+ */
+const UNWRITTEN = 'FR' as Country
 
 const AUDIT_FIXTURE = path.join(import.meta.dirname, '../fixtures/statement/audit.json')
 
@@ -127,13 +134,22 @@ describe('runStatementCommand', () => {
     expect(stderr.join('')).toContain('No config file found')
   })
 
-  it('exits 2 rather than emitting a placeholder for a country without a template', async () => {
+  it('renders the Swiss template for a Swiss provider', async () => {
     const dir = await project({ ...CONFIG, enforcement: { country: 'CH' } })
 
     const { exitCode } = await runStatementCommand({ cwd: dir })
 
+    expect(exitCode).toBe(0)
+    expect(stdout.join('')).toContain('Behindertengleichstellungsgesetz')
+  })
+
+  it('exits 2 rather than emitting a placeholder for a country without a template', async () => {
+    const dir = await project()
+
+    const { exitCode } = await runStatementCommand({ cwd: dir, country: UNWRITTEN })
+
     expect(exitCode).toBe(2)
-    expect(stderr.join('')).toContain('No statement template for ch.de')
+    expect(stderr.join('')).toContain('No statement template for fr.de')
     expect(stdout.join('')).toBe('')
   })
 })
@@ -273,9 +289,9 @@ describe('runStatementCommand --format', () => {
   })
 
   it('reports the format even when it could not produce anything', async () => {
-    const dir = await project({ ...CONFIG, enforcement: { country: 'CH' } })
+    const dir = await project()
 
-    const result = await runStatementCommand({ cwd: dir, format: 'html' })
+    const result = await runStatementCommand({ cwd: dir, format: 'html', country: UNWRITTEN })
 
     expect(result).toMatchObject({ document: '', format: 'html', exitCode: 2 })
   })

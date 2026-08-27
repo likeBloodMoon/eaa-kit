@@ -20,6 +20,8 @@ const FIXTURES = path.join(import.meta.dirname, '../fixtures/statement')
 const COMBINATIONS = [
   { country: 'AT', locale: 'de' },
   { country: 'AT', locale: 'en' },
+  { country: 'CH', locale: 'de' },
+  { country: 'CH', locale: 'en' },
   { country: 'DE', locale: 'de' },
   { country: 'DE', locale: 'en' },
 ] as const

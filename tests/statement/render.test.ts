@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { EaaConfigInput } from '../../src/config/define.ts'
+import type { Country, EaaConfigInput } from '../../src/config/define.ts'
 import { parseConfig } from '../../src/config/define.ts'
 import type { AuditFinding, AuditSummary } from '../../src/statement/findings.ts'
 import { renderStatement, StatementError } from '../../src/statement/render.ts'
@@ -84,12 +84,23 @@ describe('template selection', () => {
     expect(statement.template).toBe('de.de')
   })
 
+  it('renders Swiss law for a Swiss provider', async () => {
+    const statement = await render({ enforcement: { country: 'CH' } })
+
+    expect(statement.template).toBe('ch.de')
+    expect(statement.markdown).toContain('Behindertengleichstellungsgesetz, BehiG')
+    expect(statement.markdown).not.toContain('BaFG')
+  })
+
   it('refuses a country whose template does not exist yet, naming what does', async () => {
-    // Switzerland is planned. Rendering a placeholder as somebody's legal
-    // document would be far worse than failing.
-    await expect(render({ enforcement: { country: 'CH' } })).rejects.toThrow(StatementError)
-    await expect(render({ enforcement: { country: 'CH' } })).rejects.toThrow(
-      /Available: at\.de, at\.en, de\.de, de\.en/,
+    // The cast stands in for a country added to COUNTRIES before its template is
+    // written. Rendering a placeholder as somebody's legal document would be far
+    // worse than failing.
+    const missing = { country: 'FR' as Country }
+
+    await expect(renderStatement(config(), missing)).rejects.toThrow(StatementError)
+    await expect(renderStatement(config(), missing)).rejects.toThrow(
+      /Available: at\.de, at\.en, ch\.de, ch\.en, de\.de, de\.en/,
     )
   })
 })
@@ -246,6 +257,8 @@ describe('every template', () => {
   const combinations = [
     { country: 'AT', locale: 'de' },
     { country: 'AT', locale: 'en' },
+    { country: 'CH', locale: 'de' },
+    { country: 'CH', locale: 'en' },
     { country: 'DE', locale: 'de' },
     { country: 'DE', locale: 'en' },
   ] as const
@@ -558,5 +571,68 @@ describe('html output', () => {
 
   it('links the feedback address', async () => {
     expect((await render()).html).toContain('<a href="mailto:office@example.at">')
+  })
+})
+
+describe('Switzerland is not the EU', () => {
+  const swiss: Partial<EaaConfigInput> = { enforcement: { country: 'CH' } }
+
+  it('does not claim the BehiG transposes the EAA', async () => {
+    // The AT and DE statutes do transpose Directive (EU) 2019/882. The BehiG
+    // predates it and is not a transposition of anything, so a statement that
+    // said so would be stating something false about the law.
+    const statement = await render(swiss)
+
+    expect(statement.markdown).not.toContain('setzt die Richtlinie')
+    expect(statement.markdown).toContain('nicht Mitglied der EU')
+  })
+
+  it('says the EAA may still reach a provider selling into the EU', async () => {
+    const statement = await render(swiss)
+
+    expect(statement.markdown).toContain('kann ihr dennoch unterliegen')
+  })
+
+  it('says so in English too', async () => {
+    const statement = await render(swiss, { locale: 'en' })
+
+    expect(statement.markdown).toContain('Switzerland is not a member of the EU')
+    expect(statement.markdown).not.toContain('transposes Directive')
+  })
+
+  it('names the Swiss technical standard alongside the statute', async () => {
+    expect((await render(swiss)).markdown).toContain('eCH-0059')
+    expect((await render(swiss, { locale: 'en' })).markdown).toContain('eCH-0059')
+  })
+
+  it('does not invent a supervisory body Switzerland does not have', async () => {
+    // AT and DE each name a market surveillance authority. Switzerland has none
+    // for private websites, and pointing a reader at one would send them
+    // somewhere that cannot help.
+    const statement = await render(swiss)
+
+    expect(statement.markdown).toContain('keine Marktüberwachungsstelle')
+    expect(statement.markdown).not.toContain('Sozialministeriumservice')
+    expect(statement.markdown).not.toContain('Marktüberwachungsstelle der Länder')
+  })
+
+  it('points at the legal remedies that do exist', async () => {
+    const statement = await render(swiss)
+
+    expect(flat(statement.markdown)).toContain('Artikel 8 BehiG')
+    expect(flat(statement.markdown)).toContain('Artikel 9 BehiG')
+    expect(statement.markdown).toContain('https://www.ebgb.admin.ch')
+  })
+
+  it('gives the out-of-scope reason under the Swiss statute', async () => {
+    const statement = await render({
+      ...swiss,
+      compliance: {
+        ...BASE.compliance,
+        knownIssues: [{ description: 'Ein Archiv.', reason: 'out-of-scope' }],
+      },
+    } as Partial<EaaConfigInput>)
+
+    expect(statement.markdown).toContain('Anwendungsbereich des BehiG')
   })
 })
