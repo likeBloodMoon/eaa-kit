@@ -87,21 +87,53 @@ async function handle(
   try {
     const stats = await stat(file)
     const target = stats.isDirectory() ? path.join(file, 'index.html') : file
-    const type = CONTENT_TYPES[path.extname(target).toLowerCase()] ?? 'application/octet-stream'
 
+    // The status line has to be decided before it is sent, not after the stream
+    // has already failed. A directory with no index.html is the ordinary way to
+    // get here: `<a href="/assets/">` on any real site.
+    if (!(await isReadableFile(target))) {
+      response.writeHead(404).end()
+      return
+    }
+
+    const type = CONTENT_TYPES[path.extname(target).toLowerCase()] ?? 'application/octet-stream'
     response.writeHead(200, { 'content-type': type })
     createReadStream(target)
-      .on('error', () => response.writeHead(404).end())
+      // Belt and braces for a file that disappears between the check and the
+      // read: the headers are already gone, so all that is left is to stop.
+      .on('error', () => {
+        if (!response.headersSent) response.writeHead(404)
+        response.end()
+      })
       .pipe(response)
   } catch {
     response.writeHead(404).end()
   }
 }
 
+async function isReadableFile(candidate: string): Promise<boolean> {
+  try {
+    return (await stat(candidate)).isFile()
+  } catch {
+    return false
+  }
+}
+
 /** Resolves a request path inside the root, or nothing if it escapes it. */
 function resolveFile(root: string, requestUrl: string): string | undefined {
   const { pathname } = new URL(requestUrl, 'http://127.0.0.1')
-  const decoded = decodeURIComponent(pathname)
+
+  // decodeURIComponent throws on a stray or truncated percent escape, and a
+  // page only has to contain `<img src="/%">` to produce one. Thrown here it
+  // would reach nothing that could catch it and would take the process down
+  // mid-audit, so a request nobody can decode is simply a request for nothing.
+  let decoded: string
+  try {
+    decoded = decodeURIComponent(pathname)
+  } catch {
+    return undefined
+  }
+
   const candidate = path.resolve(root, `.${path.posix.normalize(decoded)}`)
 
   // Traversal guard. The audited directory is the user's own build, but a

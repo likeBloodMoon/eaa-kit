@@ -108,9 +108,16 @@ export function summariseAuditReport(value: unknown, source = 'audit report'): A
 
   const byRule = new Map<string, AuditFinding>()
 
+  // A Map rather than the parsed object: `rules['constructor']` reaches
+  // Object.prototype and comes back truthy, which walks straight past the
+  // missing-rule check below and puts a barrier with no description into
+  // somebody's statement. A rule id is data from a file, so it gets a lookup
+  // that only ever sees the keys the file actually had.
+  const rules = new Map(Object.entries(report.rules))
+
   for (const page of report.pages) {
     for (const violation of page.violations) {
-      const rule = report.rules[violation.ruleId]
+      const rule = rules.get(violation.ruleId)
       // A report whose rule index is missing an id it references is malformed
       // rather than empty; skipping the entry loses a barrier, so it is named.
       if (!rule) {

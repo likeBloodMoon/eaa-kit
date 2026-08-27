@@ -1,6 +1,8 @@
-import { readFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { pathToFileURL } from 'node:url'
+import { afterEach, describe, expect, it } from 'vitest'
 import type { CollectedPage } from '../../../src/audit/collect.ts'
 import { collectPages } from '../../../src/audit/collect.ts'
 import { runJsdomAudit } from '../../../src/audit/runners/jsdom.ts'
@@ -12,6 +14,12 @@ import {
 } from '../../../src/audit/runners/pool.ts'
 
 const SITE = path.join(import.meta.dirname, '../../fixtures/site')
+
+const brokenDirs: string[] = []
+
+afterEach(async () => {
+  await Promise.all(brokenDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })))
+})
 
 async function fixturePages(): Promise<CollectedPage[]> {
   return collectPages(SITE)
@@ -200,6 +208,36 @@ describe('runPooledAudit', { timeout: THREAD_TIMEOUT_MS }, () => {
     expect(audits[0]?.error).toBeDefined()
   })
 
+  it('audits in this process when the worker cannot be loaded at all', async () => {
+    // A worker entry that exists but throws on import: a partial install, or a
+    // bundle this runtime cannot load. Every thread dies having reported
+    // nothing, which says something about the threads and nothing about the
+    // pages, so the pages are audited here instead of coming back unaudited.
+    const broken = await brokenWorker()
+    const pages = await fixturePages()
+
+    const audits = await runPooledAudit(pages, { concurrency: 2, workerEntry: broken })
+
+    expect(audits.map((audit) => audit.error)).toEqual(pages.map(() => undefined))
+    expect(strip(audits)).toEqual(strip(await runJsdomAudit(pages)))
+  })
+
+  it('never returns a page-shaped hole, whatever the workers did', async () => {
+    // The slots start as a sparse array unless they are filled, and map,
+    // flatMap and filter all skip holes: a page nobody reported on would slip
+    // past the sweep, past the failed-page fallback, and out of the report
+    // entirely — counted as neither audited nor failed.
+    const broken = await brokenWorker()
+    const pages = await repeated(4)
+
+    const audits = await runPooledAudit(pages, { concurrency: 2, workerEntry: broken })
+
+    expect(audits).toHaveLength(pages.length)
+    // Holes have no own keys, so this is the assertion a sparse array fails.
+    expect(Object.keys(audits)).toHaveLength(pages.length)
+    expect(audits.every((audit) => audit !== undefined)).toBe(true)
+  })
+
   it('passes the runner options through to the workers', async () => {
     const pages = await repeated(4)
 
@@ -211,6 +249,15 @@ describe('runPooledAudit', { timeout: THREAD_TIMEOUT_MS }, () => {
     expect(audits[0]?.url).toBe('https://example.at/page-0.html')
   })
 })
+
+/** A worker entry that loads and immediately throws. */
+async function brokenWorker(): Promise<URL> {
+  const dir = await mkdtemp(path.join(tmpdir(), 'eaa-kit-worker-'))
+  brokenDirs.push(dir)
+  const file = path.join(dir, 'worker.mjs')
+  await writeFile(file, "throw new Error('this worker cannot start')\n", 'utf8')
+  return pathToFileURL(file)
+}
 
 /** Everything a report keeps, minus the one field two runs may disagree on. */
 function strip(audits: readonly { durationMs: number }[]): unknown[] {

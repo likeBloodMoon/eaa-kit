@@ -180,6 +180,23 @@ describe('summariseAuditReport', () => {
     )
   })
 
+  it.each(['constructor', 'toString', '__proto__', 'hasOwnProperty'])(
+    'rejects a violation naming %s, which every object appears to have',
+    (ruleId) => {
+      // `rules['constructor']` reaches Object.prototype and comes back truthy,
+      // which walked straight past the missing-rule check and put a barrier
+      // with no description at all into the statement.
+      expect(() =>
+        summariseAuditReport(
+          report({
+            pages: [{ path: 'index.html', violations: [{ ruleId, impact: 'serious' }] }],
+          }),
+          'a11y.json',
+        ),
+      ).toThrow(new RegExp(`references rule ${ruleId.replace(/[$]/g, '\\$&')}`))
+    },
+  )
+
   it('names a rule the report references but does not describe', () => {
     // Silently dropping it would lose a barrier out of a legal document.
     expect(() =>
