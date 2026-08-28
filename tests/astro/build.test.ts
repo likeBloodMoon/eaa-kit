@@ -3,6 +3,7 @@ import { access, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 
@@ -74,12 +75,22 @@ async function project(page: string, integrationOptions = ''): Promise<string> {
   await writeFile(
     path.join(dir, 'astro.config.mjs'),
     `import { defineConfig } from 'astro/config'\n` +
-      `import eaaKit from ${JSON.stringify(ENTRY)}\n` +
+      // A file: URL, not the path: a bare Windows absolute path
+      // (D:\\a\\eaa-kit\\dist\\astro\\index.js) is not a valid ESM specifier, and
+      // Vite fails to resolve it with an error of its own rather than one from
+      // this integration.
+      `import eaaKit from ${JSON.stringify(pathToFileURL(ENTRY).href)}\n` +
       `export default defineConfig({ integrations: [eaaKit({${integrationOptions}})] })\n`,
     'utf8',
   )
-  // Astro and its plugins resolve from the project root.
-  await symlink(path.join(REPO, 'node_modules'), path.join(dir, 'node_modules'), 'dir')
+  // Astro and its plugins resolve from the project root. A junction rather than
+  // a directory symlink on Windows: symlinks there need Developer Mode or an
+  // elevated process, junctions need neither and behave the same for this.
+  await symlink(
+    path.join(REPO, 'node_modules'),
+    path.join(dir, 'node_modules'),
+    process.platform === 'win32' ? 'junction' : 'dir',
+  )
 
   return dir
 }
