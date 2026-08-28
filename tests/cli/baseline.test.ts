@@ -183,14 +183,46 @@ describe('audit --baseline', () => {
   it('points out entries that no longer match, so the file can shrink', async () => {
     const dir = await site()
     await runBaselineCommand('dist', { cwd: dir })
-    // Auditing a subset leaves the entries for the other pages unmatched.
+    // index.html is the page carrying the violations; replacing it with a clean
+    // one leaves its entries genuinely unmatched.
+    await writeFile(
+      path.join(dir, 'dist', 'index.html'),
+      '<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Neu</title></head><body><main><h1>Neu</h1></main></body></html>',
+      'utf8',
+    )
+
+    await runAuditCommand(path.join(dir, 'dist'), { cwd: dir, baseline: 'eaa-baseline.json' })
+
+    expect(stderr.join('')).toContain('no longer match')
+  })
+
+  it('does not tell you to delete entries for pages it never audited', async () => {
+    // Following that advice after a narrowed run would remove the entries
+    // protecting the rest of the site.
+    const dir = await site()
+    await runBaselineCommand('dist', { cwd: dir })
+
     await runAuditCommand(path.join(dir, 'dist'), {
       cwd: dir,
       baseline: 'eaa-baseline.json',
       include: ['about/**'],
     })
 
-    expect(stderr.join('')).toContain('matched nothing and can be removed')
+    expect(stderr.join('')).not.toContain('can be removed')
+  })
+
+  it('resolves --output against the working directory it was given', async () => {
+    const dir = await site()
+
+    await runAuditCommand(path.join(dir, 'dist'), {
+      cwd: dir,
+      format: 'json',
+      output: 'reports/a11y.json',
+    })
+
+    expect(JSON.parse(await readFile(path.join(dir, 'reports/a11y.json'), 'utf8'))).toMatchObject({
+      schemaVersion: 1,
+    })
   })
 
   it('warns when entries have expired, and fails on them again', async () => {

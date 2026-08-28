@@ -170,11 +170,16 @@ async function acceptBaseline(
     if (outcome.accepted > 0) {
       process.stderr.write(pc.dim(`Baseline accepted ${outcome.accepted} violating elements\n`))
     }
-    // A baseline that no longer matches anything is the good case — it means
-    // things were fixed — but only if somebody is told to delete the entries.
+    // A baseline that no longer matches is the good case — it means things were
+    // fixed — but only if somebody is told to delete the entries. Entries for
+    // pages this run did not audit are not counted here, so the advice is safe
+    // to follow after a run narrowed by --include.
     if (outcome.stale.length > 0) {
+      const count = outcome.stale.length
       process.stderr.write(
-        pc.dim(`${outcome.stale.length} baseline entries matched nothing and can be removed\n`),
+        pc.dim(
+          `${count} baseline ${count === 1 ? 'entry no longer matches' : 'entries no longer match'} and can be removed\n`,
+        ),
       )
     }
     if (outcome.expired.length > 0) {
@@ -234,7 +239,9 @@ async function emit(
     return
   }
 
-  const target = path.resolve(options.output)
+  // Against the same working directory as --baseline, rather than the process's:
+  // a caller that says where relative paths start means it for all of them.
+  const target = path.resolve(options.cwd ?? process.cwd(), options.output)
   await mkdir(path.dirname(target), { recursive: true })
   await writeFile(target, body, 'utf8')
   process.stderr.write(pc.dim(`Report written to ${options.output}\n`))

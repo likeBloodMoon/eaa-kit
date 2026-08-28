@@ -54,7 +54,13 @@ export async function serveDirectory(root: string): Promise<StaticServer> {
   const absoluteRoot = path.resolve(root)
 
   const server = createServer((request, response) => {
-    void handle(absoluteRoot, request.url ?? '/', response)
+    // `handle` is written not to reject, and this catch is the belt to that
+    // brace: an unhandled rejection here is fatal to the whole audit rather
+    // than to one request, and this handler has managed it once already.
+    handle(absoluteRoot, request.url ?? '/', response).catch(() => {
+      if (!response.headersSent) response.writeHead(500)
+      response.end()
+    })
   })
 
   await new Promise<void>((resolve, reject) => {

@@ -174,6 +174,23 @@ describe('summariseAuditReport', () => {
     )
   })
 
+  it.each(['not-a-date', '', '2026-13-45T00:00:00Z', '2026-08-21'])(
+    'rejects %s as a timestamp rather than handing it to the formatter',
+    (generatedAt) => {
+      // An unparseable date reached Intl and threw a RangeError out of the
+      // statement generator: not a useful error, and not a survivable one.
+      expect(() => summariseAuditReport(report({ generatedAt }), 'a11y.json')).toThrow(
+        /is not an eaa-kit JSON report/,
+      )
+    },
+  )
+
+  it('accepts the timestamp the JSON report actually writes', () => {
+    expect(
+      summariseAuditReport(report({ generatedAt: new Date().toISOString() })).generatedAt,
+    ).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+  })
+
   it('rejects a schema version it does not know how to read', () => {
     expect(() => summariseAuditReport(report({ schemaVersion: 2 }))).toThrow(
       /schemaVersion 2; this version of eaa-kit reads 1/,
