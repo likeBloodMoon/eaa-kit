@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { Command, InvalidArgumentError } from 'commander'
+import { DEFAULT_BASELINE_FILE } from '../audit/baseline.ts'
 import { DEFAULT_FAIL_ON, IMPACT_LEVELS, type ImpactLevel, isImpactLevel } from '../audit/impact.ts'
 import {
   COUNTRIES,
@@ -9,6 +10,7 @@ import {
 } from '../config/define.ts'
 import { TOOL_VERSION } from '../version.ts'
 import { isOutputFormat, OUTPUT_FORMATS, type OutputFormat, runAuditCommand } from './audit.ts'
+import { runBaselineCommand } from './baseline.ts'
 import {
   isStatementFormat,
   runStatementCommand,
@@ -56,6 +58,7 @@ program
     'worker threads to audit with, or 1 for none (default: from the page and core count)',
     parseConcurrency,
   )
+  .option('--baseline <path>', 'accept the violations recorded in this file; fail only on new ones')
   .action(async (dir: string, options: Record<string, unknown>) => {
     const { exitCode } = await runAuditCommand(dir, {
       ...(Array.isArray(options['include']) ? { include: options['include'] as string[] } : {}),
@@ -64,6 +67,35 @@ program
       failOn: options['failOn'] as ImpactLevel,
       format: options['format'] as OutputFormat,
       ...(typeof options['output'] === 'string' ? { output: options['output'] } : {}),
+      ...(options['browser'] === true ? { browser: true } : {}),
+      ...(typeof options['concurrency'] === 'number'
+        ? { concurrency: options['concurrency'] }
+        : {}),
+      ...(typeof options['baseline'] === 'string' ? { baseline: options['baseline'] } : {}),
+    })
+    process.exitCode = exitCode
+  })
+
+program
+  .command('baseline')
+  .description('Record the violations a build already has, so later runs fail only on new ones')
+  .argument('[dir]', 'directory holding the built site', './dist')
+  .option('--include <globs...>', 'glob patterns to audit, relative to dir')
+  .option('--exclude <globs...>', 'glob patterns to skip')
+  .option('--base-url <url>', 'audit pages under their real site URL')
+  .option('--output <path>', `where to write it (default: ${DEFAULT_BASELINE_FILE})`)
+  .option('--note <text>', 'recorded on every entry, for whoever reads the file')
+  .option('--expires-on <date>', 'ISO date after which the entries stop suppressing', parseDate)
+  .option('--browser', 'audit in real Chromium instead of jsdom')
+  .option('--concurrency <n>', 'worker threads to audit with, or 1 for none', parseConcurrency)
+  .action(async (dir: string, options: Record<string, unknown>) => {
+    const { exitCode } = await runBaselineCommand(dir, {
+      ...(Array.isArray(options['include']) ? { include: options['include'] as string[] } : {}),
+      ...(Array.isArray(options['exclude']) ? { exclude: options['exclude'] as string[] } : {}),
+      ...(typeof options['baseUrl'] === 'string' ? { baseUrl: options['baseUrl'] } : {}),
+      ...(typeof options['output'] === 'string' ? { output: options['output'] } : {}),
+      ...(typeof options['note'] === 'string' ? { note: options['note'] } : {}),
+      ...(typeof options['expiresOn'] === 'string' ? { expiresOn: options['expiresOn'] } : {}),
       ...(options['browser'] === true ? { browser: true } : {}),
       ...(typeof options['concurrency'] === 'number'
         ? { concurrency: options['concurrency'] }
@@ -119,6 +151,13 @@ function parseCountry(value: string): Country {
 function parseStatementFormat(value: string): StatementFormat {
   if (!isStatementFormat(value)) {
     throw new InvalidArgumentError(`expected one of ${STATEMENT_FORMATS.join(', ')}`)
+  }
+  return value
+}
+
+function parseDate(value: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(Date.parse(`${value}T00:00:00Z`))) {
+    throw new InvalidArgumentError('expected an ISO date, e.g. 2026-12-31')
   }
   return value
 }

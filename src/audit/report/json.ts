@@ -52,6 +52,12 @@ export interface JsonPage {
   url: string
   violations: JsonFinding[]
   incomplete: JsonIncomplete[]
+  /**
+   * Violations an eaa-kit baseline accounts for. Still violations, and never
+   * counted in `violations` or `summary.failing`. Absent when no baseline was
+   * used.
+   */
+  accepted?: JsonFinding[]
   /** Rule ids that were checked and met here. Keys into `rules`. */
   passes: string[]
   /** Rule ids with nothing to check here. Keys into `rules`. Never evidence. */
@@ -78,6 +84,8 @@ export interface JsonSummary {
   failOn: ImpactLevel
   /** Violations at or above `failOn`. Non-zero means the CLI exits 1. */
   failing: number
+  /** Violating elements a baseline accepted. 0 when no baseline was used. */
+  accepted: number
 }
 
 export interface JsonReport {
@@ -136,6 +144,7 @@ function buildRuleIndex(audits: readonly PageAudit[]): Record<string, JsonRule> 
   for (const audit of audits) {
     const outcomes: RuleOutcome[] = [
       ...audit.violations,
+      ...(audit.accepted ?? []),
       ...audit.incomplete,
       ...audit.passes,
       ...audit.inapplicable,
@@ -174,8 +183,10 @@ function buildSummary(audits: readonly PageAudit[], failOn: ImpactLevel): JsonSu
   let notEvaluated = 0
   let passes = 0
   let inapplicable = 0
+  let accepted = 0
 
   for (const audit of audits) {
+    for (const finding of audit.accepted ?? []) accepted += finding.nodes.length
     for (const finding of audit.violations) {
       violations += 1
       violatingElements += finding.nodes.length
@@ -203,6 +214,7 @@ function buildSummary(audits: readonly PageAudit[], failOn: ImpactLevel): JsonSu
     inapplicable,
     failOn,
     failing: countAtOrAbove(audits, failOn),
+    accepted,
   }
 }
 
@@ -211,6 +223,7 @@ function toJsonPage(audit: PageAudit): JsonPage {
     path: audit.relativePath,
     url: audit.url,
     violations: [...audit.violations].sort(byRuleId).map(toJsonFinding),
+    ...(audit.accepted ? { accepted: [...audit.accepted].sort(byRuleId).map(toJsonFinding) } : {}),
     incomplete: [...audit.incomplete].sort(byRuleId).map(toJsonIncomplete),
     passes: [...audit.passes].sort(byRuleId).map((outcome) => outcome.ruleId),
     inapplicable: [...audit.inapplicable].sort(byRuleId).map((outcome) => outcome.ruleId),

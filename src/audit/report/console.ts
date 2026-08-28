@@ -163,10 +163,31 @@ function pageSection(audit: PageAudit, ctx: Context): string[] {
   }
 
   if (audit.violations.length === 0) {
+    // "No violations" would be a lie on a page whose violations were all
+    // accepted by a baseline. They are still there; they just do not fail the
+    // run, and the line below says which of the two this is.
+    const clean = (audit.accepted ?? []).length === 0
     lines.push(
       render(ctx, [
-        { text: `  ${ctx.symbol('clean')} `, paint: ctx.c.green },
-        { text: 'no violations', paint: ctx.c.green },
+        { text: `  ${ctx.symbol('clean')} `, paint: clean ? ctx.c.green : ctx.c.dim },
+        {
+          text: clean ? 'no violations' : 'no new violations',
+          paint: clean ? ctx.c.green : ctx.c.dim,
+        },
+      ]),
+    )
+  }
+
+  for (const finding of sortByImpact(audit.accepted ?? [])) {
+    const elements = finding.nodes.length
+    lines.push(
+      render(ctx, [
+        { text: '  · ', paint: ctx.c.dim },
+        { text: finding.ruleId, paint: ctx.c.dim },
+        {
+          text: ` accepted by the baseline (${elements} ${plural(elements, 'element')})`,
+          paint: ctx.c.dim,
+        },
       ]),
     )
   }
@@ -268,6 +289,24 @@ function summary(audits: readonly PageAudit[], ctx: Context): string[] {
         {
           text: `  ${errored.length} ${plural(errored.length, 'page')} could not be audited`,
           paint: ctx.c.red,
+        },
+      ]),
+    )
+  }
+
+  const accepted = audits.reduce(
+    (total, audit) =>
+      total + (audit.accepted ?? []).reduce((sum, finding) => sum + finding.nodes.length, 0),
+    0,
+  )
+  if (accepted > 0) {
+    // Counted and named, never folded into the passes: a barrier somebody
+    // agreed to defer is not a criterion that was met.
+    lines.push(
+      render(ctx, [
+        {
+          text: `  ${accepted} ${plural(accepted, 'element')} accepted by the baseline, not counted above`,
+          paint: ctx.c.dim,
         },
       ]),
     )
