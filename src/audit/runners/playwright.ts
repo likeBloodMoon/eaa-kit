@@ -215,37 +215,75 @@ interface ChromiumLike {
  * problems with different fixes.
  */
 export async function loadChromium(cwd = process.cwd()): Promise<ChromiumLike> {
-  let module: { chromium?: ChromiumLike } | undefined
+  const tried: string[] = []
 
-  // From the audited project first, and only then from here.
+  // The project being audited first, and only then this package.
   //
   // A bare `import('playwright')` resolves against this module's own location.
   // Run through npx — which is how most people run this — that location is a
-  // cache directory that has no playwright in it, while the project the tool
-  // was pointed at does. The result was the install instructions being printed
-  // to somebody who had just followed them.
-  try {
-    const require = createRequire(pathToFileURL(path.join(cwd, 'package.json')).href)
-    const resolved = require.resolve('playwright')
-    module = (await import(pathToFileURL(resolved).href)) as { chromium?: ChromiumLike }
-  } catch {
-    // Not in the project; fall through to this package's own resolution.
-  }
+  // cache directory with no playwright in it, while the project the tool was
+  // pointed at does have one. The result was the install instructions being
+  // printed to somebody who had just followed them.
+  //
+  // @playwright/test is included because it is what most projects actually
+  // install, and it re-exports the same launchers.
+  const specifiers = ['playwright', '@playwright/test']
+  const roots = [cwd, undefined]
 
-  if (module === undefined) {
-    try {
-      module = (await import('playwright')) as { chromium?: ChromiumLike }
-    } catch {
-      throw new BrowserUnavailableError(
-        'Browser mode needs Playwright, which is an optional peer dependency.\n' +
-          '  Install it with:  npm i -D playwright\n' +
-          '  Then the browser: npx playwright install chromium',
-      )
+  for (const root of roots) {
+    for (const specifier of specifiers) {
+      const loaded = await tryLoad(specifier, root)
+      if (loaded === undefined) continue
+      tried.push(`${specifier}${root === undefined ? ' (from eaa-kit)' : ''}`)
+      const chromium = launcherIn(loaded)
+      if (chromium !== undefined) return chromium
     }
   }
 
-  if (!module.chromium) {
-    throw new BrowserUnavailableError('Playwright is installed but exports no chromium launcher')
+  if (tried.length === 0) {
+    throw new BrowserUnavailableError(
+      'Browser mode needs Playwright, which is an optional peer dependency.\n' +
+        '  Install it with:  npm i -D playwright\n' +
+        '  Then the browser: npx playwright install chromium',
+    )
   }
-  return module.chromium
+
+  // Resolved something, and it was not usable. Naming what was found and what
+  // it exported is the difference between a report somebody can act on and one
+  // that only says the tool is unhappy.
+  throw new BrowserUnavailableError(
+    `Found ${tried.join(' and ')}, but no chromium launcher on it.\n` +
+      '  This usually means an incomplete or mismatched install. Try:\n' +
+      '    npm i -D playwright@latest\n' +
+      '    npx playwright install chromium --force',
+  )
+}
+
+/** Import a specifier, resolved from `root` when given. Undefined if absent. */
+async function tryLoad(specifier: string, root: string | undefined): Promise<unknown> {
+  try {
+    if (root === undefined) return await import(specifier)
+    const require = createRequire(pathToFileURL(path.join(root, 'package.json')).href)
+    return await import(pathToFileURL(require.resolve(specifier)).href)
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * The chromium launcher, whichever shape the module came back in.
+ *
+ * Playwright is CommonJS. Whether `await import()` of it exposes named exports
+ * depends on Node's static analysis of the file succeeding, which is not
+ * guaranteed and differs between versions; when it does not, everything is on
+ * `default` instead. Reading only the named export produced "installed but
+ * exports no chromium launcher" against a perfectly good install.
+ */
+function launcherIn(module: unknown): ChromiumLike | undefined {
+  const candidates = [module, (module as { default?: unknown })?.default]
+  for (const candidate of candidates) {
+    const chromium = (candidate as { chromium?: ChromiumLike } | undefined)?.chromium
+    if (chromium !== undefined && typeof chromium.launch === 'function') return chromium
+  }
+  return undefined
 }

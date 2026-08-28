@@ -18,6 +18,14 @@ consumers must ignore what they do not recognise.
   location, and under npx that is a cache directory with no playwright in it — so somebody
   who had just installed Playwright into their project was told to install Playwright. It
   is now resolved from the audited project first, and only then from here.
+- `--browser` also failed against a perfectly good install with *Playwright is installed
+  but exports no chromium launcher*. Playwright is CommonJS, and whether `await import()`
+  exposes its named exports depends on Node's static analysis of the file succeeding —
+  which is not guaranteed and differs between versions. Where it does not, everything sits
+  on `default`. Both shapes are read now, `@playwright/test` is accepted alongside
+  `playwright` since it is what most projects install, and if something does resolve
+  without a launcher the error names what was found instead of only that the tool is
+  unhappy.
 - A browser that failed to launch left the loopback server listening, so the run hung
   instead of reporting the failure. The commonest way in is Playwright installed but
   `npx playwright install chromium` never run.
