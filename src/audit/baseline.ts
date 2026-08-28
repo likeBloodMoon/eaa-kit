@@ -69,7 +69,11 @@ export class BaselineError extends Error {
 export interface BaselineOutcome {
   /** Audits with accepted violations moved out of `violations`. */
   audits: PageAudit[]
-  /** Entries that matched nothing this run: fixed, or the page moved. */
+  /**
+   * Entries whose page was audited and whose element was not found: fixed, or
+   * moved within the page. Entries for pages this run did not audit are not
+   * here — nothing was learned about them.
+   */
   stale: BaselineEntry[]
   /** Entries past their expiry date. They suppressed nothing. */
   expired: BaselineEntry[]
@@ -162,8 +166,19 @@ export function applyBaseline(
     }
   })
 
+  // Only pages this run actually looked at can produce a stale entry. A run
+  // narrowed by --include leaves every other page unaudited, and calling those
+  // entries stale would tell somebody to delete the ones protecting the rest of
+  // the site — after which the next full run goes red for reasons the tool just
+  // advised them to create.
+  //
+  // The cost is that a page deleted from the site keeps its entries, because
+  // from here a deleted page and a page nobody audited look identical. A few
+  // dead entries are a much smaller problem than advice that would empty the
+  // file.
+  const audited = new Set(audits.map((audit) => audit.relativePath))
   const stale = [...live.entries()]
-    .filter(([id]) => !matched.has(id))
+    .filter(([id, entry]) => !matched.has(id) && audited.has(entry.page))
     .map(([, entry]) => entry)
     .sort(byEntry)
 
@@ -272,7 +287,11 @@ export async function writeBaseline(
 }
 
 function key(page: string, ruleId: string, fingerprint: string): string {
-  return `${page} ${ruleId} ${fingerprint}`
+  // NUL, because a page path can contain any other byte and a delimiter
+  // that can appear inside a component is a collision waiting to happen.
+  // Written as an escape: a raw control byte makes this file binary to
+  // grep, diff and review tools.
+  return `${page}\u0000${ruleId}\u0000${fingerprint}`
 }
 
 function byEntry(a: BaselineEntry, b: BaselineEntry): number {

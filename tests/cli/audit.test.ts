@@ -145,7 +145,7 @@ describe('--format and --output', () => {
       const written = await readFile(target, 'utf8')
       expect(written).toContain('image-alt')
       // biome-ignore lint/suspicious/noControlCharactersInRegex: checking for ANSI
-      expect(written).not.toMatch(/\[/)
+      expect(written).not.toMatch(/\u001b\[/)
     } finally {
       await rm(dir, { recursive: true, force: true })
     }

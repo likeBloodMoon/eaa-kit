@@ -235,6 +235,24 @@ describe('dates', () => {
     expect((await render({}, { locale: 'en' })).markdown).toContain('21 August 2026')
   })
 
+  it('does not throw on a date it cannot format', async () => {
+    // Everything reaching the formatter has been through a schema, so this is
+    // defence rather than a path anyone should hit. A statement with an
+    // odd-looking date is recoverable; a stack trace out of a document
+    // generator is not.
+    const statement = await renderStatement(config(), {
+      audit: {
+        findings: [],
+        pages: 1,
+        needsReview: 0,
+        notEvaluated: 0,
+        generatedAt: 'not-a-date',
+      },
+    })
+
+    expect(statement.markdown).toContain('not-a-date')
+  })
+
   it('never leaks the ISO form into the prose', async () => {
     expect((await render()).markdown).not.toContain('2026-08-21')
   })

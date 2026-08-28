@@ -210,6 +210,29 @@ describe('applyBaseline', () => {
     expect(outcome.stale[0]?.ruleId).toBe('image-alt')
   })
 
+  it('says nothing about a page this run did not audit', () => {
+    // A run narrowed by --include leaves the rest of the site unaudited.
+    // Calling those entries stale tells somebody to delete the ones protecting
+    // every other page, and the next full run then goes red for reasons the
+    // tool advised them to create.
+    const whole = [page('index.html', [finding()]), page('about.html', [finding()])]
+    const narrowed = [page('index.html', [finding()])]
+
+    const outcome = applyBaseline(narrowed, baselineFor(whole), { today: TODAY })
+
+    expect(outcome.stale).toEqual([])
+    expect(outcome.accepted).toBe(1)
+  })
+
+  it('still reports an entry whose page was audited and whose element is gone', () => {
+    const whole = [page('index.html', [finding()]), page('about.html', [finding()])]
+    const fixed = [page('index.html', []), page('about.html', [finding()])]
+
+    const outcome = applyBaseline(fixed, baselineFor(whole), { today: TODAY })
+
+    expect(outcome.stale.map((entry) => entry.page)).toEqual(['index.html'])
+  })
+
   it('reports nothing stale when everything still matches', () => {
     expect(applyBaseline(audits, baselineFor(audits), { today: TODAY }).stale).toEqual([])
   })

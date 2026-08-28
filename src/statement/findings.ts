@@ -19,7 +19,11 @@ export const SUPPORTED_REPORT_SCHEMA = 1
  */
 const reportSchema = z.object({
   schemaVersion: z.number(),
-  generatedAt: z.string(),
+  // The JSON contract calls this ISO 8601, and the statement formats it into a
+  // date somebody publishes. Anything else reaches Intl as an invalid time and
+  // throws a RangeError out of a document generator, which is neither a useful
+  // error nor a survivable one.
+  generatedAt: z.iso.datetime(),
   summary: z.object({
     pages: z.number(),
     needsReview: z.number(),

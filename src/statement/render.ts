@@ -188,9 +188,19 @@ function standardsReference(successCriteria: string[], en301549: string[]): stri
   ].join(', ')
 }
 
-/** 2026-08-20 becomes 20. August 2026 or 20 August 2026. */
+/**
+ * 2026-08-20 becomes 20. August 2026 or 20 August 2026.
+ *
+ * Every date reaching this has been through a schema that checks it, so the
+ * fallback should be unreachable. It is here because the alternative to
+ * returning the string unchanged is Intl throwing a RangeError from inside a
+ * document generator, and a statement that comes out with an odd-looking date
+ * is recoverable in a way that a stack trace is not.
+ */
 function formatDate(iso: string, locale: StatementLocale): string {
   const date = new Date(`${iso}T00:00:00Z`)
+  if (Number.isNaN(date.getTime())) return iso
+
   return new Intl.DateTimeFormat(locale === 'de' ? 'de-AT' : 'en-GB', {
     day: 'numeric',
     month: 'long',
