@@ -1,12 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import pc from 'picocolors'
-import {
-  BuildDirectoryError,
-  type CollectedPage,
-  collectPages,
-  emptyDirectoryHint,
-} from '../audit/collect.ts'
 import { countAtOrAbove, DEFAULT_FAIL_ON, type ImpactLevel } from '../audit/impact.ts'
 import { formatConsoleReport } from '../audit/report/console.ts'
 import type { PageAudit } from '../audit/runners/jsdom.ts'
@@ -21,6 +15,9 @@ import type { PageAudit } from '../audit/runners/jsdom.ts'
  * pays the same cost either way, a few milliseconds later.
  */
 
+import type { CollectedPage } from '../audit/collect.ts'
+import { type CrawlCommandOptions, resolvePages } from './pages.ts'
+
 export const OUTPUT_FORMATS = ['console', 'json', 'sarif', 'html'] as const
 
 export type OutputFormat = (typeof OUTPUT_FORMATS)[number]
@@ -29,7 +26,7 @@ export function isOutputFormat(value: string): value is OutputFormat {
   return (OUTPUT_FORMATS as readonly string[]).includes(value)
 }
 
-export interface AuditCommandOptions {
+export interface AuditCommandOptions extends CrawlCommandOptions {
   include?: string[]
   exclude?: string[]
   baseUrl?: string
@@ -52,6 +49,10 @@ export interface AuditCommandOptions {
   baseline?: string
   /** Where relative paths are resolved from. Defaults to the process's. */
   cwd?: string
+  /** Never run the project's build or start its server to find something to audit. */
+  noBuild?: boolean
+  /** List every page and its result under the issues. */
+  perPage?: boolean
 }
 
 export interface AuditCommandResult {
@@ -70,90 +71,92 @@ export interface AuditCommandResult {
  * piped somewhere without the chatter coming along.
  */
 export async function runAuditCommand(
-  dir: string,
+  /** Build directory, or undefined to work it out from the project. */
+  dir: string | undefined,
   options: AuditCommandOptions = {},
 ): Promise<AuditCommandResult> {
-  let pages: Awaited<ReturnType<typeof collectPages>>
+  const resolved = await resolvePages(dir, options)
+  if (!resolved) return { audits: [], exitCode: 2 }
+  const { pages, origin, label, cleanup } = resolved
+  // try/finally rather than a call before each return: auto-detection may have
+  // started the project's server, and leaving it running would hold the process
+  // open after the report is written.
   try {
-    pages = await collectPages(dir, {
-      ...(options.include ? { include: options.include } : {}),
-      ...(options.exclude ? { exclude: options.exclude } : {}),
-    })
-  } catch (cause) {
-    if (cause instanceof BuildDirectoryError) {
-      process.stderr.write(`${pc.red('error')} ${cause.message}\n`)
-      process.stderr.write(
-        pc.dim('Point eaa-kit at your build output, e.g. eaa-kit audit ./dist\n'),
+    const engineNote = await describeEngine(pages, options)
+    process.stderr.write(
+      pc.dim(
+        `Auditing ${pages.length} ${pages.length === 1 ? 'page' : 'pages'} in ${label}${engineNote}…\n`,
+      ),
+    )
+
+    // An explicit --base-url still wins; the crawl's own origin is the default, so
+    // a fetched page is audited under the URL it was actually fetched from.
+    const effectiveBaseUrl: string | undefined = options.baseUrl ?? origin
+
+    const runnerOptions = {
+      // An explicit --base-url still wins; the crawl's own origin is the default
+      // so that a fetched page is audited under the URL it was fetched from.
+      ...(effectiveBaseUrl === undefined ? {} : { baseUrl: effectiveBaseUrl }),
+      ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
+    }
+
+    let audits: PageAudit[]
+    if (options.browser) {
+      const { BrowserUnavailableError, runBrowserAudit } = await import(
+        '../audit/runners/playwright.ts'
       )
-      return { audits: [], exitCode: 2 }
-    }
-    throw cause
-  }
-
-  if (pages.length === 0) {
-    process.stderr.write(
-      `${pc.yellow('warning')} ${await emptyDirectoryHint(dir, options.cwd ?? process.cwd())}\n`,
-    )
-    return { audits: [], exitCode: 2 }
-  }
-
-  const engineNote = await describeEngine(pages, options)
-  process.stderr.write(
-    pc.dim(
-      `Auditing ${pages.length} ${pages.length === 1 ? 'page' : 'pages'} in ${dir}${engineNote}…\n`,
-    ),
-  )
-
-  const runnerOptions = {
-    ...(options.baseUrl ? { baseUrl: options.baseUrl } : {}),
-    ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
-  }
-
-  let audits: PageAudit[]
-  if (options.browser) {
-    const { BrowserUnavailableError, runBrowserAudit } = await import(
-      '../audit/runners/playwright.ts'
-    )
-    try {
-      audits = await runBrowserAudit(dir, pages, runnerOptions)
-    } catch (cause) {
-      // Playwright missing is a setup problem with a specific fix, not a crash.
-      if (cause instanceof BrowserUnavailableError) {
-        process.stderr.write(`${pc.red('error')} ${cause.message}\n`)
-        return { audits: [], exitCode: 2 }
+      try {
+        // No directory when the pages were crawled: they are audited at the URL
+        // they came from, not served back out of a copy on disk.
+        audits = await runBrowserAudit(
+          options.url === undefined ? dir : undefined,
+          pages,
+          runnerOptions,
+        )
+      } catch (cause) {
+        // Playwright missing is a setup problem with a specific fix, not a crash.
+        if (cause instanceof BrowserUnavailableError) {
+          process.stderr.write(`${pc.red('error')} ${cause.message}\n`)
+          return { audits: [], exitCode: 2 }
+        }
+        throw cause
       }
-      throw cause
+    } else {
+      const { runPooledAudit } = await import('../audit/runners/pool.ts')
+      audits = await runPooledAudit(pages, {
+        ...runnerOptions,
+        ...(options.concurrency === undefined ? {} : { concurrency: options.concurrency }),
+      })
     }
-  } else {
-    const { runPooledAudit } = await import('../audit/runners/pool.ts')
-    audits = await runPooledAudit(pages, {
-      ...runnerOptions,
-      ...(options.concurrency === undefined ? {} : { concurrency: options.concurrency }),
-    })
+
+    const failOn = options.failOn ?? DEFAULT_FAIL_ON
+
+    if (options.baseline) {
+      const applied = await acceptBaseline(audits, options)
+      if (!applied) return { audits, exitCode: 2 }
+      audits = applied
+    }
+
+    // label, not dir: it is what the run actually audited. dir is undefined
+    // under auto-detection, and was the unused ./dist default under --url,
+    // which put a directory nobody read into the report.
+    await emit(audits, label, failOn, options)
+
+    // A page that could not be audited is not a clean page. Exiting 0 here would
+    // hand back a pass for markup nothing ever looked at, so it is reported as a
+    // failed run rather than as a verdict.
+    const unaudited = audits.filter((audit) => audit.error)
+    if (unaudited.length > 0) {
+      process.stderr.write(
+        `${pc.red('error')} ${unaudited.length} of ${audits.length} pages could not be audited\n`,
+      )
+      return { audits, exitCode: 2 }
+    }
+
+    return { audits, exitCode: countAtOrAbove(audits, failOn) > 0 ? 1 : 0 }
+  } finally {
+    await cleanup?.()
   }
-
-  const failOn = options.failOn ?? DEFAULT_FAIL_ON
-
-  if (options.baseline) {
-    const applied = await acceptBaseline(audits, options)
-    if (!applied) return { audits, exitCode: 2 }
-    audits = applied
-  }
-
-  await emit(audits, dir, failOn, options)
-
-  // A page that could not be audited is not a clean page. Exiting 0 here would
-  // hand back a pass for markup nothing ever looked at, so it is reported as a
-  // failed run rather than as a verdict.
-  const unaudited = audits.filter((audit) => audit.error)
-  if (unaudited.length > 0) {
-    process.stderr.write(
-      `${pc.red('error')} ${unaudited.length} of ${audits.length} pages could not be audited\n`,
-    )
-    return { audits, exitCode: 2 }
-  }
-
-  return { audits, exitCode: countAtOrAbove(audits, failOn) > 0 ? 1 : 0 }
 }
 
 /**
@@ -285,7 +288,18 @@ async function renderReport(
         ...(options.baseUrl ? { baseUrl: options.baseUrl } : {}),
       })
     }
-    case 'console':
-      return `${formatConsoleReport(audits, { dir, failOn, ...(toFile ? { color: false } : {}) })}\n`
+    case 'console': {
+      // Best-effort: a project using no convention this recognises gets the
+      // report it always got, with no source column.
+      const { buildRouteMap, sourceFor } = await import('../audit/routes.ts')
+      const routes = await buildRouteMap(options.cwd ?? process.cwd())
+      return `${formatConsoleReport(audits, {
+        dir,
+        failOn,
+        sourceFor: (page) => sourceFor(routes, page),
+        ...(options.perPage ? { perPage: true } : {}),
+        ...(toFile ? { color: false } : {}),
+      })}\n`
+    }
   }
 }

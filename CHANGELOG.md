@@ -9,6 +9,82 @@ move: the JSON report's `schemaVersion` and the baseline file's. Both are bumped
 a field is removed, renamed, or changes meaning — new fields may appear without one, so
 consumers must ignore what they do not recognise.
 
+## 0.2.0 — 2026-08-28
+
+### Added
+
+- `eaa-kit audit --url http://localhost:3000` audits a running site instead of a build
+  directory. Until now the tool read HTML off disk, which covers every static builder and
+  none of the sites that render on a server and never write a file — Next.js without a
+  static export, Nuxt, SvelteKit, Remix, anything behind a CMS. Those projects could only
+  be audited by first producing an export, which many of them cannot.
+- Pages are discovered from `sitemap.xml` when the site has one, and by following
+  same-origin links either way — a sitemap listing three of forty pages should not stop
+  the crawl at three. `--max-pages` (default 200) and `--max-depth` (default 3) bound it.
+- `eaa-kit baseline --url …` records a baseline from a running site, so a served site can
+  adopt the tool the same way a static one does.
+- Crawling is loopback-only unless `--allow-remote` is passed, and `robots.txt` is
+  honoured unless `--ignore-robots` is. A tool that fails builds should not be one flag
+  away from crawling production, or somebody else's site, out of CI.
+- A URL that could not be fetched is named and counted, never silently skipped: a crawl
+  that quietly dropped half a site would report the other half as though it were whole.
+- `--browser` works with `--url`, navigating Chromium at the real URL rather than serving
+  a copy of the markup back from disk.
+
+- `eaa-kit audit` with no arguments works out what to audit. It looks for a build
+  directory that exists and holds HTML; failing that it runs the project's own build and
+  looks again; and failing that — a site that renders on a server and emits no browsable
+  HTML at all — it starts the project's server, crawls it, and stops it again. `--no-build`
+  turns all of it off, and naming a directory or passing `--url` skips it.
+  `./dist` is no longer the default, because it was only ever right for some projects and
+  silently wrong for the rest.
+
+- An **Issues** section groups violations by the element that causes them, across the
+  whole site. On a site built from components one broken header reappears on every page
+  that renders it, and a page-by-page report never says those seven findings are one line
+  in one file. This one does: *9 violations across the site come from 3 distinct
+  elements*, worst first, then by how far each reaches. Identical markup on three or more
+  pages is called out as likely one shared component.
+- Findings name the source file that produced the page — `index.html  app/page.tsx` —
+  derived from the router's own conventions rather than a build manifest, so it does not
+  depend on framework internals. Next.js app and pages routers, Nuxt, Astro and
+  SvelteKit. A dynamic route serves many paths, so it is left unmapped rather than
+  guessed at; a wrong file is worse than none.
+
+- `eaa-kit init` writes an `eaa.config.json`. `audit` needed no arguments; `statement`
+  still needed a config file whose schema you had to go and read first, which made
+  "install it and run it" true of one half of the tool and false of the other. It asks
+  only for what it cannot know, takes the site name and URL from `package.json`, and
+  refuses to overwrite a config that is already there. What it writes is
+  `partially-compliant`, never `compliant`: it is written before any audit has run.
+
+### Removed
+
+- zod, which was 6.4 MB of a 37 MB install for three closed schemas — the config file,
+  the JSON report and the baseline — each already wrapped in hand-written error messages.
+  `src/schema.ts` does what those three need and no more: an install is now **31 MB**, and
+  the call sites did not change. The one place that needed an input type distinct from the
+  parsed one, `defineConfig`, writes it out rather than inferring it — it is the type
+  people see while filling the file in, so it is worth being readable.
+
+### Changed
+
+- The console report now leads with **Issues** and prints the page-by-page listing only
+  under `--per-page`. The listing is the same information keyed the other way round, and
+  on a fifty-page site it buries what somebody actually needs. On a seven-page fixture the
+  default report is 49 lines against 107.
+- The message for a build directory with no HTML in it now looks at what the project
+  actually has, and says what to do about it: an `out/` that already exists, a Next.js
+  config with no `output: 'export'` in it, an export configured but never built, a Nuxt
+  project, or any other build directory lying around. Where a static export cannot work,
+  it points at `--url` rather than leaving the reader with advice that cannot apply.
+- A directory that does not exist gets the same guidance as one holding no HTML. They are
+  the same mistake to whoever typed the path, and the missing-directory case — which is
+  what somebody sees pointing the tool at `./dist` in a Next.js project — previously got
+  only a generic pointer back at `./dist`.
+- The audited target named in reports is now what was actually audited. A `--url` run
+  recorded `./dist`, the directory default it never read.
+
 ## 0.1.1 — 2026-08-28
 
 ### Fixed

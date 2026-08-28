@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
-import { z } from 'zod'
 import { IMPACT_LEVELS, type ImpactLevel } from '../audit/impact.ts'
+import * as s from '../schema.ts'
 import { StatementError } from './error.ts'
 
 /**
@@ -17,37 +17,37 @@ export const SUPPORTED_REPORT_SCHEMA = 1
  * markup, selectors, passes, inapplicable — is audit detail with no place in a
  * legal document, and unknown keys are dropped rather than being carried along.
  */
-const reportSchema = z.object({
-  schemaVersion: z.number(),
+const reportSchema = s.object({
+  schemaVersion: s.number(),
   // The JSON contract calls this ISO 8601, and the statement formats it into a
   // date somebody publishes. Anything else reaches Intl as an invalid time and
   // throws a RangeError out of a document generator, which is neither a useful
   // error nor a survivable one.
-  generatedAt: z.iso.datetime(),
-  summary: z.object({
-    pages: z.number(),
-    needsReview: z.number(),
-    notEvaluated: z.number(),
+  generatedAt: s.isoDateTime(),
+  summary: s.object({
+    pages: s.number(),
+    needsReview: s.number(),
+    notEvaluated: s.number(),
   }),
-  rules: z.record(
-    z.string(),
-    z.object({
-      help: z.string(),
-      successCriteria: z.array(z.string()).default([]),
-      en301549: z.array(z.string()).default([]),
+  rules: s.record(
+    s.object({
+      help: s.string(),
+      successCriteria: s.withDefault(s.array(s.string()), () => []),
+      en301549: s.withDefault(s.array(s.string()), () => []),
     }),
   ),
-  pages: z.array(
-    z.object({
-      path: z.string(),
-      violations: z
-        .array(
-          z.object({
-            ruleId: z.string(),
-            impact: z.string().nullable().default(null),
+  pages: s.array(
+    s.object({
+      path: s.string(),
+      violations: s.withDefault(
+        s.array(
+          s.object({
+            ruleId: s.string(),
+            impact: s.withDefault(s.nullable(s.string()), () => null),
           }),
-        )
-        .default([]),
+        ),
+        () => [],
+      ),
     }),
   ),
 })
@@ -95,7 +95,7 @@ export interface AuditSummary {
  * statement can say how much the automated run left open.
  */
 export function summariseAuditReport(value: unknown, source = 'audit report'): AuditSummary {
-  const result = reportSchema.safeParse(value)
+  const result = s.safeParse(reportSchema, value)
   if (!result.success) {
     const issues = result.error.issues
       .map((issue) => `${issue.path.join('.') || 'document'}: ${issue.message}`)

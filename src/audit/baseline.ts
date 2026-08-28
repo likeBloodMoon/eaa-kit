@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { z } from 'zod'
+import * as s from '../schema.ts'
 import { elementFingerprint } from './fingerprint.ts'
 import type { Finding, FindingNode, PageAudit } from './result.ts'
 
@@ -34,32 +34,32 @@ export const BASELINE_SCHEMA_VERSION = 1
 /** Default filename, used by the CLI when no path is given. */
 export const DEFAULT_BASELINE_FILE = 'eaa-baseline.json'
 
-const entrySchema = z.object({
+const entrySchema = s.object({
   /** Page path relative to the audited directory, POSIX separators. */
-  page: z.string(),
-  ruleId: z.string(),
+  page: s.string(),
+  ruleId: s.string(),
   /** Identity of the element, from elementFingerprint. */
-  fingerprint: z.string(),
+  fingerprint: s.string(),
   /** Carried for readability only; matching never looks at these. */
-  selector: z.string().default(''),
-  help: z.string().default(''),
-  impact: z.string().nullable().default(null),
+  selector: s.withDefault(s.string(), () => ''),
+  help: s.withDefault(s.string(), () => ''),
+  impact: s.withDefault(s.nullable(s.string()), () => null),
   /** ISO date the entry was written. */
-  acceptedOn: z.string().default(''),
+  acceptedOn: s.withDefault(s.string(), () => ''),
   /** ISO date after which this entry stops suppressing anything. */
-  expiresOn: z.iso.date().optional(),
+  expiresOn: s.optional(s.isoDate()),
   /** Why this is being lived with. Free text, for whoever reads the file. */
-  note: z.string().optional(),
+  note: s.optional(s.string()),
 })
 
-const baselineSchema = z.object({
-  schemaVersion: z.number(),
-  createdOn: z.string().default(''),
-  entries: z.array(entrySchema).default([]),
+const baselineSchema = s.object({
+  schemaVersion: s.number(),
+  createdOn: s.withDefault(s.string(), () => ''),
+  entries: s.withDefault(s.array(entrySchema), () => []),
 })
 
-export type BaselineEntry = z.output<typeof entrySchema>
-export type Baseline = z.output<typeof baselineSchema>
+export type BaselineEntry = s.Infer<typeof entrySchema>
+export type Baseline = s.Infer<typeof baselineSchema>
 
 export class BaselineError extends Error {
   override readonly name = 'BaselineError'
@@ -257,7 +257,7 @@ export async function readBaseline(file: string, cwd = process.cwd()): Promise<B
     )
   }
 
-  const result = baselineSchema.safeParse(value)
+  const result = s.safeParse(baselineSchema, value)
   if (!result.success) {
     const issues = result.error.issues
       .map((issue) => `${issue.path.join('.') || 'document'}: ${issue.message}`)

@@ -204,7 +204,13 @@ describe('runAuditCommand', () => {
 
     expect(exitCode).toBe(2)
     expect(stderr.join('')).toContain('Build directory not found')
-    expect(stderr.join('')).toContain('eaa-kit audit ./dist')
+    // A directory that is not there and one holding no HTML are the same
+    // mistake to whoever typed it, so both now get the same specific advice
+    // instead of a generic pointer at ./dist.
+    expect(stderr.join('')).toContain('does not exist')
+    // Which branch fires depends on what the project around it has; all of
+    // them name a directory or a command rather than shrugging.
+    expect(stderr.join('')).toMatch(/try one of those|eaa-kit audit|--url/)
   })
 
   it('exits 2, not 0, when a page could not be audited', async () => {

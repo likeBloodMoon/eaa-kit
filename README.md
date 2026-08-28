@@ -8,8 +8,9 @@ European Accessibility Act (in force since 28 June 2025), the BFSG in Germany an
 in Austria.
 
 ```bash
-npx eaa-kit audit ./dist          # WCAG 2.2 AA report over built HTML
-npx eaa-kit statement             # Barrierefreiheitserklärung from eaa.config
+npx eaa-kit audit                 # WCAG 2.2 AA report; finds your build itself
+npx eaa-kit init                  # write an eaa.config.json
+npx eaa-kit statement             # Barrierefreiheitserklärung from that config
 ```
 
 > **Not legal advice.** eaa-kit reports what an automated engine can and cannot determine
@@ -35,6 +36,13 @@ rules that need layout and CSS.
 
 ```bash
 eaa-kit audit ./dist --fail-on serious
+```
+
+Sites that render on a server and never write HTML to disk — Next.js without a static
+export, Nuxt, SvelteKit, anything behind a CMS — are audited running instead:
+
+```bash
+eaa-kit audit --url http://localhost:3000
 ```
 
 **Writes the statement.** A Barrierefreiheitserklärung from one config file, in German or

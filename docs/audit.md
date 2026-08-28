@@ -4,8 +4,73 @@
 with axe-core. This page covers the command, both engines, and how to read what it returns.
 
 ```bash
-eaa-kit audit [dir]              # dir defaults to ./dist
+eaa-kit audit                    # works out what to audit
+eaa-kit audit ./dist             # or say so
 ```
+
+## With no arguments
+
+`eaa-kit audit` on its own works out what this project needs, in three steps:
+
+1. **A build that already exists.** The first of `dist/`, `out/`, `build/`, `_site/`,
+   `.output/public/` or `public/` that holds HTML. Holding HTML is the test, not merely
+   existing — `.next/` exists after any Next.js build and holds no browsable page, and
+   `public/` exists in most projects and holds assets.
+2. **The project's own build.** Nothing built yet, so it runs the `build` script rather
+   than telling you to go and do it and come back. The package manager comes from the
+   lockfile.
+3. **The project's server.** Built and still no HTML anywhere means the site renders on a
+   server — a Next.js app with an API route, middleware or ISR, and anything else that
+   cannot be exported. It starts `start`, `preview` or `serve`, crawls what that serves,
+   and stops it again afterwards.
+
+Naming a directory or passing `--url` skips all of it, and `--no-build` stops it running
+anything, leaving step 1 only.
+
+Steps two and three run your project's own scripts. That is what a build-time tool does —
+the Astro integration already audits from inside a build — but it is announced as it
+happens, and `--no-build` turns it off.
+
+## Auditing a running site
+
+```bash
+eaa-kit audit --url http://localhost:3000
+```
+
+Fetches the pages instead of reading them, which is the only way to reach a site that
+renders on a server and never writes HTML to disk — Next.js without a static export,
+Nuxt, SvelteKit, Remix, anything behind a CMS. Everything downstream is unchanged: the
+same rules, the same four result categories, the same reports, baselines and exit codes.
+
+Pages are found from `sitemap.xml` when the site has one, and by following same-origin
+links either way — a sitemap listing three of forty pages would otherwise be worse than
+no sitemap at all. `--max-pages` (default 200) and `--max-depth` (default 3) bound it, and
+a crawl that stopped early says so.
+
+| Flag | |
+| --- | --- |
+| `--url <url>` | entry point; the crawl stays on its origin |
+| `--max-pages <n>` | stop after this many pages (default 200) |
+| `--max-depth <n>` | how far from the entry URL to follow links (default 3) |
+| `--allow-remote` | crawl a host that is not localhost |
+| `--ignore-robots` | crawl paths `robots.txt` disallows |
+
+**Only localhost, unless you say otherwise.** A tool that fails builds should not be one
+flag away from crawling production, or somebody else's site, out of CI, so a non-loopback
+host is refused until `--allow-remote` is passed. `robots.txt` is honoured either way
+unless `--ignore-robots` says not to.
+
+A URL that could not be fetched is named and counted rather than skipped — a crawl that
+quietly dropped half a site would report the other half as though it were the whole
+thing. Anything that comes back as something other than HTML is refused for the same
+reason: auditing a JSON endpoint as markup produces findings about a document that was
+never a page.
+
+`--browser` works here too, and navigates Chromium at the real URL rather than serving a
+copy of the markup back from disk.
+
+`eaa-kit baseline --url …` records a baseline the same way, so a served site can adopt
+the tool exactly as a static one does.
 
 ## Which directory to point it at
 
@@ -22,15 +87,16 @@ emit; it is not special.
 | Next.js | `out/` | **only with `output: 'export'`** — see below |
 
 **Next.js does not write HTML to `dist/`.** A default `next build` produces `.next/`, which
-holds the server bundle rather than a browsable site. To audit a Next.js site you need a
-static export: set `output: 'export'` in `next.config.js`, run `next build`, and point
-eaa-kit at `out/`. That works only for a site with no server-side rendering, API routes,
-middleware or ISR.
+holds the server bundle rather than a browsable site. To audit the files, set
+`output: 'export'` in `next.config.js`, run `next build`, and point eaa-kit at `out/`.
 
-If the site cannot be exported statically, the browserless engine is the wrong tool for it
-anyway: what ships is a shell that the browser fills in, and there is very little in the
-built markup to audit. Use `--browser`, which runs the page's own JavaScript, against an
-export of the rendered pages.
+That works only for a site with no server-side rendering, API routes, middleware or ISR.
+If yours has any of those, do not fight the export — audit it running instead:
+
+```bash
+npm run build && npx next start
+eaa-kit audit --url http://localhost:3000
+```
 
 A run that reports `No HTML files found` means the directory exists but holds no `.html` —
 almost always the wrong directory rather than a clean site.
@@ -203,6 +269,42 @@ The default is the safe one; `--concurrency 1` is the setting to be careful with
 site in a memory-capped container. If a run does die with *JavaScript heap out of memory*,
 raise the thread count before anything else, then `NODE_OPTIONS=--max-old-space-size=4096`,
 then split the run with `--include`.
+
+## The Issues section
+
+Under the page-by-page listing, the report groups violations by the element that causes
+them:
+
+```
+Issues
+  9 violations across the site come from 3 distinct elements.
+
+  ✗ image-alt critical, WCAG 1.1.1
+      Images must have alternative text
+      <img src="/logo.png">
+        on 3 pages:
+          index.html  app/page.jsx
+          leistungen.html  app/leistungen/page.jsx
+          team.html  app/team/page.jsx
+        identical on each — likely one shared component
+```
+
+The page-by-page listing is the truth; on a site built from components it is not the
+work. One header with a missing `alt` reappears on every page that renders it, and
+nothing in a per-page report says those findings are one line in one file. Elements are
+matched on the rule, the selector and the markup — never the path — so the same element
+on twenty pages is one entry with twenty places it shows up, and three or more is called
+out as likely a shared component.
+
+Rules are ordered worst first, then by how many pages they reach, so the top of the list
+is what buys the most. An unclassified impact sorts with the most severe, on the same
+reasoning as `--fail-on`.
+
+**Source files.** Where the project uses a router convention, each page is named with the
+file that produced it. Next.js (both routers), Nuxt, Astro and SvelteKit are recognised,
+read from the conventions themselves rather than from a build manifest, so this does not
+break when a framework changes its internals. A dynamic route like `app/blog/[slug]` serves
+many paths and is left unmapped rather than guessed at — a wrong file is worse than none.
 
 ## Exit codes
 

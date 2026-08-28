@@ -1,6 +1,6 @@
 {
   "name": "eaa-kit",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Build-time WCAG 2.2 AA auditor and EU accessibility statement generator for static sites (EAA / BFSG / BaFG, DACH-localised).",
   "type": "module",
   "license": "MIT",
@@ -73,8 +73,7 @@
     "commander": "^15.0.0",
     "jsdom": "^30.0.1",
     "picocolors": "^1.1.1",
-    "tinyglobby": "^0.2.17",
-    "zod": "^4.4.3"
+    "tinyglobby": "^0.2.17"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.9",

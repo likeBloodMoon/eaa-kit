@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import * as s from '../schema.ts'
 
 /** Countries with their own supervisory body and statute text. */
 export const COUNTRIES = ['AT', 'DE', 'CH'] as const
@@ -27,79 +27,119 @@ export type AssessmentMethod = (typeof ASSESSMENT_METHODS)[number]
 export const ISSUE_REASONS = ['disproportionate-burden', 'out-of-scope', 'fix-planned'] as const
 export type IssueReason = (typeof ISSUE_REASONS)[number]
 
-const knownIssueObject = z.object({
+const knownIssueObject = s.object({
   /** What is not accessible, in the statement's language. */
-  description: z.string().min(1),
+  description: s.string({ min: 1 }),
   /** WCAG success criteria, e.g. ['1.4.3']. */
-  successCriteria: z.array(z.string()).default([]),
+  successCriteria: s.withDefault(s.array(s.string()), () => []),
   /** EN 301 549 clauses, e.g. ['9.1.4.3']. */
-  en301549: z.array(z.string()).default([]),
-  reason: z.enum(ISSUE_REASONS).optional(),
+  en301549: s.withDefault(s.array(s.string()), () => []),
+  reason: s.optional(s.enumeration(ISSUE_REASONS)),
   /** ISO date by which the barrier is expected to be removed. */
-  remedyBy: z.iso.date().optional(),
+  remedyBy: s.optional(s.isoDate()),
 })
 
 /**
- * A bare string is accepted as shorthand for `{ description }`. It is piped
+ * A bare string is accepted as shorthand for `{ description }`. It is put
  * through the object schema so both branches produce the same output type,
  * rather than a union that callers have to narrow before reading `remedyBy`.
  */
-const knownIssueSchema = z.union([
-  z
-    .string()
-    .min(1)
-    .transform((description) => ({ description }))
-    .pipe(knownIssueObject),
-  knownIssueObject,
-])
+const knownIssueSchema = s.union(
+  [
+    s.pipe(
+      s.transform(s.string({ min: 1 }), (description) => ({ description })),
+      knownIssueObject,
+    ),
+    knownIssueObject,
+  ],
+  'expected a description, or an object with one',
+)
 
-export const configSchema = z.object({
-  site: z.object({
-    name: z.string().min(1),
-    url: z.url(),
+export const configSchema = s.object({
+  site: s.object({
+    name: s.string({ min: 1 }),
+    url: s.url(),
     /** BCP 47 tag of the site itself, e.g. 'de-AT'. */
-    locale: z.string().min(2),
+    locale: s.string({ min: 2 }),
   }),
-  provider: z.object({
+  provider: s.object({
     /** The legal entity answerable for the service. */
-    legalName: z.string().min(1),
+    legalName: s.string({ min: 1 }),
     /**
      * The feedback address. Required: the EAA obliges providers to offer a way
      * to report accessibility barriers, and a statement without one is not
      * usable for its purpose.
      */
-    email: z.email(),
-    phone: z.string().min(1).optional(),
-    address: z.string().min(1).optional(),
+    email: s.email(),
+    phone: s.optional(s.string({ min: 1 })),
+    address: s.optional(s.string({ min: 1 })),
     /**
      * A contact or feedback form, offered alongside the address rather than
      * instead of it: the EAA requires a way to report barriers, and a form is
      * the one channel a visitor who cannot use email may still be able to use.
      */
-    feedbackUrl: z.url().optional(),
+    feedbackUrl: s.optional(s.url()),
   }),
-  compliance: z.object({
-    status: z.enum(COMPLIANCE_STATUSES),
-    standard: z.string().min(1).default('EN 301 549 V3.2.1 (WCAG 2.2 AA)'),
-    knownIssues: z.array(knownIssueSchema).default([]),
+  compliance: s.object({
+    status: s.enumeration(COMPLIANCE_STATUSES),
+    standard: s.withDefault(s.string({ min: 1 }), () => 'EN 301 549 V3.2.1 (WCAG 2.2 AA)'),
+    knownIssues: s.withDefault(s.array(knownIssueSchema), () => []),
     /** When the assessment was carried out. */
-    assessedOn: z.iso.date(),
-    assessmentMethod: z.enum(ASSESSMENT_METHODS).default('self-assessment'),
+    assessedOn: s.isoDate(),
+    assessmentMethod: s.withDefault(
+      s.enumeration(ASSESSMENT_METHODS),
+      () => 'self-assessment' as const,
+    ),
     /**
      * Reason attached to barriers taken from an audit report, which carries no
      * reason of its own. 'fix-planned' is the honest default for a barrier an
      * automated run just found; the other two are claims only a human can make.
      */
-    auditReason: z.enum(ISSUE_REASONS).default('fix-planned'),
+    auditReason: s.withDefault(s.enumeration(ISSUE_REASONS), () => 'fix-planned' as const),
   }),
-  enforcement: z.object({
+  enforcement: s.object({
     /** Drives which supervisory body and statute the template names. */
-    country: z.enum(COUNTRIES),
+    country: s.enumeration(COUNTRIES),
   }),
 })
 
-export type EaaConfigInput = z.input<typeof configSchema>
-export type EaaConfig = z.output<typeof configSchema>
+/**
+ * What an author writes in `eaa.config.ts`.
+ *
+ * Written out rather than inferred from the schema. It is the type people see
+ * in their editor while filling the file in, so it is worth being readable, and
+ * it differs from the parsed type in two ways inference makes awkward: fields
+ * with defaults may be left out, and a known issue may be a bare string.
+ */
+export interface EaaConfigInput {
+  site: { name: string; url: string; locale: string }
+  provider: {
+    legalName: string
+    email: string
+    phone?: string
+    address?: string
+    feedbackUrl?: string
+  }
+  compliance: {
+    status: ComplianceStatus
+    standard?: string
+    knownIssues?: Array<string | KnownIssueInput>
+    assessedOn: string
+    assessmentMethod?: AssessmentMethod
+    auditReason?: IssueReason
+  }
+  enforcement: { country: Country }
+}
+
+/** One barrier, as written in a config file. */
+export interface KnownIssueInput {
+  description: string
+  successCriteria?: string[]
+  en301549?: string[]
+  reason?: IssueReason
+  remedyBy?: string
+}
+export type EaaConfig = s.Infer<typeof configSchema>
 export type KnownIssue = EaaConfig['compliance']['knownIssues'][number]
 
 /**
@@ -125,7 +165,7 @@ export class ConfigError extends Error {
 
 /** Validate an already-loaded config object. */
 export function parseConfig(value: unknown, source = 'config'): EaaConfig {
-  const result = configSchema.safeParse(value)
+  const result = s.safeParse(configSchema, value)
   if (result.success) return result.data
 
   const issues = result.error.issues.map((issue) => {

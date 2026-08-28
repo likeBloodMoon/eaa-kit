@@ -6,10 +6,10 @@ import {
   DEFAULT_BASELINE_FILE,
   writeBaseline,
 } from '../audit/baseline.ts'
-import { BuildDirectoryError, collectPages, emptyDirectoryHint } from '../audit/collect.ts'
 import type { PageAudit } from '../audit/runners/jsdom.ts'
+import { type CrawlCommandOptions, resolvePages } from './pages.ts'
 
-export interface BaselineCommandOptions {
+export interface BaselineCommandOptions extends CrawlCommandOptions {
   include?: string[]
   exclude?: string[]
   baseUrl?: string
@@ -22,7 +22,6 @@ export interface BaselineCommandOptions {
   browser?: boolean
   concurrency?: number
   cwd?: string
-  timeoutMs?: number
 }
 
 export interface BaselineCommandResult {
@@ -50,33 +49,18 @@ export async function runBaselineCommand(
 ): Promise<BaselineCommandResult> {
   const cwd = options.cwd ?? process.cwd()
 
-  let pages: Awaited<ReturnType<typeof collectPages>>
-  try {
-    pages = await collectPages(path.resolve(cwd, dir), {
-      ...(options.include ? { include: options.include } : {}),
-      ...(options.exclude ? { exclude: options.exclude } : {}),
-    })
-  } catch (cause) {
-    if (cause instanceof BuildDirectoryError) {
-      process.stderr.write(`${pc.red('error')} ${cause.message}\n`)
-      return { entries: 0, exitCode: 2 }
-    }
-    throw cause
-  }
-
-  if (pages.length === 0) {
-    process.stderr.write(
-      `${pc.yellow('warning')} ${await emptyDirectoryHint(dir, options.cwd ?? process.cwd())}\n`,
-    )
-    return { entries: 0, exitCode: 2 }
-  }
+  const resolved = await resolvePages(path.resolve(cwd, dir), { ...options, label: dir })
+  if (!resolved) return { entries: 0, exitCode: 2 }
+  const { pages, origin, label } = resolved
 
   process.stderr.write(
-    pc.dim(`Auditing ${pages.length} ${pages.length === 1 ? 'page' : 'pages'} in ${dir}…\n`),
+    pc.dim(`Auditing ${pages.length} ${pages.length === 1 ? 'page' : 'pages'} in ${label}…\n`),
   )
 
+  const effectiveBaseUrl: string | undefined = options.baseUrl ?? origin
+
   const runnerOptions = {
-    ...(options.baseUrl ? { baseUrl: options.baseUrl } : {}),
+    ...(effectiveBaseUrl === undefined ? {} : { baseUrl: effectiveBaseUrl }),
     ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
   }
 
@@ -86,7 +70,11 @@ export async function runBaselineCommand(
       '../audit/runners/playwright.ts'
     )
     try {
-      audits = await runBrowserAudit(path.resolve(cwd, dir), pages, runnerOptions)
+      audits = await runBrowserAudit(
+        options.url === undefined ? path.resolve(cwd, dir) : undefined,
+        pages,
+        runnerOptions,
+      )
     } catch (cause) {
       if (cause instanceof BrowserUnavailableError) {
         process.stderr.write(`${pc.red('error')} ${cause.message}\n`)

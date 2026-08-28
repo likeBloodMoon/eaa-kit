@@ -42,7 +42,13 @@ const DEFAULT_VIEWPORT = { width: 1280, height: 720 }
  * opened as a file, so absolute asset paths resolve.
  */
 export async function runBrowserAudit(
-  directory: string,
+  /**
+   * Build directory to serve the pages from, or undefined when they came off a
+   * running site and already have somewhere real to be fetched from. Serving a
+   * crawled page back from disk would audit a copy of the markup with the
+   * server that produced it cut out of the picture.
+   */
+  directory: string | undefined,
   pages: readonly CollectedPage[],
   options: BrowserRunnerOptions = {},
 ): Promise<PageAudit[]> {
@@ -53,7 +59,7 @@ export async function runBrowserAudit(
   const timeout = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
   const viewport = options.viewport ?? DEFAULT_VIEWPORT
 
-  const server = await serveDirectory(directory)
+  const server = directory === undefined ? undefined : await serveDirectory(directory)
   const browser = await chromium.launch({ headless: true })
 
   try {
@@ -65,14 +71,14 @@ export async function runBrowserAudit(
     const audits: PageAudit[] = []
 
     for (const page of pages) {
-      audits.push(await auditOne(context, server.origin, page, { tags, timeout, ...options }))
+      audits.push(await auditOne(context, server?.origin, page, { tags, timeout, ...options }))
     }
 
     await context.close()
     return audits
   } finally {
     await browser.close()
-    await server.close()
+    await server?.close()
   }
 }
 
@@ -83,7 +89,8 @@ interface AuditOneOptions extends BrowserRunnerOptions {
 
 async function auditOne(
   context: BrowserContextLike,
-  origin: string,
+  /** Loopback origin serving the build, or undefined for a crawled page. */
+  origin: string | undefined,
   page: CollectedPage,
   options: AuditOneOptions,
 ): Promise<PageAudit> {
@@ -100,7 +107,9 @@ async function auditOne(
   const tab = await context.newPage()
   try {
     tab.setDefaultTimeout(options.timeout)
-    const target = servedUrl(origin, page.relativePath)
+    // A crawled page carries its own URL, already encoded by whoever linked
+    // to it; a page off disk has to be placed under the loopback origin.
+    const target = origin === undefined ? page.absolutePath : servedUrl(origin, page.relativePath)
     const response = await tab.goto(target, { waitUntil: 'load', timeout: options.timeout })
 
     if (response && response.status() >= 400) {
