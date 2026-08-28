@@ -41,6 +41,7 @@ program
   .option('--base-url <url>', 'audit pages under their real site URL')
   .option('--url <url>', 'audit a running site instead of a build directory')
   .option('--no-build', 'never run the project build or start its server')
+  .option('--per-page', 'also list every page and its result')
   .option('--allow-remote', 'allow --url to crawl a host that is not localhost')
   .option('--ignore-robots', 'crawl paths robots.txt disallows')
   .option('--max-pages <n>', 'stop the crawl after this many pages', parsePositive)
@@ -68,6 +69,7 @@ program
   .action(async (dir: string | undefined, options: Record<string, unknown>) => {
     const { exitCode } = await runAuditCommand(dir, {
       ...(options['build'] === false ? { noBuild: true } : {}),
+      ...(options['perPage'] === true ? { perPage: true } : {}),
       ...(Array.isArray(options['include']) ? { include: options['include'] as string[] } : {}),
       ...(Array.isArray(options['exclude']) ? { exclude: options['exclude'] as string[] } : {}),
       ...(typeof options['baseUrl'] === 'string' ? { baseUrl: options['baseUrl'] } : {}),
@@ -122,6 +124,22 @@ program
       ...(options['ignoreRobots'] === true ? { ignoreRobots: true } : {}),
       ...(typeof options['maxPages'] === 'number' ? { maxPages: options['maxPages'] } : {}),
       ...(typeof options['maxDepth'] === 'number' ? { maxDepth: options['maxDepth'] } : {}),
+    })
+    process.exitCode = exitCode
+  })
+
+program
+  .command('init')
+  .description('Write an eaa.config.json to generate statements from')
+  .option('--output <path>', 'write here instead of eaa.config.json')
+  .option('--force', 'overwrite a config that is already there')
+  .option('-y, --yes', 'take every default without asking')
+  .action(async (options: Record<string, unknown>) => {
+    const { runInitCommand } = await import('./init.ts')
+    const { exitCode } = await runInitCommand({
+      ...(typeof options['output'] === 'string' ? { output: options['output'] } : {}),
+      ...(options['force'] === true ? { force: true } : {}),
+      ...(options['yes'] === true ? { yes: true } : {}),
     })
     process.exitCode = exitCode
   })

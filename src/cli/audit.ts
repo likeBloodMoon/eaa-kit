@@ -51,6 +51,8 @@ export interface AuditCommandOptions extends CrawlCommandOptions {
   cwd?: string
   /** Never run the project's build or start its server to find something to audit. */
   noBuild?: boolean
+  /** List every page and its result under the issues. */
+  perPage?: boolean
 }
 
 export interface AuditCommandResult {
@@ -295,6 +297,7 @@ async function renderReport(
         dir,
         failOn,
         sourceFor: (page) => sourceFor(routes, page),
+        ...(options.perPage ? { perPage: true } : {}),
         ...(toFile ? { color: false } : {}),
       })}\n`
     }

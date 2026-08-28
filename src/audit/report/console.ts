@@ -16,6 +16,12 @@ export interface ConsoleReportOptions {
   failOn?: ImpactLevel
   /** Maps an audited page to the source file that produced it, when known. */
   sourceFor?: (pagePath: string) => string | undefined
+  /**
+   * List every page and its result, under the issues. Off by default: on a
+   * fifty-page site it is a wall, and what somebody needs first is what is
+   * broken, not a roll call of pages that are fine.
+   */
+  perPage?: boolean
 }
 
 const DEFAULT_MAX_NODES = 3
@@ -40,10 +46,18 @@ export function formatConsoleReport(
   const ctx = context(options)
   const lines: string[] = ['', ...headerLines(audits, ctx), '']
 
-  for (const audit of audits) {
-    lines.push(...pageSection(audit, ctx))
-  }
+  // Issues first: what is broken and where, once per element. The page-by-page
+  // listing is the same information keyed the other way round, and reading it
+  // is only the job when somebody is working through one page.
   lines.push(...issuesSection(audits, ctx))
+
+  if (options.perPage) {
+    lines.push('', ...legendLines(ctx), '')
+    for (const audit of audits) {
+      lines.push(...pageSection(audit, ctx))
+    }
+  }
+
   lines.push(...summary(audits, ctx))
 
   return lines.join('\n')
@@ -133,7 +147,18 @@ function headerLines(audits: readonly PageAudit[], ctx: Context): string[] {
       { text: 'eaa-kit audit', paint: ctx.c.bold },
       { text: ` ${pageCount} · ${engineLabel}`, paint: ctx.c.dim },
     ]),
-    // "Not applicable" reads like good news unless it is spelled out.
+  ]
+}
+
+/**
+ * What the per-page counts mean.
+ *
+ * Only with the per-page listing, which is the only place those words appear:
+ * "not applicable" reads like good news unless it is spelled out, and printing
+ * the gloss for a section that is not there is noise.
+ */
+function legendLines(ctx: Context): string[] {
+  return [
     render(ctx, [
       { text: 'passed = checked and met · not applicable = nothing to check', paint: ctx.c.dim },
     ]),
@@ -436,7 +461,8 @@ function issuesSection(audits: readonly PageAudit[], ctx: Context): string[] {
   const elements = issues.reduce((total, issue) => total + issue.elements.length, 0)
   const occurrences = issues.reduce((total, issue) => total + issue.occurrences, 0)
 
-  const lines = ['', render(ctx, [{ text: 'Issues', paint: ctx.c.bold }])]
+  // No leading blank: the caller has already put one after the header.
+  const lines = [render(ctx, [{ text: 'Issues', paint: ctx.c.bold }])]
 
   // Only worth stating when the two numbers differ; on a one-page site they do
   // not, and saying "1 element on 1 page" is noise.

@@ -51,8 +51,19 @@ consumers must ignore what they do not recognise.
   SvelteKit. A dynamic route serves many paths, so it is left unmapped rather than
   guessed at; a wrong file is worse than none.
 
+- `eaa-kit init` writes an `eaa.config.json`. `audit` needed no arguments; `statement`
+  still needed a config file whose schema you had to go and read first, which made
+  "install it and run it" true of one half of the tool and false of the other. It asks
+  only for what it cannot know, takes the site name and URL from `package.json`, and
+  refuses to overwrite a config that is already there. What it writes is
+  `partially-compliant`, never `compliant`: it is written before any audit has run.
+
 ### Changed
 
+- The console report now leads with **Issues** and prints the page-by-page listing only
+  under `--per-page`. The listing is the same information keyed the other way round, and
+  on a fifty-page site it buries what somebody actually needs. On a seven-page fixture the
+  default report is 49 lines against 107.
 - The message for a build directory with no HTML in it now looks at what the project
   actually has, and says what to do about it: an `out/` that already exists, a Next.js
   config with no `output: 'export'` in it, an export configured but never built, a Nuxt

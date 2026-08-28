@@ -9,7 +9,16 @@ const SITE = fileURLToPath(new URL('../../fixtures/site', import.meta.url))
 let audits: PageAudit[]
 let report: string
 
+/**
+ * Most of this suite is about the per-page listing, which the report now prints
+ * only when asked. The default view is covered by its own cases below.
+ */
 function format(pages: readonly PageAudit[], width = 80): string {
+  return formatConsoleReport(pages, { color: false, width, perPage: true })
+}
+
+/** The report as somebody actually gets it: issues, no page-by-page listing. */
+function formatDefault(pages: readonly PageAudit[], width = 80): string {
   return formatConsoleReport(pages, { color: false, width })
 }
 
@@ -168,10 +177,47 @@ function withViolationNode(html: string, target: string[], count = 1): PageAudit
 }
 
 /** First line matching `pattern` at or after the line containing `anchor`. */
+describe('the default view', () => {
+  it('leads with the issues, not a roll call of pages', () => {
+    const report = formatDefault(audits)
+
+    // On a fifty-page site the page listing is a wall, and what somebody needs
+    // first is what is broken rather than which pages are fine.
+    expect(report).toContain('Issues')
+    expect(report).not.toMatch(/^about\/index\.html$/m)
+  })
+
+  it('still names every page an element was found on', () => {
+    // Dropping the listing must not drop the locations with it.
+    expect(formatDefault(audits)).toMatch(/on \d+ pages?:/)
+  })
+
+  it('leaves out the per-page legend, which explains words it no longer prints', () => {
+    expect(formatDefault(audits)).not.toContain('not applicable = nothing to check')
+  })
+
+  it('keeps the summary and the not-evaluated section', () => {
+    const report = formatDefault(audits)
+
+    expect(report).toContain('Summary')
+    expect(report).toContain('Not evaluated')
+  })
+
+  it('adds the listing back when asked', () => {
+    const report = formatConsoleReport(audits, { color: false, width: 80, perPage: true })
+
+    expect(report).toMatch(/^about\/index\.html$/m)
+    expect(report).toContain('not applicable = nothing to check')
+  })
+})
+
 function lineAfter(text: string, anchor: string, pattern: RegExp): string {
   const lines = text.split('\n')
-  const start = lines.findIndex((line) => line.includes(anchor))
-  if (start === -1) throw new Error(`no line containing ${anchor}`)
+  // The page heading, which stands alone on its line — not the same path
+  // mentioned inside the issues section above, which lists where each element
+  // was found and would anchor this to the wrong part of the report.
+  const start = lines.findIndex((line) => line.trimEnd() === anchor)
+  if (start === -1) throw new Error(`no line that is exactly ${anchor}`)
   const found = lines.slice(start).find((line) => pattern.test(line))
   if (!found) throw new Error(`no line matching ${pattern} after ${anchor}`)
   return found

@@ -166,7 +166,13 @@ describe('audit --baseline', () => {
     const dir = await site()
     await runBaselineCommand('dist', { cwd: dir })
 
-    await runAuditCommand(path.join(dir, 'dist'), { cwd: dir, baseline: 'eaa-baseline.json' })
+    // perPage, because that wording lives in the page-by-page listing, which
+    // the report now prints only when asked for.
+    await runAuditCommand(path.join(dir, 'dist'), {
+      cwd: dir,
+      baseline: 'eaa-baseline.json',
+      perPage: true,
+    })
 
     expect(stdout.join('')).toContain('no new violations')
   })

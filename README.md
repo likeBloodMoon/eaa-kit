@@ -9,7 +9,8 @@ in Austria.
 
 ```bash
 npx eaa-kit audit                 # WCAG 2.2 AA report; finds your build itself
-npx eaa-kit statement             # Barrierefreiheitserklärung from eaa.config
+npx eaa-kit init                  # write an eaa.config.json
+npx eaa-kit statement             # Barrierefreiheitserklärung from that config
 ```
 
 > **Not legal advice.** eaa-kit reports what an automated engine can and cannot determine
