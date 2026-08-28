@@ -39,6 +39,18 @@ consumers must ignore what they do not recognise.
   `./dist` is no longer the default, because it was only ever right for some projects and
   silently wrong for the rest.
 
+- An **Issues** section groups violations by the element that causes them, across the
+  whole site. On a site built from components one broken header reappears on every page
+  that renders it, and a page-by-page report never says those seven findings are one line
+  in one file. This one does: *9 violations across the site come from 3 distinct
+  elements*, worst first, then by how far each reaches. Identical markup on three or more
+  pages is called out as likely one shared component.
+- Findings name the source file that produced the page — `index.html  app/page.tsx` —
+  derived from the router's own conventions rather than a build manifest, so it does not
+  depend on framework internals. Next.js app and pages routers, Nuxt, Astro and
+  SvelteKit. A dynamic route serves many paths, so it is left unmapped rather than
+  guessed at; a wrong file is worse than none.
+
 ### Changed
 
 - The message for a build directory with no HTML in it now looks at what the project

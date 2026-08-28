@@ -270,6 +270,42 @@ site in a memory-capped container. If a run does die with *JavaScript heap out o
 raise the thread count before anything else, then `NODE_OPTIONS=--max-old-space-size=4096`,
 then split the run with `--include`.
 
+## The Issues section
+
+Under the page-by-page listing, the report groups violations by the element that causes
+them:
+
+```
+Issues
+  9 violations across the site come from 3 distinct elements.
+
+  ✗ image-alt critical, WCAG 1.1.1
+      Images must have alternative text
+      <img src="/logo.png">
+        on 3 pages:
+          index.html  app/page.jsx
+          leistungen.html  app/leistungen/page.jsx
+          team.html  app/team/page.jsx
+        identical on each — likely one shared component
+```
+
+The page-by-page listing is the truth; on a site built from components it is not the
+work. One header with a missing `alt` reappears on every page that renders it, and
+nothing in a per-page report says those findings are one line in one file. Elements are
+matched on the rule, the selector and the markup — never the path — so the same element
+on twenty pages is one entry with twenty places it shows up, and three or more is called
+out as likely a shared component.
+
+Rules are ordered worst first, then by how many pages they reach, so the top of the list
+is what buys the most. An unclassified impact sorts with the most severe, on the same
+reasoning as `--fail-on`.
+
+**Source files.** Where the project uses a router convention, each page is named with the
+file that produced it. Next.js (both routers), Nuxt, Astro and SvelteKit are recognised,
+read from the conventions themselves rather than from a build manifest, so this does not
+break when a framework changes its internals. A dynamic route like `app/blog/[slug]` serves
+many paths and is left unmapped rather than guessed at — a wrong file is worse than none.
+
 ## Exit codes
 
 | Code | Meaning |

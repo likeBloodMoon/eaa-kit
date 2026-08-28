@@ -1,5 +1,6 @@
 import pc from 'picocolors'
 import { countAtOrAbove, DEFAULT_FAIL_ON, IMPACT_LEVELS, type ImpactLevel } from '../impact.ts'
+import { groupIssues, type IssueElement, isShared } from '../issues.ts'
 import type { Finding, IncompleteFinding, PageAudit } from '../runners/jsdom.ts'
 
 export interface ConsoleReportOptions {
@@ -13,6 +14,8 @@ export interface ConsoleReportOptions {
   maxNodes?: number
   /** Threshold the run will be judged against, echoed in the summary. */
   failOn?: ImpactLevel
+  /** Maps an audited page to the source file that produced it, when known. */
+  sourceFor?: (pagePath: string) => string | undefined
 }
 
 const DEFAULT_MAX_NODES = 3
@@ -40,6 +43,7 @@ export function formatConsoleReport(
   for (const audit of audits) {
     lines.push(...pageSection(audit, ctx))
   }
+  lines.push(...issuesSection(audits, ctx))
   lines.push(...summary(audits, ctx))
 
   return lines.join('\n')
@@ -54,6 +58,7 @@ interface Context {
   width: number
   maxNodes: number
   failOn: ImpactLevel
+  sourceFor: (pagePath: string) => string | undefined
   c: ReturnType<typeof pc.createColors>
   symbol: (kind: 'violation' | 'review' | 'blind' | 'clean' | 'error') => string
 }
@@ -68,6 +73,7 @@ function context(options: ConsoleReportOptions): Context {
     width,
     maxNodes: options.maxNodes ?? DEFAULT_MAX_NODES,
     failOn: options.failOn ?? DEFAULT_FAIL_ON,
+    sourceFor: options.sourceFor ?? (() => undefined),
     c,
     symbol: (kind) => {
       switch (kind) {
@@ -412,4 +418,115 @@ function collapse(html: string): string {
 
 function plural(count: number, word: string): string {
   return count === 1 ? word : `${word}s`
+}
+
+/**
+ * What is actually broken, once per element rather than once per page.
+ *
+ * The page-by-page listing above is the truth, and on a site built from
+ * components it is not the work: one header with a missing `alt` reappears on
+ * every page that renders it, and nothing in a per-page report says those are
+ * one line in one file. This section says it, and orders the result by what
+ * fixing it would buy.
+ */
+function issuesSection(audits: readonly PageAudit[], ctx: Context): string[] {
+  const issues = groupIssues(audits)
+  if (issues.length === 0) return []
+
+  const elements = issues.reduce((total, issue) => total + issue.elements.length, 0)
+  const occurrences = issues.reduce((total, issue) => total + issue.occurrences, 0)
+
+  const lines = ['', render(ctx, [{ text: 'Issues', paint: ctx.c.bold }])]
+
+  // Only worth stating when the two numbers differ; on a one-page site they do
+  // not, and saying "1 element on 1 page" is noise.
+  lines.push(
+    render(ctx, [
+      {
+        text:
+          occurrences === elements
+            ? `  ${elements} ${plural(elements, 'distinct element')} to fix.`
+            : `  ${occurrences} ${plural(occurrences, 'violation')} across the site come from ${elements} ${plural(elements, 'distinct element')}.`,
+        paint: ctx.c.dim,
+      },
+    ]),
+  )
+
+  for (const issue of issues) {
+    lines.push('')
+    lines.push(
+      render(ctx, [
+        { text: `  ${ctx.symbol('violation')} ` },
+        { text: issue.ruleId, paint: ctx.c.bold },
+        { text: ` ${issue.impact ?? 'unclassified'}`, paint: ctx.c.dim },
+        ...(issue.successCriteria.length > 0
+          ? [{ text: `, WCAG ${issue.successCriteria.join(' ')}`, paint: ctx.c.dim }]
+          : []),
+      ]),
+    )
+    lines.push(render(ctx, [{ text: `      ${issue.help}`, paint: ctx.c.dim }]))
+
+    for (const element of issue.elements.slice(0, ctx.maxNodes)) {
+      lines.push(render(ctx, [{ text: `      ${collapse(element.html)}` }]))
+      lines.push(...whereLines(element, ctx))
+    }
+    if (issue.elements.length > ctx.maxNodes) {
+      lines.push(
+        render(ctx, [
+          {
+            text: `      …and ${issue.elements.length - ctx.maxNodes} more ${plural(issue.elements.length - ctx.maxNodes, 'element')}`,
+            paint: ctx.c.dim,
+          },
+        ]),
+      )
+    }
+  }
+
+  return lines
+}
+
+/** Where one element appears, and what that says about where the fix goes. */
+function whereLines(element: IssueElement, ctx: Context): string[] {
+  const shown = element.pages.slice(0, ctx.maxNodes)
+  const rest = element.pages.length - shown.length
+
+  const lines = [
+    render(ctx, [
+      {
+        text: `        on ${element.pages.length} ${plural(element.pages.length, 'page')}:`,
+        paint: ctx.c.dim,
+      },
+    ]),
+  ]
+
+  // One per line rather than a comma-separated list: with a source file
+  // alongside each, the list runs past any terminal and gets truncated exactly
+  // where the useful half is.
+  for (const page of shown) {
+    const source = ctx.sourceFor(page)
+    lines.push(
+      render(ctx, [
+        { text: `          ${page}`, paint: ctx.c.dim },
+        ...(source === undefined ? [] : [{ text: `  ${source}`, paint: ctx.c.dim }]),
+      ]),
+    )
+  }
+  if (rest > 0) {
+    lines.push(
+      render(ctx, [
+        { text: `          …and ${rest} more ${plural(rest, 'page')}`, paint: ctx.c.dim },
+      ]),
+    )
+  }
+
+  // The point of grouping: identical markup on several pages is one component,
+  // and saying so turns a list of findings into a single edit.
+  if (isShared(element)) {
+    lines.push(
+      render(ctx, [
+        { text: '        identical on each — likely one shared component', paint: ctx.c.dim },
+      ]),
+    )
+  }
+  return lines
 }

@@ -286,7 +286,17 @@ async function renderReport(
         ...(options.baseUrl ? { baseUrl: options.baseUrl } : {}),
       })
     }
-    case 'console':
-      return `${formatConsoleReport(audits, { dir, failOn, ...(toFile ? { color: false } : {}) })}\n`
+    case 'console': {
+      // Best-effort: a project using no convention this recognises gets the
+      // report it always got, with no source column.
+      const { buildRouteMap, sourceFor } = await import('../audit/routes.ts')
+      const routes = await buildRouteMap(options.cwd ?? process.cwd())
+      return `${formatConsoleReport(audits, {
+        dir,
+        failOn,
+        sourceFor: (page) => sourceFor(routes, page),
+        ...(toFile ? { color: false } : {}),
+      })}\n`
+    }
   }
 }
