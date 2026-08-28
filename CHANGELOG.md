@@ -9,6 +9,15 @@ move: the JSON report's `schemaVersion` and the baseline file's. Both are bumped
 a field is removed, renamed, or changes meaning — new fields may appear without one, so
 consumers must ignore what they do not recognise.
 
+## 0.1.1 — 2026-08-28
+
+### Fixed
+
+- `engines.node` was `>=22.22.2`, which promised support for the odd-numbered Node
+  release lines. jsdom supports only the even-numbered ones, so installing on Node 23 or
+  25 produced an `EBADENGINE` warning naming jsdom rather than eaa-kit. The range is now
+  `^22.22.2 || ^24.15.0 || >=26.0.0`, matching what the dependency actually supports.
+
 ## 0.1.0 — 2026-08-28
 
 First release. Everything below is new, so it is written as what the tool does rather than

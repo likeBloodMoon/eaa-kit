@@ -22,8 +22,9 @@ npx eaa-kit statement             # Barrierefreiheitserklärung from eaa.config
 pnpm add -D eaa-kit    # npm i -D eaa-kit
 ```
 
-Node 22.22 or newer. jsdom, which the browserless engine is built on, does not support
-Node 20.
+Node 22.22, 24.15 or 26 and newer. jsdom, which the browserless engine is built on,
+supports only the even-numbered release lines, so the odd-numbered ones (23, 25) are not
+supported here either.
 
 ## What it does
 
