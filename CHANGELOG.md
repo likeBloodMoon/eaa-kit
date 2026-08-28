@@ -58,6 +58,15 @@ consumers must ignore what they do not recognise.
   refuses to overwrite a config that is already there. What it writes is
   `partially-compliant`, never `compliant`: it is written before any audit has run.
 
+### Removed
+
+- zod, which was 6.4 MB of a 37 MB install for three closed schemas — the config file,
+  the JSON report and the baseline — each already wrapped in hand-written error messages.
+  `src/schema.ts` does what those three need and no more: an install is now **31 MB**, and
+  the call sites did not change. The one place that needed an input type distinct from the
+  parsed one, `defineConfig`, writes it out rather than inferring it — it is the type
+  people see while filling the file in, so it is worth being readable.
+
 ### Changed
 
 - The console report now leads with **Issues** and prints the page-by-page listing only
