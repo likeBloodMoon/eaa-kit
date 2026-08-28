@@ -106,3 +106,43 @@ async function readPage(root: string, relativePath: string): Promise<CollectedPa
 function toPosix(filePath: string): string {
   return filePath.split(path.sep).join('/')
 }
+
+/**
+ * What to suggest when a directory exists but holds no HTML.
+ *
+ * Nearly always the wrong directory rather than a site with no pages, and the
+ * commonest way to arrive here is a framework whose build does not emit browsable
+ * HTML at all. Naming the one in front of the user beats a generic "check the
+ * path", so the project is sniffed for the frameworks that mislead people this
+ * way — `./dist` is every tutorial's answer and is wrong for all of them.
+ */
+export async function emptyDirectoryHint(dir: string, cwd = process.cwd()): Promise<string> {
+  const has = async (name: string): Promise<boolean> => {
+    try {
+      await stat(path.resolve(cwd, name))
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  if (
+    (await has('next.config.js')) ||
+    (await has('next.config.mjs')) ||
+    (await has('next.config.ts'))
+  ) {
+    return (
+      `${dir} holds no HTML, and a Next.js build does not put any there.\n` +
+      "  Static export writes to out/: set output: 'export' in next.config, run next build,\n" +
+      '  then: eaa-kit audit ./out\n' +
+      '  A site with SSR, API routes or middleware cannot be exported this way.'
+    )
+  }
+  if (await has('nuxt.config.ts')) {
+    return `${dir} holds no HTML. Nuxt writes a static build to .output/public — try: eaa-kit audit ./.output/public`
+  }
+  return (
+    `${dir} holds no HTML. Point eaa-kit at the directory your build fills with .html files\n` +
+    '  — commonly dist/, build/, out/ or _site/, depending on the builder.'
+  )
+}

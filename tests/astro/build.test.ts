@@ -42,7 +42,15 @@ beforeAll(async () => {
   } catch {
     // not built yet
   }
-  await promisify(execFile)(path.join(REPO, 'node_modules/.bin/tsdown'), [], { cwd: REPO })
+  // .bin/tsdown is extensionless and unrunnable by execFile on Windows, where
+  // the launcher npm writes is tsdown.CMD. Resolved rather than shelled out to,
+  // so the argument still never goes through a shell.
+  const binary = path.join(
+    REPO,
+    'node_modules/.bin',
+    process.platform === 'win32' ? 'tsdown.CMD' : 'tsdown',
+  )
+  await promisify(execFile)(binary, [], { cwd: REPO })
 }, 120_000)
 
 afterEach(async () => {

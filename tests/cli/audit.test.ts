@@ -228,7 +228,7 @@ describe('runAuditCommand', () => {
       const { exitCode } = await runAuditCommand(empty)
 
       expect(exitCode).toBe(2)
-      expect(stderr.join('')).toContain('No HTML files found')
+      expect(stderr.join('')).toContain('holds no HTML')
     } finally {
       await rm(empty, { recursive: true, force: true })
     }

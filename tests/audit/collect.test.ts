@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
-import { BuildDirectoryError, collectPages } from '../../src/audit/collect.ts'
+import { BuildDirectoryError, collectPages, emptyDirectoryHint } from '../../src/audit/collect.ts'
 
 const SITE = fileURLToPath(new URL('../fixtures/site', import.meta.url))
 
@@ -130,5 +130,46 @@ describe('collectPages', () => {
     const file = path.join(SITE, 'index.html')
 
     await expect(collectPages(file)).rejects.toThrow(/not a directory/)
+  })
+})
+
+describe('emptyDirectoryHint', () => {
+  async function project(files: string[]): Promise<string> {
+    const dir = await mkdtemp(path.join(tmpdir(), 'eaa-kit-hint-'))
+    for (const file of files) await writeFile(path.join(dir, file), '')
+    return dir
+  }
+
+  it.each(['next.config.js', 'next.config.mjs', 'next.config.ts'])(
+    'names the static export when %s is present',
+    async (config) => {
+      // The commonest way to land here: ./dist is every tutorial's answer and
+      // Next.js puts nothing in it, so a generic "check the path" leaves the
+      // reader no better off.
+      const hint = await emptyDirectoryHint('./dist', await project([config]))
+
+      expect(hint).toMatch(/Next\.js build does not put any there/)
+      expect(hint).toMatch(/output: 'export'/)
+      expect(hint).toMatch(/eaa-kit audit \.\/out/)
+    },
+  )
+
+  it('names .output/public for a Nuxt project', async () => {
+    const hint = await emptyDirectoryHint('./dist', await project(['nuxt.config.ts']))
+
+    expect(hint).toMatch(/\.output\/public/)
+  })
+
+  it('falls back to the usual directories when it recognises nothing', async () => {
+    const hint = await emptyDirectoryHint('./dist', await project(['package.json']))
+
+    expect(hint).toMatch(/commonly dist\/, build\/, out\/ or _site\//)
+    expect(hint).not.toMatch(/Next\.js/)
+  })
+
+  it('repeats back the directory it was given', async () => {
+    const hint = await emptyDirectoryHint('./build', await project([]))
+
+    expect(hint).toMatch(/^\.\/build holds no HTML/)
   })
 })

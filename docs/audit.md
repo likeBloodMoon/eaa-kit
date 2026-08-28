@@ -7,6 +7,34 @@ with axe-core. This page covers the command, both engines, and how to read what 
 eaa-kit audit [dir]              # dir defaults to ./dist
 ```
 
+## Which directory to point it at
+
+eaa-kit reads `.html` files off disk. It never starts your dev server, never crawls a URL
+and never fetches anything, so the directory has to be one your build has already filled
+with real HTML. `./dist` is only the default because that is what most static builders
+emit; it is not special.
+
+| Builder | Directory | Note |
+| --- | --- | --- |
+| Astro, Vite, SvelteKit (static), Nuxt (generate) | `dist/`, `.output/public/` | ready as built |
+| Eleventy, Hugo, Jekyll | `_site/`, `public/` | ready as built |
+| Create React App | `build/` | one `index.html`; a client-rendered app has little in it |
+| Next.js | `out/` | **only with `output: 'export'`** — see below |
+
+**Next.js does not write HTML to `dist/`.** A default `next build` produces `.next/`, which
+holds the server bundle rather than a browsable site. To audit a Next.js site you need a
+static export: set `output: 'export'` in `next.config.js`, run `next build`, and point
+eaa-kit at `out/`. That works only for a site with no server-side rendering, API routes,
+middleware or ISR.
+
+If the site cannot be exported statically, the browserless engine is the wrong tool for it
+anyway: what ships is a shell that the browser fills in, and there is very little in the
+built markup to audit. Use `--browser`, which runs the page's own JavaScript, against an
+export of the rendered pages.
+
+A run that reports `No HTML files found` means the directory exists but holds no `.html` —
+almost always the wrong directory rather than a clean site.
+
 Output from the test fixtures in this repository, which carry known violations:
 
 ```
@@ -159,6 +187,22 @@ runs agree page for page.
 
 The Chromium engine is unaffected: `--browser` drives one browser context sequentially,
 where the bottleneck is the browser rather than this process.
+
+Threads also decide how much memory the run needs, which matters on a large site. jsdom
+builds a full DOM per page and axe-core walks it, and V8 does not reclaim that as fast as
+the loop produces it, so peak memory tracks the largest heap any one thread has to hold
+rather than the size of the build. Each worker is a separate isolate with a heap of its
+own, so spreading the pages out lowers the peak:
+
+| 800 pages, 8.3 MB of HTML, 1 GB heap cap | Result |
+| --- | --- |
+| `--concurrency 1` | out of memory |
+| default (3 threads here) | completes |
+
+The default is the safe one; `--concurrency 1` is the setting to be careful with on a big
+site in a memory-capped container. If a run does die with *JavaScript heap out of memory*,
+raise the thread count before anything else, then `NODE_OPTIONS=--max-old-space-size=4096`,
+then split the run with `--include`.
 
 ## Exit codes
 

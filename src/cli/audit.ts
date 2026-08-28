@@ -1,7 +1,12 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import pc from 'picocolors'
-import { BuildDirectoryError, type CollectedPage, collectPages } from '../audit/collect.ts'
+import {
+  BuildDirectoryError,
+  type CollectedPage,
+  collectPages,
+  emptyDirectoryHint,
+} from '../audit/collect.ts'
 import { countAtOrAbove, DEFAULT_FAIL_ON, type ImpactLevel } from '../audit/impact.ts'
 import { formatConsoleReport } from '../audit/report/console.ts'
 import type { PageAudit } from '../audit/runners/jsdom.ts'
@@ -86,7 +91,9 @@ export async function runAuditCommand(
   }
 
   if (pages.length === 0) {
-    process.stderr.write(`${pc.yellow('warning')} No HTML files found in ${dir}\n`)
+    process.stderr.write(
+      `${pc.yellow('warning')} ${await emptyDirectoryHint(dir, options.cwd ?? process.cwd())}\n`,
+    )
     return { audits: [], exitCode: 2 }
   }
 
