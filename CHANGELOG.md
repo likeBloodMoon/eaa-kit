@@ -9,7 +9,33 @@ move: the JSON report's `schemaVersion` and the baseline file's. Both are bumped
 a field is removed, renamed, or changes meaning — new fields may appear without one, so
 consumers must ignore what they do not recognise.
 
+## 0.2.1 — 2026-08-28
+
+### Fixed
+
+- `--browser` could not find Playwright when eaa-kit was run through `npx`, which is how
+  most people run it. A bare `import('playwright')` resolves against this package's own
+  location, and under npx that is a cache directory with no playwright in it — so somebody
+  who had just installed Playwright into their project was told to install Playwright. It
+  is now resolved from the audited project first, and only then from here.
+- A browser that failed to launch left the loopback server listening, so the run hung
+  instead of reporting the failure. The commonest way in is Playwright installed but
+  `npx playwright install chromium` never run.
+- Running the project's build printed Node's DEP0190 deprecation warning into the middle
+  of the output. Windows needs a shell to run npm and pnpm, which are `.cmd` shims there,
+  but passing an argument array alongside `shell: true` is what the deprecation is about;
+  cmd.exe is now invoked explicitly with one command string.
+
 ## 0.2.0 — 2026-08-28
+
+### Security
+
+- `--url` re-checks the origin after every redirect. `parseEntryUrl` gates the entry point
+  and the link and sitemap filters gate what is discovered, but a redirect was the one way
+  out of the origin that neither of them saw: a loopback crawl redirected to an internal
+  host or to the public internet followed it and audited what it found, which is precisely
+  what `--allow-remote` exists to prevent. A page that lands off-origin is refused and
+  reported as a failure, naming where it went.
 
 ### Breaking
 
@@ -19,15 +45,6 @@ consumers must ignore what they do not recognise.
 - The console report leads with **Issues** and no longer prints the page-by-page listing
   unless `--per-page` is passed. Anything parsing that listing out of stdout needs the
   flag. The other three formats are unchanged.
-
-### Security
-
-- `--url` re-checks the origin after every redirect. `parseEntryUrl` gates the entry point
-  and the link and sitemap filters gate what is discovered, but a redirect was the one way
-  out of the origin that neither of them saw: a loopback crawl redirected to an internal
-  host or to the public internet followed it and audited what it found, which is precisely
-  what `--allow-remote` exists to prevent. A page that lands off-origin is now refused and
-  reported as a failure, naming where it went.
 
 ### Added
 
@@ -87,7 +104,7 @@ consumers must ignore what they do not recognise.
 
 ### Changed
 
-- The JSON report's `target` gained `source` (what was audited) and `kind`
+- The JSON report's `target` carries `source` (what was audited) and `kind`
   (`directory` or `url`). `directory` never holds a URL — under `--url` it is `null` — so
   a consumer written against `schemaVersion` 1 sees exactly what it always did. The
   version stays at 1 on that reasoning: crawls did not exist under 1, so no report shape

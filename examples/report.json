@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "tool": {
     "name": "eaa-kit",
-    "version": "0.2.0",
+    "version": "0.2.1",
     "axeCore": "4.13.0"
   },
-  "generatedAt": "2026-08-28T19:28:08.531Z",
+  "generatedAt": "2026-08-28T19:53:29.312Z",
   "engine": "jsdom",
   "target": {
     "source": "tests/fixtures/site",
