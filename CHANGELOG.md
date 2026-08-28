@@ -9,6 +9,40 @@ move: the JSON report's `schemaVersion` and the baseline file's. Both are bumped
 a field is removed, renamed, or changes meaning — new fields may appear without one, so
 consumers must ignore what they do not recognise.
 
+## 0.2.0 — 2026-08-28
+
+### Added
+
+- `eaa-kit audit --url http://localhost:3000` audits a running site instead of a build
+  directory. Until now the tool read HTML off disk, which covers every static builder and
+  none of the sites that render on a server and never write a file — Next.js without a
+  static export, Nuxt, SvelteKit, Remix, anything behind a CMS. Those projects could only
+  be audited by first producing an export, which many of them cannot.
+- Pages are discovered from `sitemap.xml` when the site has one, and by following
+  same-origin links either way — a sitemap listing three of forty pages should not stop
+  the crawl at three. `--max-pages` (default 200) and `--max-depth` (default 3) bound it.
+- `eaa-kit baseline --url …` records a baseline from a running site, so a served site can
+  adopt the tool the same way a static one does.
+- Crawling is loopback-only unless `--allow-remote` is passed, and `robots.txt` is
+  honoured unless `--ignore-robots` is. A tool that fails builds should not be one flag
+  away from crawling production, or somebody else's site, out of CI.
+- A URL that could not be fetched is named and counted, never silently skipped: a crawl
+  that quietly dropped half a site would report the other half as though it were whole.
+- `--browser` works with `--url`, navigating Chromium at the real URL rather than serving
+  a copy of the markup back from disk.
+
+### Changed
+
+- The message for a build directory with no HTML in it now looks at what the project
+  actually has, and says what to do about it: an `out/` that already exists, a Next.js
+  config with no `output: 'export'` in it, an export configured but never built, a Nuxt
+  project, or any other build directory lying around. Where a static export cannot work,
+  it points at `--url` rather than leaving the reader with advice that cannot apply.
+- A directory that does not exist gets the same guidance as one holding no HTML. They are
+  the same mistake to whoever typed the path, and the missing-directory case — which is
+  what somebody sees pointing the tool at `./dist` in a Next.js project — previously got
+  only a generic pointer back at `./dist`.
+
 ## 0.1.1 — 2026-08-28
 
 ### Fixed

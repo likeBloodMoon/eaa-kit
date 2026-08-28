@@ -1,6 +1,6 @@
 {
   "name": "eaa-kit",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Build-time WCAG 2.2 AA auditor and EU accessibility statement generator for static sites (EAA / BFSG / BaFG, DACH-localised).",
   "type": "module",
   "license": "MIT",

@@ -39,6 +39,11 @@ program
   .option('--include <globs...>', 'glob patterns to audit, relative to dir')
   .option('--exclude <globs...>', 'glob patterns to skip')
   .option('--base-url <url>', 'audit pages under their real site URL')
+  .option('--url <url>', 'audit a running site instead of a build directory')
+  .option('--allow-remote', 'allow --url to crawl a host that is not localhost')
+  .option('--ignore-robots', 'crawl paths robots.txt disallows')
+  .option('--max-pages <n>', 'stop the crawl after this many pages', parsePositive)
+  .option('--max-depth <n>', 'how far from the entry URL to follow links', parseDepth)
   .option(
     '--fail-on <impact>',
     `exit 1 on violations at or above this impact (${IMPACT_LEVELS.join('|')})`,
@@ -72,6 +77,11 @@ program
         ? { concurrency: options['concurrency'] }
         : {}),
       ...(typeof options['baseline'] === 'string' ? { baseline: options['baseline'] } : {}),
+      ...(typeof options['url'] === 'string' ? { url: options['url'] } : {}),
+      ...(options['allowRemote'] === true ? { allowRemote: true } : {}),
+      ...(options['ignoreRobots'] === true ? { ignoreRobots: true } : {}),
+      ...(typeof options['maxPages'] === 'number' ? { maxPages: options['maxPages'] } : {}),
+      ...(typeof options['maxDepth'] === 'number' ? { maxDepth: options['maxDepth'] } : {}),
     })
     process.exitCode = exitCode
   })
@@ -83,6 +93,11 @@ program
   .option('--include <globs...>', 'glob patterns to audit, relative to dir')
   .option('--exclude <globs...>', 'glob patterns to skip')
   .option('--base-url <url>', 'audit pages under their real site URL')
+  .option('--url <url>', 'record a baseline from a running site instead of a directory')
+  .option('--allow-remote', 'allow --url to crawl a host that is not localhost')
+  .option('--ignore-robots', 'crawl paths robots.txt disallows')
+  .option('--max-pages <n>', 'stop the crawl after this many pages', parsePositive)
+  .option('--max-depth <n>', 'how far from the entry URL to follow links', parseDepth)
   .option('--output <path>', `where to write it (default: ${DEFAULT_BASELINE_FILE})`)
   .option('--note <text>', 'recorded on every entry, for whoever reads the file')
   .option('--expires-on <date>', 'ISO date after which the entries stop suppressing', parseDate)
@@ -100,6 +115,11 @@ program
       ...(typeof options['concurrency'] === 'number'
         ? { concurrency: options['concurrency'] }
         : {}),
+      ...(typeof options['url'] === 'string' ? { url: options['url'] } : {}),
+      ...(options['allowRemote'] === true ? { allowRemote: true } : {}),
+      ...(options['ignoreRobots'] === true ? { ignoreRobots: true } : {}),
+      ...(typeof options['maxPages'] === 'number' ? { maxPages: options['maxPages'] } : {}),
+      ...(typeof options['maxDepth'] === 'number' ? { maxDepth: options['maxDepth'] } : {}),
     })
     process.exitCode = exitCode
   })
@@ -160,6 +180,23 @@ function parseDate(value: string): string {
     throw new InvalidArgumentError('expected an ISO date, e.g. 2026-12-31')
   }
   return value
+}
+
+function parsePositive(value: string): number {
+  const parsed = Number(value)
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    throw new InvalidArgumentError('expected a whole number of 1 or more')
+  }
+  return parsed
+}
+
+/** Depth 0 is meaningful here: audit only the entry page. */
+function parseDepth(value: string): number {
+  const parsed = Number(value)
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    throw new InvalidArgumentError('expected a whole number of 0 or more')
+  }
+  return parsed
 }
 
 function parseConcurrency(value: string): number {

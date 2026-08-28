@@ -37,6 +37,13 @@ rules that need layout and CSS.
 eaa-kit audit ./dist --fail-on serious
 ```
 
+Sites that render on a server and never write HTML to disk — Next.js without a static
+export, Nuxt, SvelteKit, anything behind a CMS — are audited running instead:
+
+```bash
+eaa-kit audit --url http://localhost:3000
+```
+
 **Writes the statement.** A Barrierefreiheitserklärung from one config file, in German or
 English, as Markdown or HTML, naming the statute and supervisory body of Austria,
 Switzerland or Germany — and optionally listing the barriers a real audit found.

@@ -8,8 +8,11 @@ import {
 } from '../audit/baseline.ts'
 import { BuildDirectoryError, collectPages, emptyDirectoryHint } from '../audit/collect.ts'
 import type { PageAudit } from '../audit/runners/jsdom.ts'
+import { type CrawlCommandOptions, crawlPages } from './audit.ts'
 
-export interface BaselineCommandOptions {
+export interface BaselineCommandOptions extends CrawlCommandOptions {
+  /** Record a baseline from a running site instead of a build directory. */
+  url?: string
   include?: string[]
   exclude?: string[]
   baseUrl?: string
@@ -22,7 +25,6 @@ export interface BaselineCommandOptions {
   browser?: boolean
   concurrency?: number
   cwd?: string
-  timeoutMs?: number
 }
 
 export interface BaselineCommandResult {
@@ -51,20 +53,40 @@ export async function runBaselineCommand(
   const cwd = options.cwd ?? process.cwd()
 
   let pages: Awaited<ReturnType<typeof collectPages>>
-  try {
-    pages = await collectPages(path.resolve(cwd, dir), {
-      ...(options.include ? { include: options.include } : {}),
-      ...(options.exclude ? { exclude: options.exclude } : {}),
-    })
-  } catch (cause) {
-    if (cause instanceof BuildDirectoryError) {
-      process.stderr.write(`${pc.red('error')} ${cause.message}\n`)
-      return { entries: 0, exitCode: 2 }
+  let crawledOrigin: string | undefined
+  let source = dir
+
+  if (options.url !== undefined) {
+    const crawled = await crawlPages(options.url, options)
+    if (!crawled) return { entries: 0, exitCode: 2 }
+    pages = crawled.pages
+    crawledOrigin = crawled.origin
+    source = options.url
+  } else {
+    try {
+      pages = await collectPages(path.resolve(cwd, dir), {
+        ...(options.include ? { include: options.include } : {}),
+        ...(options.exclude ? { exclude: options.exclude } : {}),
+      })
+    } catch (cause) {
+      if (cause instanceof BuildDirectoryError) {
+        process.stderr.write(`${pc.red('error')} ${cause.message}\n`)
+        process.stderr.write(
+          pc.dim(`${await emptyDirectoryHint(dir, options.cwd ?? process.cwd())}\n`),
+        )
+        return { entries: 0, exitCode: 2 }
+      }
+      throw cause
     }
-    throw cause
   }
 
   if (pages.length === 0) {
+    if (options.url !== undefined) {
+      process.stderr.write(
+        `${pc.yellow('warning')} No pages could be fetched from ${options.url}\n`,
+      )
+      return { entries: 0, exitCode: 2 }
+    }
     process.stderr.write(
       `${pc.yellow('warning')} ${await emptyDirectoryHint(dir, options.cwd ?? process.cwd())}\n`,
     )
@@ -72,11 +94,13 @@ export async function runBaselineCommand(
   }
 
   process.stderr.write(
-    pc.dim(`Auditing ${pages.length} ${pages.length === 1 ? 'page' : 'pages'} in ${dir}…\n`),
+    pc.dim(`Auditing ${pages.length} ${pages.length === 1 ? 'page' : 'pages'} in ${source}…\n`),
   )
 
+  const effectiveBaseUrl: string | undefined = options.baseUrl ?? crawledOrigin
+
   const runnerOptions = {
-    ...(options.baseUrl ? { baseUrl: options.baseUrl } : {}),
+    ...(effectiveBaseUrl === undefined ? {} : { baseUrl: effectiveBaseUrl }),
     ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
   }
 
@@ -86,7 +110,11 @@ export async function runBaselineCommand(
       '../audit/runners/playwright.ts'
     )
     try {
-      audits = await runBrowserAudit(path.resolve(cwd, dir), pages, runnerOptions)
+      audits = await runBrowserAudit(
+        options.url === undefined ? path.resolve(cwd, dir) : undefined,
+        pages,
+        runnerOptions,
+      )
     } catch (cause) {
       if (cause instanceof BrowserUnavailableError) {
         process.stderr.write(`${pc.red('error')} ${cause.message}\n`)

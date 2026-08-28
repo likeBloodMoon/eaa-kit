@@ -134,42 +134,88 @@ describe('collectPages', () => {
 })
 
 describe('emptyDirectoryHint', () => {
-  async function project(files: string[]): Promise<string> {
+  async function project(files: Record<string, string> = {}): Promise<string> {
     const dir = await mkdtemp(path.join(tmpdir(), 'eaa-kit-hint-'))
-    for (const file of files) await writeFile(path.join(dir, file), '')
+    tempDirs.push(dir)
+    for (const [name, body] of Object.entries(files)) {
+      await mkdir(path.join(dir, path.dirname(name)), { recursive: true })
+      await writeFile(path.join(dir, name), body)
+    }
     return dir
   }
 
-  it.each(['next.config.js', 'next.config.mjs', 'next.config.ts'])(
-    'names the static export when %s is present',
-    async (config) => {
-      // The commonest way to land here: ./dist is every tutorial's answer and
-      // Next.js puts nothing in it, so a generic "check the path" leaves the
-      // reader no better off.
-      const hint = await emptyDirectoryHint('./dist', await project([config]))
+  const NEXT_EXPORT = `const nextConfig = { output: 'export' }\nexport default nextConfig\n`
+  const NEXT_PLAIN = `const nextConfig = {}\nexport default nextConfig\n`
 
-      expect(hint).toMatch(/Next\.js build does not put any there/)
-      expect(hint).toMatch(/output: 'export'/)
-      expect(hint).toMatch(/eaa-kit audit \.\/out/)
+  it('points at an out/ that already exists', async () => {
+    const dir = await project({ 'next.config.mjs': NEXT_EXPORT, 'out/index.html': '<html>' })
+
+    const hint = await emptyDirectoryHint('./dist', dir)
+
+    expect(hint).toMatch(/writes to out\/, not \.\/dist/)
+    expect(hint).toMatch(/eaa-kit audit \.\/out/)
+  })
+
+  it.each(['next.config.js', 'next.config.mjs', 'next.config.ts'])(
+    'explains the export when %s does not set one',
+    async (config) => {
+      const hint = await emptyDirectoryHint('./dist', await project({ [config]: NEXT_PLAIN }))
+
+      expect(hint).toMatch(/server bundle, not browsable HTML/)
+      expect(hint).toMatch(new RegExp(`add output: 'export' to ${config.replace('.', '\\.')}`))
+      // The case the export cannot cover has to be named too, or the advice is
+      // a dead end for every site that has an API route.
+      expect(hint).toMatch(/--url http:\/\/localhost:3000/)
     },
   )
 
+  it('says to build when the export is configured but nothing came out', async () => {
+    const hint = await emptyDirectoryHint(
+      './out',
+      await project({ 'next.config.mjs': NEXT_EXPORT }),
+    )
+
+    expect(hint).toMatch(/sets output: 'export', but there is no out\/ directory/)
+    expect(hint).toMatch(/Run your build first/)
+  })
+
   it('names .output/public for a Nuxt project', async () => {
-    const hint = await emptyDirectoryHint('./dist', await project(['nuxt.config.ts']))
+    const hint = await emptyDirectoryHint('./dist', await project({ 'nuxt.config.ts': '' }))
 
     expect(hint).toMatch(/\.output\/public/)
   })
 
-  it('falls back to the usual directories when it recognises nothing', async () => {
-    const hint = await emptyDirectoryHint('./dist', await project(['package.json']))
+  it('names a build directory the project actually has', async () => {
+    const hint = await emptyDirectoryHint('./dist', await project({ '_site/index.html': '<html>' }))
+
+    expect(hint).toMatch(/This project also has _site\//)
+  })
+
+  it('does not suggest the directory it was just given', async () => {
+    const hint = await emptyDirectoryHint('./dist', await project({ 'dist/readme.md': 'x' }))
+
+    expect(hint).not.toMatch(/also has/)
+  })
+
+  it('falls back to the usual directories and to --url', async () => {
+    const hint = await emptyDirectoryHint('./dist', await project({ 'package.json': '{}' }))
 
     expect(hint).toMatch(/commonly dist\/, build\/, out\/ or _site\//)
+    expect(hint).toMatch(/--url http:\/\/localhost:3000/)
     expect(hint).not.toMatch(/Next\.js/)
   })
 
   it('repeats back the directory it was given', async () => {
-    const hint = await emptyDirectoryHint('./build', await project([]))
+    const hint = await emptyDirectoryHint('./build', await project({ 'build/x.txt': '' }))
 
-    expect(hint).toMatch(/^\.\/build holds no HTML/)
+    expect(hint).toMatch(/^\.\/build holds no HTML files\./)
+  })
+
+  it('says a missing directory is missing rather than empty', async () => {
+    // The same helper answers both cases, and telling somebody a directory that
+    // is not there "holds no HTML files" reads as though the tool never looked.
+    const hint = await emptyDirectoryHint('./nope', await project())
+
+    expect(hint).toMatch(/^\.\/nope does not exist\./)
   })
 })

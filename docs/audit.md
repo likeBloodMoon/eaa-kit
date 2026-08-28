@@ -7,6 +7,47 @@ with axe-core. This page covers the command, both engines, and how to read what 
 eaa-kit audit [dir]              # dir defaults to ./dist
 ```
 
+## Auditing a running site
+
+```bash
+eaa-kit audit --url http://localhost:3000
+```
+
+Fetches the pages instead of reading them, which is the only way to reach a site that
+renders on a server and never writes HTML to disk — Next.js without a static export,
+Nuxt, SvelteKit, Remix, anything behind a CMS. Everything downstream is unchanged: the
+same rules, the same four result categories, the same reports, baselines and exit codes.
+
+Pages are found from `sitemap.xml` when the site has one, and by following same-origin
+links either way — a sitemap listing three of forty pages would otherwise be worse than
+no sitemap at all. `--max-pages` (default 200) and `--max-depth` (default 3) bound it, and
+a crawl that stopped early says so.
+
+| Flag | |
+| --- | --- |
+| `--url <url>` | entry point; the crawl stays on its origin |
+| `--max-pages <n>` | stop after this many pages (default 200) |
+| `--max-depth <n>` | how far from the entry URL to follow links (default 3) |
+| `--allow-remote` | crawl a host that is not localhost |
+| `--ignore-robots` | crawl paths `robots.txt` disallows |
+
+**Only localhost, unless you say otherwise.** A tool that fails builds should not be one
+flag away from crawling production, or somebody else's site, out of CI, so a non-loopback
+host is refused until `--allow-remote` is passed. `robots.txt` is honoured either way
+unless `--ignore-robots` says not to.
+
+A URL that could not be fetched is named and counted rather than skipped — a crawl that
+quietly dropped half a site would report the other half as though it were the whole
+thing. Anything that comes back as something other than HTML is refused for the same
+reason: auditing a JSON endpoint as markup produces findings about a document that was
+never a page.
+
+`--browser` works here too, and navigates Chromium at the real URL rather than serving a
+copy of the markup back from disk.
+
+`eaa-kit baseline --url …` records a baseline the same way, so a served site can adopt
+the tool exactly as a static one does.
+
 ## Which directory to point it at
 
 eaa-kit reads `.html` files off disk. It never starts your dev server, never crawls a URL
@@ -22,15 +63,16 @@ emit; it is not special.
 | Next.js | `out/` | **only with `output: 'export'`** — see below |
 
 **Next.js does not write HTML to `dist/`.** A default `next build` produces `.next/`, which
-holds the server bundle rather than a browsable site. To audit a Next.js site you need a
-static export: set `output: 'export'` in `next.config.js`, run `next build`, and point
-eaa-kit at `out/`. That works only for a site with no server-side rendering, API routes,
-middleware or ISR.
+holds the server bundle rather than a browsable site. To audit the files, set
+`output: 'export'` in `next.config.js`, run `next build`, and point eaa-kit at `out/`.
 
-If the site cannot be exported statically, the browserless engine is the wrong tool for it
-anyway: what ships is a shell that the browser fills in, and there is very little in the
-built markup to audit. Use `--browser`, which runs the page's own JavaScript, against an
-export of the rendered pages.
+That works only for a site with no server-side rendering, API routes, middleware or ISR.
+If yours has any of those, do not fight the export — audit it running instead:
+
+```bash
+npm run build && npx next start
+eaa-kit audit --url http://localhost:3000
+```
 
 A run that reports `No HTML files found` means the directory exists but holds no `.html` —
 almost always the wrong directory rather than a clean site.
