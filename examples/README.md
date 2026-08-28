@@ -10,6 +10,7 @@ this engine cannot evaluate.
 | [`console.txt`](console.txt) | `eaa-kit audit tests/fixtures/site` |
 | [`report.json`](report.json) | `… --format json` |
 | [`report.sarif`](report.sarif) | `… --format sarif` |
+| [`report.html`](report.html) | `… --format html` |
 
 The statements come from [`eaa.config.json`](eaa.config.json), which is a complete
 config with every optional field filled in:

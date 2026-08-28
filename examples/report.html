@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="eaa-kit 0.1.0">
+<title>Accessibility audit · tests/fixtures/site</title>
+<style>
+:root { color-scheme: light dark; }
+body { margin: 0; background: #ffffff; color: #1a1a1a;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; line-height: 1.6; }
+main { max-width: 60rem; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
+h1 { font-size: 1.9rem; line-height: 1.25; margin: 0 0 1rem; }
+h2 { font-size: 1.35rem; margin: 2.5rem 0 0.75rem; padding-top: 1.5rem;
+  border-top: 1px solid #d4d4d4; }
+h3.page { font-size: 1.05rem; margin: 2rem 0 0.5rem; font-family: ui-monospace, monospace; }
+p { margin: 0 0 1rem; }
+a { color: #0b4fa8; }
+a:focus-visible { outline: 3px solid currentColor; outline-offset: 2px; }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9em; }
+pre { margin: 0.4rem 0 0; padding: 0.6rem 0.75rem; overflow-x: auto;
+  background: #f4f4f5; border-radius: 4px; }
+pre code { font-size: 0.85em; }
+ul, ol { margin: 0 0 1rem; padding-left: 1.25rem; }
+li + li { margin-top: 0.5rem; }
+.verdict { padding: 0.75rem 1rem; border-radius: 4px; border-left: 4px solid; }
+.verdict.pass { background: #eef7ee; border-color: #216e39; }
+.verdict.fail { background: #fdeeee; border-color: #a01b1b; }
+.verdict.broken { background: #fdf4e3; border-color: #8a5a00; }
+.badge { display: inline-block; padding: 0 0.45rem; border-radius: 3px; font-size: 0.8rem;
+  font-weight: 600; border: 1px solid; }
+.badge.critical { background: #fdeeee; border-color: #a01b1b; color: #7a1414; }
+.badge.serious { background: #fdf1e8; border-color: #a4531b; color: #7d3f14; }
+.badge.moderate { background: #fdf9e3; border-color: #7a6100; color: #5c4900; }
+.badge.minor { background: #eef2f8; border-color: #40556f; color: #33455a; }
+.badge.unclassified { background: #f1f1f1; border-color: #565656; color: #444444; }
+dl.run { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 1.5rem; margin: 0; }
+dl.run > div { display: contents; }
+dl.run dt { font-weight: 600; }
+dl.run dd { margin: 0; }
+ul.counts, ul.impacts { list-style: none; padding-left: 0; }
+ul.impacts li { display: inline-block; margin-right: 1rem; }
+ol.findings { list-style: none; padding-left: 0; }
+li.finding { margin: 0 0 1.5rem; padding-left: 0.9rem; border-left: 3px solid #d4d4d4; }
+p.rule { margin-bottom: 0.25rem; }
+p.standards, p.coverage, .reason, li.more { color: #4a4a4a; font-size: 0.9rem; }
+p.coverage { margin-top: 0.5rem; }
+ul.nodes { list-style: none; padding-left: 0; }
+code.selector { color: #4a4a4a; }
+p.clean { color: #216e39; }
+p.note { font-size: 0.95rem; }
+hr { border: 0; border-top: 1px solid #d4d4d4; margin: 3rem 0 1.5rem; }
+footer { color: #4a4a4a; font-size: 0.9rem; }
+@media (prefers-color-scheme: dark) {
+  body { background: #121212; color: #ededed; }
+  a { color: #9ec1ff; }
+  h2, hr { border-color: #3a3a3a; }
+  pre { background: #1e1e1e; }
+  li.finding { border-color: #3a3a3a; }
+  p.standards, p.coverage, .reason, li.more, code.selector, footer { color: #b6b6b6; }
+  p.clean { color: #7ee2a8; }
+  .verdict.pass { background: #10240f; border-color: #7ee2a8; }
+  .verdict.fail { background: #2b1111; border-color: #ff9d9d; }
+  .verdict.broken { background: #2b2310; border-color: #ffd28a; }
+  .badge.critical { background: #2b1111; border-color: #ff9d9d; color: #ffc9c9; }
+  .badge.serious { background: #2b1c11; border-color: #ffbb8a; color: #ffd9bd; }
+  .badge.moderate { background: #262110; border-color: #ffe08a; color: #ffeec2; }
+  .badge.minor { background: #16202b; border-color: #a8c6e8; color: #cfdff0; }
+  .badge.unclassified { background: #1f1f1f; border-color: #b6b6b6; color: #d8d8d8; }
+}
+@media print {
+  body { background: #ffffff; color: #000000; }
+  main { max-width: none; }
+  a { color: #000000; }
+}
+</style>
+</head>
+<body>
+<main>
+<h1>Accessibility audit</h1>
+<p class="verdict fail"><strong>Violations found</strong> 3 violations at or above serious.</p>
+<h2>The run</h2>
+<dl class="run">
+  <div><dt>Directory</dt><dd>tests/fixtures/site</dd></div>
+  <div><dt>Pages</dt><dd>5</dd></div>
+  <div><dt>Engine</dt><dd>jsdom (browserless)</dd></div>
+  <div><dt>Threshold</dt><dd>serious and above fails the run</dd></div>
+  <div><dt>Generated</dt><dd>2026-08-27T20:31:45.826Z</dd></div>
+  <div><dt>eaa-kit</dt><dd>0.1.0 · axe-core 4.13.0</dd></div>
+</dl>
+<h2>Summary</h2>
+<ul class="counts">
+  <li><strong>3 violations</strong> on 1 of 5 pages, across 3 elements</li>
+  <li><strong>3</strong> at or above serious</li>
+  <li><strong>1</strong> rule needs manual review</li>
+  <li><strong>21</strong> rules were not evaluated by this engine</li>
+</ul>
+<ul class="impacts">
+  <li><span class="badge critical">critical</span> 1</li>
+  <li><span class="badge serious">serious</span> 2</li>
+</ul>
+<p class="note">
+  <strong>21</strong> rule results were checked and met, and <strong>269</strong>
+  found nothing on the page to check. Those two are counted separately and never added
+  together: a rule with nothing to check is not a rule that passed, and a page with no
+  images proves nothing about image alternatives.
+</p>
+<h2>Pages</h2>
+<h3 class="page">about/index.html</h3>
+<p class="clean">No violations.</p>
+<p class="coverage">6 passed · 53 not applicable · 4 not evaluated</p>
+<h3 class="page">blog/post-1.html</h3>
+<p class="clean">No violations.</p>
+<p class="coverage">4 passed · 55 not applicable · 4 not evaluated</p>
+<h3 class="page">drafts/draft.html</h3>
+<p class="clean">No violations.</p>
+<p class="coverage">4 passed · 55 not applicable · 4 not evaluated</p>
+<h3 class="page">index.html</h3>
+<ol class="findings">
+  <li class="finding">
+    <p class="rule">
+      <span class="badge critical">critical</span>
+      <code>image-alt</code>
+      <a href="https://dequeuniversity.com/rules/axe/4.13/image-alt?application=axeAPI">Images must have alternative text</a>
+    </p>
+    <p class="standards">WCAG 1.1.1, EN 301 549 9.1.1.1</p>
+    <ul class="nodes">
+    <li>
+      <code class="selector">img</code>
+      <pre><code>&lt;img src="/assets/logo.svg"&gt;</code></pre>
+    </li>
+    </ul>
+  </li>
+  <li class="finding">
+    <p class="rule">
+      <span class="badge serious">serious</span>
+      <code>html-has-lang</code>
+      <a href="https://dequeuniversity.com/rules/axe/4.13/html-has-lang?application=axeAPI">&lt;html&gt; element must have a lang attribute</a>
+    </p>
+    <p class="standards">WCAG 3.1.1, EN 301 549 9.3.1.1</p>
+    <ul class="nodes">
+    <li>
+      <code class="selector">html</code>
+      <pre><code>&lt;html&gt;&lt;head&gt; &lt;title&gt;Startseite&lt;/title&gt; &lt;/head&gt; &lt;body&gt; &lt;img src="/assets/logo.svg"&gt; &lt;a href="/about/"&gt;&lt;/a&gt; &lt;p&gt;Willkommen.&lt;/p&gt; &lt;/body&gt;&lt;/html&gt;</code></pre>
+    </li>
+    </ul>
+  </li>
+  <li class="finding">
+    <p class="rule">
+      <span class="badge serious">serious</span>
+      <code>link-name</code>
+      <a href="https://dequeuniversity.com/rules/axe/4.13/link-name?application=axeAPI">Links must have discernible text</a>
+    </p>
+    <p class="standards">WCAG 2.4.4, WCAG 4.1.2, EN 301 549 9.2.4.4, EN 301 549 9.4.1.2</p>
+    <ul class="nodes">
+    <li>
+      <code class="selector">a</code>
+      <pre><code>&lt;a href="/about/"&gt;&lt;/a&gt;</code></pre>
+    </li>
+    </ul>
+  </li>
+</ol>
+<p class="review-heading">A human has to decide these:</p>
+<ul>
+  <li><code>bypass</code> needs manual review — WCAG 2.4.1, EN 301 549 9.2.4.1</li>
+</ul>
+<p class="coverage">3 passed · 51 not applicable · 1 to review · 5 not evaluated</p>
+<h3 class="page">legacy.htm</h3>
+<p class="clean">No violations.</p>
+<p class="coverage">4 passed · 55 not applicable · 4 not evaluated</p>
+<h2>Not evaluated</h2>
+<p>This engine reached no verdict on these rules. They are never reported as passing.</p>
+<ul class="not-evaluated">
+  <li>
+    <code>color-contrast</code> on 5 pages — WCAG 1.4.3, EN 301 549 9.1.4.3
+    <span class="reason">needs rendered foreground and background colours</span>
+  </li>
+  <li>
+    <code>link-in-text-block</code> on 5 pages — WCAG 1.4.1, EN 301 549 9.1.4.1
+    <span class="reason">needs rendered colours and text decoration</span>
+  </li>
+  <li>
+    <code>no-autoplay-audio</code> on 5 pages — WCAG 1.4.2, EN 301 549 9.1.4.2
+    <span class="reason">needs media duration, and media is never loaded</span>
+  </li>
+  <li>
+    <code>scrollable-region-focusable</code> on 5 pages — WCAG 2.1.1, WCAG 2.1.3, EN 301 549 9.2.1.1, EN 301 549 9.2.1.3
+    <span class="reason">needs computed overflow</span>
+  </li>
+  <li>
+    <code>target-size</code> on 1 page — WCAG 2.5.8
+    <span class="reason">needs element geometry; every box is 0x0 without layout</span>
+  </li>
+</ul>
+<hr>
+<footer>
+  <p>
+    Generated with <a href="https://github.com/likeBloodMoon/eaa-kit">eaa-kit</a>. Automated
+    testing finds a minority of accessibility barriers: it cannot judge whether alternative
+    text is accurate, whether a page makes sense in reading order, or whether a form can
+    actually be completed with a screen reader.
+  </p>
+  <p>
+    <strong>A report with no findings is not a compliance statement.</strong> It means
+    nothing was found by this engine, which is not the same as a site being accessible.
+  </p>
+</footer>
+</main>
+</body>
+</html>
