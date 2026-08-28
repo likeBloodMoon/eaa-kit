@@ -259,6 +259,7 @@ async function emit(
 
 async function renderReport(
   audits: readonly PageAudit[],
+  /** What was audited: a build directory, or a crawl's entry URL. */
   dir: string,
   failOn: ImpactLevel,
   format: OutputFormat,
@@ -271,6 +272,7 @@ async function renderReport(
       return serialiseJsonReport(
         buildJsonReport(audits, {
           directory: dir,
+          ...(options.url === undefined ? {} : { sourceKind: 'url' as const }),
           failOn,
           ...(options.baseUrl ? { baseUrl: options.baseUrl } : {}),
         }),

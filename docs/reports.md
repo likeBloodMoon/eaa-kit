@@ -42,7 +42,9 @@ A complete generated document is checked in at
   "generatedAt": "2026-08-20T18:00:00.000Z",   // ISO 8601, UTC
   "engine": "jsdom",                            // "jsdom" | "browser"
   "target": {
-    "directory": "./dist",
+    "source": "./dist",                         // what was audited; read this one
+    "kind": "directory",                        // "directory" | "url"
+    "directory": "./dist",                      // null when kind is "url"
     "baseUrl": null                             // string when --base-url was used
   },
   "summary": {
@@ -77,7 +79,7 @@ A complete generated document is checked in at
 
   "pages": [
     {
-      "path": "index.html",                     // relative to target.directory, POSIX
+      "path": "index.html",                     // relative to target.source, POSIX
       "url": "file:///…/index.html",
       "violations": [
         {
@@ -113,6 +115,19 @@ A complete generated document is checked in at
 ```
 
 When `error` is non-null, all four category arrays on that page are empty.
+
+### `target.source` and `target.directory`
+
+`source` is what the run audited: a build directory, or the URL a crawl started from.
+`kind` says which. `directory` holds a directory or `null` — never a URL.
+
+That split exists so `schemaVersion` can stay honest. `directory` was the only field here
+in version 1 and was documented as the build directory; letting it quietly start holding a
+URL would break the consumers the version number exists to protect. Crawls did not exist
+under version 1, so no report shape that version could already produce has changed, and
+the version has not moved.
+
+Read `source` in new code. `directory` is kept for consumers written against version 1.
 
 ## SARIF output
 

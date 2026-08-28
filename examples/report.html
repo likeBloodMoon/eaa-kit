@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="generator" content="eaa-kit 0.1.0">
+<meta name="generator" content="eaa-kit 0.2.0">
 <title>Accessibility audit · tests/fixtures/site</title>
 <style>
 :root { color-scheme: light dark; }
@@ -43,7 +43,7 @@ ul.impacts li { display: inline-block; margin-right: 1rem; }
 ol.findings { list-style: none; padding-left: 0; }
 li.finding { margin: 0 0 1.5rem; padding-left: 0.9rem; border-left: 3px solid #d4d4d4; }
 p.rule { margin-bottom: 0.25rem; }
-p.standards, p.coverage, .reason, li.more { color: #4a4a4a; font-size: 0.9rem; }
+p.standards, p.coverage, .reason, li.more, p.accepted-heading, ul.accepted { color: #4a4a4a; font-size: 0.9rem; }
 p.coverage { margin-top: 0.5rem; }
 ul.nodes { list-style: none; padding-left: 0; }
 code.selector { color: #4a4a4a; }
@@ -57,7 +57,8 @@ footer { color: #4a4a4a; font-size: 0.9rem; }
   h2, hr { border-color: #3a3a3a; }
   pre { background: #1e1e1e; }
   li.finding { border-color: #3a3a3a; }
-  p.standards, p.coverage, .reason, li.more, code.selector, footer { color: #b6b6b6; }
+  p.standards, p.coverage, .reason, li.more, code.selector, footer,
+  p.accepted-heading, ul.accepted { color: #b6b6b6; }
   p.clean { color: #7ee2a8; }
   .verdict.pass { background: #10240f; border-color: #7ee2a8; }
   .verdict.fail { background: #2b1111; border-color: #ff9d9d; }
@@ -85,8 +86,8 @@ footer { color: #4a4a4a; font-size: 0.9rem; }
   <div><dt>Pages</dt><dd>5</dd></div>
   <div><dt>Engine</dt><dd>jsdom (browserless)</dd></div>
   <div><dt>Threshold</dt><dd>serious and above fails the run</dd></div>
-  <div><dt>Generated</dt><dd>2026-08-27T20:31:45.826Z</dd></div>
-  <div><dt>eaa-kit</dt><dd>0.1.0 · axe-core 4.13.0</dd></div>
+  <div><dt>Generated</dt><dd>2026-08-28T19:28:11.298Z</dd></div>
+  <div><dt>eaa-kit</dt><dd>0.2.0 · axe-core 4.13.0</dd></div>
 </dl>
 <h2>Summary</h2>
 <ul class="counts">
@@ -94,6 +95,7 @@ footer { color: #4a4a4a; font-size: 0.9rem; }
   <li><strong>3</strong> at or above serious</li>
   <li><strong>1</strong> rule needs manual review</li>
   <li><strong>21</strong> rules were not evaluated by this engine</li>
+
 </ul>
 <ul class="impacts">
   <li><span class="badge critical">critical</span> 1</li>
