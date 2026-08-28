@@ -4,8 +4,32 @@
 with axe-core. This page covers the command, both engines, and how to read what it returns.
 
 ```bash
-eaa-kit audit [dir]              # dir defaults to ./dist
+eaa-kit audit                    # works out what to audit
+eaa-kit audit ./dist             # or say so
 ```
+
+## With no arguments
+
+`eaa-kit audit` on its own works out what this project needs, in three steps:
+
+1. **A build that already exists.** The first of `dist/`, `out/`, `build/`, `_site/`,
+   `.output/public/` or `public/` that holds HTML. Holding HTML is the test, not merely
+   existing — `.next/` exists after any Next.js build and holds no browsable page, and
+   `public/` exists in most projects and holds assets.
+2. **The project's own build.** Nothing built yet, so it runs the `build` script rather
+   than telling you to go and do it and come back. The package manager comes from the
+   lockfile.
+3. **The project's server.** Built and still no HTML anywhere means the site renders on a
+   server — a Next.js app with an API route, middleware or ISR, and anything else that
+   cannot be exported. It starts `start`, `preview` or `serve`, crawls what that serves,
+   and stops it again afterwards.
+
+Naming a directory or passing `--url` skips all of it, and `--no-build` stops it running
+anything, leaving step 1 only.
+
+Steps two and three run your project's own scripts. That is what a build-time tool does —
+the Astro integration already audits from inside a build — but it is announced as it
+happens, and `--no-build` turns it off.
 
 ## Auditing a running site
 

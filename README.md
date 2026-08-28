@@ -8,7 +8,7 @@ European Accessibility Act (in force since 28 June 2025), the BFSG in Germany an
 in Austria.
 
 ```bash
-npx eaa-kit audit ./dist          # WCAG 2.2 AA report over built HTML
+npx eaa-kit audit                 # WCAG 2.2 AA report; finds your build itself
 npx eaa-kit statement             # Barrierefreiheitserklärung from eaa.config
 ```
 

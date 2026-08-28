@@ -31,6 +31,14 @@ consumers must ignore what they do not recognise.
 - `--browser` works with `--url`, navigating Chromium at the real URL rather than serving
   a copy of the markup back from disk.
 
+- `eaa-kit audit` with no arguments works out what to audit. It looks for a build
+  directory that exists and holds HTML; failing that it runs the project's own build and
+  looks again; and failing that — a site that renders on a server and emits no browsable
+  HTML at all — it starts the project's server, crawls it, and stops it again. `--no-build`
+  turns all of it off, and naming a directory or passing `--url` skips it.
+  `./dist` is no longer the default, because it was only ever right for some projects and
+  silently wrong for the rest.
+
 ### Changed
 
 - The message for a build directory with no HTML in it now looks at what the project
@@ -42,6 +50,8 @@ consumers must ignore what they do not recognise.
   the same mistake to whoever typed the path, and the missing-directory case — which is
   what somebody sees pointing the tool at `./dist` in a Next.js project — previously got
   only a generic pointer back at `./dist`.
+- The audited target named in reports is now what was actually audited. A `--url` run
+  recorded `./dist`, the directory default it never read.
 
 ## 0.1.1 — 2026-08-28
 

@@ -1,3 +1,4 @@
+import path from 'node:path'
 import pc from 'picocolors'
 import {
   BuildDirectoryError,
@@ -35,6 +36,8 @@ export interface ResolvePagesOptions extends CrawlCommandOptions {
   exclude?: string[]
   /** Where relative paths are resolved from, for the diagnostics. */
   cwd?: string
+  /** Never run the project's build or start its server. */
+  noBuild?: boolean
   /**
    * How to name the directory in messages. Defaults to the directory itself.
    * `baseline` resolves the path before collecting but still wants the reader
@@ -45,6 +48,8 @@ export interface ResolvePagesOptions extends CrawlCommandOptions {
 
 export interface ResolvedPages {
   pages: CollectedPage[]
+  /** Stops anything auto-detection started, once the report is written. */
+  cleanup?: () => Promise<void>
   /**
    * Origin the pages were fetched from, when they came off a running site. It
    * becomes the document URL each page is audited under, which is what makes
@@ -64,10 +69,16 @@ export interface ResolvedPages {
  * which is not the same as a clean one.
  */
 export async function resolvePages(
-  /** Build directory, already resolved by the caller if it resolves at all. */
-  directory: string,
+  /**
+   * Build directory, already resolved by the caller if it resolves at all, or
+   * undefined to work it out from the project.
+   */
+  directory: string | undefined,
   options: ResolvePagesOptions = {},
 ): Promise<ResolvedPages | undefined> {
+  if (directory === undefined && options.url === undefined) {
+    return resolveAutomatically(options)
+  }
   if (options.url !== undefined) {
     const crawled = await crawlPages(options.url, options)
     if (!crawled) return undefined
@@ -81,10 +92,10 @@ export async function resolvePages(
   }
 
   const cwd = options.cwd ?? process.cwd()
-  const shown = options.label ?? directory
+  const shown = options.label ?? (directory as string)
   let pages: CollectedPage[]
   try {
-    pages = await collectPages(directory, {
+    pages = await collectPages(directory as string, {
       ...(options.include ? { include: options.include } : {}),
       ...(options.exclude ? { exclude: options.exclude } : {}),
     })
@@ -184,4 +195,46 @@ async function crawlPages(
   }
 
   return { pages: result.pages, origin: result.origin }
+}
+
+/**
+ * No directory and no URL: work out what this project needs.
+ *
+ * The point is that `eaa-kit audit` on its own does something useful. Anything
+ * this starts is handed back as `cleanup` so the caller can stop it once the
+ * report is written.
+ */
+async function resolveAutomatically(
+  options: ResolvePagesOptions,
+): Promise<ResolvedPages | undefined> {
+  const cwd = options.cwd ?? process.cwd()
+  const { autoDetectSource } = await import('../audit/project.ts')
+
+  const detected = await autoDetectSource(cwd, {
+    ...(options.noBuild ? { noBuild: true } : {}),
+    onStep: (message) => process.stderr.write(pc.dim(`${message}\n`)),
+  })
+
+  if (detected?.directory !== undefined) {
+    const resolved = await resolvePages(detected.directory, {
+      ...options,
+      label: path.relative(cwd, detected.directory) || '.',
+    })
+    return resolved
+  }
+
+  if (detected?.url !== undefined) {
+    const resolved = await resolvePages(undefined, { ...options, url: detected.url })
+    if (resolved === undefined) {
+      await detected.cleanup?.()
+      return undefined
+    }
+    return { ...resolved, ...(detected.cleanup ? { cleanup: detected.cleanup } : {}) }
+  }
+
+  await detected?.cleanup?.()
+  // Nothing worked. The directory hint knows this project better than anything
+  // here does, so it explains rather than a second message competing with it.
+  process.stderr.write(`${pc.yellow('warning')} ${await emptyDirectoryHint('./dist', cwd)}\n`)
+  return undefined
 }

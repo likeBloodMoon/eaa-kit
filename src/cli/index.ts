@@ -35,11 +35,12 @@ program
 program
   .command('audit')
   .description('Audit built HTML against WCAG 2.2 AA')
-  .argument('[dir]', 'directory holding the built site', './dist')
+  .argument('[dir]', 'directory holding the built site (default: found automatically)')
   .option('--include <globs...>', 'glob patterns to audit, relative to dir')
   .option('--exclude <globs...>', 'glob patterns to skip')
   .option('--base-url <url>', 'audit pages under their real site URL')
   .option('--url <url>', 'audit a running site instead of a build directory')
+  .option('--no-build', 'never run the project build or start its server')
   .option('--allow-remote', 'allow --url to crawl a host that is not localhost')
   .option('--ignore-robots', 'crawl paths robots.txt disallows')
   .option('--max-pages <n>', 'stop the crawl after this many pages', parsePositive)
@@ -64,8 +65,9 @@ program
     parseConcurrency,
   )
   .option('--baseline <path>', 'accept the violations recorded in this file; fail only on new ones')
-  .action(async (dir: string, options: Record<string, unknown>) => {
+  .action(async (dir: string | undefined, options: Record<string, unknown>) => {
     const { exitCode } = await runAuditCommand(dir, {
+      ...(options['build'] === false ? { noBuild: true } : {}),
       ...(Array.isArray(options['include']) ? { include: options['include'] as string[] } : {}),
       ...(Array.isArray(options['exclude']) ? { exclude: options['exclude'] as string[] } : {}),
       ...(typeof options['baseUrl'] === 'string' ? { baseUrl: options['baseUrl'] } : {}),

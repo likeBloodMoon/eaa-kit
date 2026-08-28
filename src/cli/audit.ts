@@ -49,6 +49,8 @@ export interface AuditCommandOptions extends CrawlCommandOptions {
   baseline?: string
   /** Where relative paths are resolved from. Defaults to the process's. */
   cwd?: string
+  /** Never run the project's build or start its server to find something to audit. */
+  noBuild?: boolean
 }
 
 export interface AuditCommandResult {
@@ -67,82 +69,92 @@ export interface AuditCommandResult {
  * piped somewhere without the chatter coming along.
  */
 export async function runAuditCommand(
-  dir: string,
+  /** Build directory, or undefined to work it out from the project. */
+  dir: string | undefined,
   options: AuditCommandOptions = {},
 ): Promise<AuditCommandResult> {
   const resolved = await resolvePages(dir, options)
   if (!resolved) return { audits: [], exitCode: 2 }
-  const { pages, origin, label } = resolved
-
-  const engineNote = await describeEngine(pages, options)
-  process.stderr.write(
-    pc.dim(
-      `Auditing ${pages.length} ${pages.length === 1 ? 'page' : 'pages'} in ${label}${engineNote}…\n`,
-    ),
-  )
-
-  // An explicit --base-url still wins; the crawl's own origin is the default, so
-  // a fetched page is audited under the URL it was actually fetched from.
-  const effectiveBaseUrl: string | undefined = options.baseUrl ?? origin
-
-  const runnerOptions = {
-    // An explicit --base-url still wins; the crawl's own origin is the default
-    // so that a fetched page is audited under the URL it was fetched from.
-    ...(effectiveBaseUrl === undefined ? {} : { baseUrl: effectiveBaseUrl }),
-    ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
-  }
-
-  let audits: PageAudit[]
-  if (options.browser) {
-    const { BrowserUnavailableError, runBrowserAudit } = await import(
-      '../audit/runners/playwright.ts'
-    )
-    try {
-      // No directory when the pages were crawled: they are audited at the URL
-      // they came from, not served back out of a copy on disk.
-      audits = await runBrowserAudit(
-        options.url === undefined ? dir : undefined,
-        pages,
-        runnerOptions,
-      )
-    } catch (cause) {
-      // Playwright missing is a setup problem with a specific fix, not a crash.
-      if (cause instanceof BrowserUnavailableError) {
-        process.stderr.write(`${pc.red('error')} ${cause.message}\n`)
-        return { audits: [], exitCode: 2 }
-      }
-      throw cause
-    }
-  } else {
-    const { runPooledAudit } = await import('../audit/runners/pool.ts')
-    audits = await runPooledAudit(pages, {
-      ...runnerOptions,
-      ...(options.concurrency === undefined ? {} : { concurrency: options.concurrency }),
-    })
-  }
-
-  const failOn = options.failOn ?? DEFAULT_FAIL_ON
-
-  if (options.baseline) {
-    const applied = await acceptBaseline(audits, options)
-    if (!applied) return { audits, exitCode: 2 }
-    audits = applied
-  }
-
-  await emit(audits, dir, failOn, options)
-
-  // A page that could not be audited is not a clean page. Exiting 0 here would
-  // hand back a pass for markup nothing ever looked at, so it is reported as a
-  // failed run rather than as a verdict.
-  const unaudited = audits.filter((audit) => audit.error)
-  if (unaudited.length > 0) {
+  const { pages, origin, label, cleanup } = resolved
+  // try/finally rather than a call before each return: auto-detection may have
+  // started the project's server, and leaving it running would hold the process
+  // open after the report is written.
+  try {
+    const engineNote = await describeEngine(pages, options)
     process.stderr.write(
-      `${pc.red('error')} ${unaudited.length} of ${audits.length} pages could not be audited\n`,
+      pc.dim(
+        `Auditing ${pages.length} ${pages.length === 1 ? 'page' : 'pages'} in ${label}${engineNote}…\n`,
+      ),
     )
-    return { audits, exitCode: 2 }
-  }
 
-  return { audits, exitCode: countAtOrAbove(audits, failOn) > 0 ? 1 : 0 }
+    // An explicit --base-url still wins; the crawl's own origin is the default, so
+    // a fetched page is audited under the URL it was actually fetched from.
+    const effectiveBaseUrl: string | undefined = options.baseUrl ?? origin
+
+    const runnerOptions = {
+      // An explicit --base-url still wins; the crawl's own origin is the default
+      // so that a fetched page is audited under the URL it was fetched from.
+      ...(effectiveBaseUrl === undefined ? {} : { baseUrl: effectiveBaseUrl }),
+      ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
+    }
+
+    let audits: PageAudit[]
+    if (options.browser) {
+      const { BrowserUnavailableError, runBrowserAudit } = await import(
+        '../audit/runners/playwright.ts'
+      )
+      try {
+        // No directory when the pages were crawled: they are audited at the URL
+        // they came from, not served back out of a copy on disk.
+        audits = await runBrowserAudit(
+          options.url === undefined ? dir : undefined,
+          pages,
+          runnerOptions,
+        )
+      } catch (cause) {
+        // Playwright missing is a setup problem with a specific fix, not a crash.
+        if (cause instanceof BrowserUnavailableError) {
+          process.stderr.write(`${pc.red('error')} ${cause.message}\n`)
+          return { audits: [], exitCode: 2 }
+        }
+        throw cause
+      }
+    } else {
+      const { runPooledAudit } = await import('../audit/runners/pool.ts')
+      audits = await runPooledAudit(pages, {
+        ...runnerOptions,
+        ...(options.concurrency === undefined ? {} : { concurrency: options.concurrency }),
+      })
+    }
+
+    const failOn = options.failOn ?? DEFAULT_FAIL_ON
+
+    if (options.baseline) {
+      const applied = await acceptBaseline(audits, options)
+      if (!applied) return { audits, exitCode: 2 }
+      audits = applied
+    }
+
+    // label, not dir: it is what the run actually audited. dir is undefined
+    // under auto-detection, and was the unused ./dist default under --url,
+    // which put a directory nobody read into the report.
+    await emit(audits, label, failOn, options)
+
+    // A page that could not be audited is not a clean page. Exiting 0 here would
+    // hand back a pass for markup nothing ever looked at, so it is reported as a
+    // failed run rather than as a verdict.
+    const unaudited = audits.filter((audit) => audit.error)
+    if (unaudited.length > 0) {
+      process.stderr.write(
+        `${pc.red('error')} ${unaudited.length} of ${audits.length} pages could not be audited\n`,
+      )
+      return { audits, exitCode: 2 }
+    }
+
+    return { audits, exitCode: countAtOrAbove(audits, failOn) > 0 ? 1 : 0 }
+  } finally {
+    await cleanup?.()
+  }
 }
 
 /**
