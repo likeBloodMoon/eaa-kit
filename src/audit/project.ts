@@ -107,6 +107,23 @@ export async function findBuildOutput(cwd: string): Promise<string | undefined> 
   return undefined
 }
 
+/**
+ * How to invoke a package-manager script on this platform.
+ *
+ * Not `shell: true` with an argument array: Node deprecated that in DEP0190
+ * because the arguments are concatenated rather than escaped, and it prints a
+ * warning into the middle of somebody's build output. Windows still needs a
+ * shell — npm and pnpm are `.cmd` shims there, which cannot be spawned
+ * directly — so cmd.exe is invoked explicitly with one command string instead.
+ */
+function scriptCommand(manager: string, script: string): { command: string; args: string[] } {
+  if (process.platform !== 'win32') return { command: manager, args: ['run', script] }
+  return {
+    command: process.env['ComSpec'] ?? 'cmd.exe',
+    args: ['/d', '/s', '/c', `${manager} run ${script}`],
+  }
+}
+
 export interface ScriptRun {
   ok: boolean
   /** What was run, for the message when it fails. */
@@ -125,13 +142,8 @@ export async function runScript(cwd: string, script: string): Promise<ScriptRun>
   const manager = await detectPackageManager(cwd)
   const command = `${manager} run ${script}`
   return new Promise((resolve) => {
-    const child = spawn(manager, ['run', script], {
-      cwd,
-      stdio: ['ignore', 'inherit', 'inherit'],
-      // Windows resolves npm/pnpm through a .cmd shim, which cannot be spawned
-      // without a shell there. The arguments are ours, not the user's.
-      shell: process.platform === 'win32',
-    })
+    const { command: bin, args } = scriptCommand(manager, script)
+    const child = spawn(bin, args, { cwd, stdio: ['ignore', 'inherit', 'inherit'] })
     child.on('error', () => resolve({ ok: false, command }))
     child.on('close', (code) => resolve({ ok: code === 0, command }))
   })
@@ -167,10 +179,10 @@ async function answers(origin: string): Promise<boolean> {
  */
 export async function startServer(cwd: string, script: string): Promise<RunningServer | undefined> {
   const manager = await detectPackageManager(cwd)
-  const child = spawn(manager, ['run', script], {
+  const { command: bin, args } = scriptCommand(manager, script)
+  const child = spawn(bin, args, {
     cwd,
     stdio: ['ignore', 'pipe', 'pipe'],
-    shell: process.platform === 'win32',
     // Its own process group, so the whole tree can be signalled. `npm run start`
     // spawns the real server as a grandchild: signalling npm alone leaves that
     // grandchild running, and its pipes hold this process open after the report

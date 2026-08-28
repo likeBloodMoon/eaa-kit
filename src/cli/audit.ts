@@ -94,6 +94,9 @@ export async function runAuditCommand(
     const effectiveBaseUrl: string | undefined = options.baseUrl ?? origin
 
     const runnerOptions = {
+      // The audited project, so the browser runner resolves Playwright from
+      // there rather than from wherever npx unpacked this package.
+      cwd: options.cwd ?? process.cwd(),
       // An explicit --base-url still wins; the crawl's own origin is the default
       // so that a fetched page is audited under the URL it was fetched from.
       ...(effectiveBaseUrl === undefined ? {} : { baseUrl: effectiveBaseUrl }),

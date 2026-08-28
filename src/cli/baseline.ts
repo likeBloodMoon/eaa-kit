@@ -60,6 +60,7 @@ export async function runBaselineCommand(
   const effectiveBaseUrl: string | undefined = options.baseUrl ?? origin
 
   const runnerOptions = {
+    cwd,
     ...(effectiveBaseUrl === undefined ? {} : { baseUrl: effectiveBaseUrl }),
     ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
   }

@@ -1,3 +1,5 @@
+import { createRequire } from 'node:module'
+import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { AxeResults } from 'axe-core'
 import axe from 'axe-core'
@@ -13,6 +15,12 @@ export class BrowserUnavailableError extends Error {
 }
 
 export interface BrowserRunnerOptions {
+  /**
+   * Project whose node_modules Playwright is resolved from. Defaults to the
+   * process's. It is the audited project rather than this package's own
+   * location, because under npx those are not the same place.
+   */
+  cwd?: string
   /** axe-core tag filter. Defaults to DEFAULT_TAGS. */
   tags?: readonly string[]
   /** Per-page timeout in milliseconds. */
@@ -54,13 +62,24 @@ export async function runBrowserAudit(
 ): Promise<PageAudit[]> {
   if (pages.length === 0) return []
 
-  const chromium = await loadChromium()
+  const chromium = await loadChromium(options.cwd)
   const tags = options.tags ?? DEFAULT_TAGS
   const timeout = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
   const viewport = options.viewport ?? DEFAULT_VIEWPORT
 
   const server = directory === undefined ? undefined : await serveDirectory(directory)
-  const browser = await chromium.launch({ headless: true })
+
+  // Launch inside its own guard. The server is already listening, and a launch
+  // that throws — a Chromium that was never downloaded is the common one —
+  // would otherwise leave it holding the event loop open, so the run hangs
+  // instead of reporting the failure.
+  let browser: BrowserLike
+  try {
+    browser = await chromium.launch({ headless: true })
+  } catch (cause) {
+    await server?.close()
+    throw cause
+  }
 
   try {
     // bypassCSP, because a site that sets a Content-Security-Policy would
@@ -177,14 +196,16 @@ interface PageLike {
   close(): Promise<void>
 }
 
+interface BrowserLike {
+  newContext(options?: {
+    viewport?: { width: number; height: number }
+    bypassCSP?: boolean
+  }): Promise<BrowserContextLike>
+  close(): Promise<void>
+}
+
 interface ChromiumLike {
-  launch(options?: { headless?: boolean }): Promise<{
-    newContext(options?: {
-      viewport?: { width: number; height: number }
-      bypassCSP?: boolean
-    }): Promise<BrowserContextLike>
-    close(): Promise<void>
-  }>
+  launch(options?: { headless?: boolean }): Promise<BrowserLike>
 }
 
 /**
@@ -193,16 +214,34 @@ interface ChromiumLike {
  * because "install playwright" and "install the browser binary" are different
  * problems with different fixes.
  */
-async function loadChromium(): Promise<ChromiumLike> {
-  let module: { chromium?: ChromiumLike }
+export async function loadChromium(cwd = process.cwd()): Promise<ChromiumLike> {
+  let module: { chromium?: ChromiumLike } | undefined
+
+  // From the audited project first, and only then from here.
+  //
+  // A bare `import('playwright')` resolves against this module's own location.
+  // Run through npx — which is how most people run this — that location is a
+  // cache directory that has no playwright in it, while the project the tool
+  // was pointed at does. The result was the install instructions being printed
+  // to somebody who had just followed them.
   try {
-    module = (await import('playwright')) as { chromium?: ChromiumLike }
+    const require = createRequire(pathToFileURL(path.join(cwd, 'package.json')).href)
+    const resolved = require.resolve('playwright')
+    module = (await import(pathToFileURL(resolved).href)) as { chromium?: ChromiumLike }
   } catch {
-    throw new BrowserUnavailableError(
-      'Browser mode needs Playwright, which is an optional peer dependency.\n' +
-        '  Install it with:  pnpm add -D playwright\n' +
-        '  Then the browser: npx playwright install chromium',
-    )
+    // Not in the project; fall through to this package's own resolution.
+  }
+
+  if (module === undefined) {
+    try {
+      module = (await import('playwright')) as { chromium?: ChromiumLike }
+    } catch {
+      throw new BrowserUnavailableError(
+        'Browser mode needs Playwright, which is an optional peer dependency.\n' +
+          '  Install it with:  npm i -D playwright\n' +
+          '  Then the browser: npx playwright install chromium',
+      )
+    }
   }
 
   if (!module.chromium) {
