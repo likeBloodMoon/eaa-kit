@@ -1,12 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import pc from 'picocolors'
-import {
-  BuildDirectoryError,
-  type CollectedPage,
-  collectPages,
-  emptyDirectoryHint,
-} from '../audit/collect.ts'
 import { countAtOrAbove, DEFAULT_FAIL_ON, type ImpactLevel } from '../audit/impact.ts'
 import { formatConsoleReport } from '../audit/report/console.ts'
 import type { PageAudit } from '../audit/runners/jsdom.ts'
@@ -21,21 +15,15 @@ import type { PageAudit } from '../audit/runners/jsdom.ts'
  * pays the same cost either way, a few milliseconds later.
  */
 
+import type { CollectedPage } from '../audit/collect.ts'
+import { type CrawlCommandOptions, resolvePages } from './pages.ts'
+
 export const OUTPUT_FORMATS = ['console', 'json', 'sarif', 'html'] as const
 
 export type OutputFormat = (typeof OUTPUT_FORMATS)[number]
 
 export function isOutputFormat(value: string): value is OutputFormat {
   return (OUTPUT_FORMATS as readonly string[]).includes(value)
-}
-
-/** The crawl-related options `audit` and `baseline` both accept. */
-export interface CrawlCommandOptions {
-  allowRemote?: boolean
-  ignoreRobots?: boolean
-  maxPages?: number
-  maxDepth?: number
-  timeoutMs?: number
 }
 
 export interface AuditCommandOptions extends CrawlCommandOptions {
@@ -61,12 +49,6 @@ export interface AuditCommandOptions extends CrawlCommandOptions {
   baseline?: string
   /** Where relative paths are resolved from. Defaults to the process's. */
   cwd?: string
-  /**
-   * Audit a running site instead of a directory. Mutually exclusive with dir.
-   * The pages are fetched rather than read, which is the only way to reach a
-   * site that renders on a server and never writes HTML to disk.
-   */
-  url?: string
 }
 
 export interface AuditCommandResult {
@@ -88,64 +70,20 @@ export async function runAuditCommand(
   dir: string,
   options: AuditCommandOptions = {},
 ): Promise<AuditCommandResult> {
-  let pages: Awaited<ReturnType<typeof collectPages>>
-  // The origin, when the pages came off a running site. It becomes the document
-  // URL every page is audited under, which is what makes root-absolute asset
-  // paths and relative hrefs resolve the way they do in a browser.
-  let crawledOrigin: string | undefined
-  let source = dir
-
-  if (options.url !== undefined) {
-    const crawled = await crawlPages(options.url, options)
-    if (!crawled) return { audits: [], exitCode: 2 }
-    pages = crawled.pages
-    crawledOrigin = crawled.origin
-    source = options.url
-  } else {
-    try {
-      pages = await collectPages(dir, {
-        ...(options.include ? { include: options.include } : {}),
-        ...(options.exclude ? { exclude: options.exclude } : {}),
-      })
-    } catch (cause) {
-      if (cause instanceof BuildDirectoryError) {
-        // A directory that is not there and one that holds no HTML are the same
-        // mistake to whoever typed it, so they get the same advice. This is the
-        // message somebody sees when they point the tool at ./dist in a Next.js
-        // project, which is the single commonest way to arrive here.
-        process.stderr.write(`${pc.red('error')} ${cause.message}\n`)
-        process.stderr.write(
-          pc.dim(`${await emptyDirectoryHint(dir, options.cwd ?? process.cwd())}\n`),
-        )
-        return { audits: [], exitCode: 2 }
-      }
-      throw cause
-    }
-  }
-
-  if (pages.length === 0) {
-    if (options.url !== undefined) {
-      process.stderr.write(
-        `${pc.yellow('warning')} No pages could be fetched from ${options.url}\n`,
-      )
-      return { audits: [], exitCode: 2 }
-    }
-    process.stderr.write(
-      `${pc.yellow('warning')} ${await emptyDirectoryHint(dir, options.cwd ?? process.cwd())}\n`,
-    )
-    return { audits: [], exitCode: 2 }
-  }
+  const resolved = await resolvePages(dir, options)
+  if (!resolved) return { audits: [], exitCode: 2 }
+  const { pages, origin, label } = resolved
 
   const engineNote = await describeEngine(pages, options)
   process.stderr.write(
     pc.dim(
-      `Auditing ${pages.length} ${pages.length === 1 ? 'page' : 'pages'} in ${source}${engineNote}…\n`,
+      `Auditing ${pages.length} ${pages.length === 1 ? 'page' : 'pages'} in ${label}${engineNote}…\n`,
     ),
   )
 
   // An explicit --base-url still wins; the crawl's own origin is the default, so
   // a fetched page is audited under the URL it was actually fetched from.
-  const effectiveBaseUrl: string | undefined = options.baseUrl ?? crawledOrigin
+  const effectiveBaseUrl: string | undefined = options.baseUrl ?? origin
 
   const runnerOptions = {
     // An explicit --base-url still wins; the crawl's own origin is the default
@@ -339,83 +277,4 @@ async function renderReport(
     case 'console':
       return `${formatConsoleReport(audits, { dir, failOn, ...(toFile ? { color: false } : {}) })}\n`
   }
-}
-
-/**
- * Fetch the pages of a running site, reporting what happened on the way.
- *
- * Returns undefined when the crawl could not start, which the caller turns into
- * exit 2 — a run that reached no verdict, not a clean one.
- */
-export async function crawlPages(
-  url: string,
-  options: CrawlCommandOptions,
-): Promise<{ pages: CollectedPage[]; origin: string } | undefined> {
-  const { crawlSite, CrawlError, parseEntryUrl } = await import('../audit/crawl.ts')
-
-  let entry: URL
-  try {
-    entry = parseEntryUrl(url, options.allowRemote ?? false)
-  } catch (cause) {
-    if (cause instanceof CrawlError) {
-      process.stderr.write(`${pc.red('error')} ${cause.message}\n`)
-      return undefined
-    }
-    throw cause
-  }
-
-  process.stderr.write(pc.dim(`Crawling ${entry.origin}…\n`))
-
-  const result = await crawlSite(entry, {
-    ...(options.allowRemote ? { allowRemote: true } : {}),
-    ...(options.ignoreRobots ? { ignoreRobots: true } : {}),
-    ...(options.maxPages === undefined ? {} : { maxPages: options.maxPages }),
-    ...(options.maxDepth === undefined ? {} : { maxDepth: options.maxDepth }),
-    ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
-  })
-
-  if (result.pages.length === 0 && result.failures.length > 0) {
-    // Nothing came back at all. Almost always a server that is not running,
-    // and saying so beats reporting a site with no pages.
-    process.stderr.write(
-      `${pc.red('error')} Could not fetch ${entry.href} (${result.failures[0]?.reason})\n`,
-    )
-    process.stderr.write(pc.dim('  Is the site running at that address?\n'))
-    return undefined
-  }
-
-  process.stderr.write(
-    pc.dim(
-      `Found ${result.pages.length} ${result.pages.length === 1 ? 'page' : 'pages'} from ${
-        result.discovery === 'sitemap' ? 'sitemap.xml and links' : 'links'
-      }\n`,
-    ),
-  )
-
-  // Pages that could not be fetched are named rather than counted away: a
-  // crawl that quietly skipped half the site would report the other half as if
-  // it were the whole thing.
-  if (result.failures.length > 0) {
-    process.stderr.write(
-      `${pc.yellow('warning')} ${result.failures.length} ${
-        result.failures.length === 1 ? 'URL was' : 'URLs were'
-      } not fetched, and so not audited:\n`,
-    )
-    for (const failure of result.failures.slice(0, 10)) {
-      process.stderr.write(pc.dim(`  ${failure.url} — ${failure.reason}\n`))
-    }
-    if (result.failures.length > 10) {
-      process.stderr.write(pc.dim(`  …and ${result.failures.length - 10} more\n`))
-    }
-  }
-
-  if (result.truncated) {
-    process.stderr.write(
-      `${pc.yellow('warning')} Stopped at ${result.pages.length} ${
-        result.pages.length === 1 ? 'page' : 'pages'
-      }; the site has more. Raise --max-pages to go further.\n`,
-    )
-  }
-
-  return { pages: result.pages, origin: result.origin }
 }

@@ -237,6 +237,36 @@ export function disallowedPaths(robots: string): string[] {
 }
 
 /**
+ * Paths this crawler must not visit, from the site's own robots.txt.
+ *
+ * Read directly rather than through fetchPage, which correctly refuses anything
+ * that is not a page. A site with no robots.txt disallows nothing.
+ */
+async function blockedPaths(entry: URL, impl: typeof fetch): Promise<string[]> {
+  try {
+    const response = await impl(new URL('/robots.txt', entry).href, { redirect: 'follow' })
+    return response.ok ? disallowedPaths(await response.text()) : []
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Page URLs the site lists for itself.
+ *
+ * Worth one request: a sitemap finds pages nothing links to, which link
+ * following alone never reaches.
+ */
+async function sitemapUrls(entry: URL, impl: typeof fetch): Promise<URL[]> {
+  try {
+    const response = await impl(new URL('/sitemap.xml', entry).href, { redirect: 'follow' })
+    return response.ok ? urlsFromSitemap(await response.text(), entry) : []
+  } catch {
+    return []
+  }
+}
+
+/**
  * Fetch a site's pages, starting at `entry`.
  *
  * Pages come back sorted by identity, so two crawls of the same site produce
@@ -250,17 +280,7 @@ export async function crawlSite(entry: URL, options: CrawlOptions = {}): Promise
   const timeoutMs = options.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS
   const failures: CrawlResult['failures'] = []
 
-  // robots.txt is not HTML, so it is read directly rather than through
-  // fetchPage, which correctly refuses anything that is not a page.
-  let blocked: string[] = []
-  if (!options.ignoreRobots) {
-    try {
-      const response = await impl(new URL('/robots.txt', entry).href, { redirect: 'follow' })
-      if (response.ok) blocked = disallowedPaths(await response.text())
-    } catch {
-      // A site with no robots.txt disallows nothing.
-    }
-  }
+  const blocked = options.ignoreRobots ? [] : await blockedPaths(entry, impl)
 
   const allowed = (url: URL): boolean => !blocked.some((path) => url.pathname.startsWith(path))
 
@@ -276,23 +296,14 @@ export async function crawlSite(entry: URL, options: CrawlOptions = {}): Promise
     queue.push({ url, depth })
   }
 
-  try {
-    const response = await impl(new URL('/sitemap.xml', entry).href, { redirect: 'follow' })
-    if (response.ok) {
-      const listed = urlsFromSitemap(await response.text(), entry)
-      if (listed.length > 0) {
-        discovery = 'sitemap'
-        for (const url of listed) enqueue(url, 0)
-      }
-    }
-  } catch {
-    // no sitemap: fall back to following links
+  const listed = await sitemapUrls(entry, impl)
+  if (listed.length > 0) {
+    discovery = 'sitemap'
+    for (const url of listed) enqueue(url, 0)
   }
   enqueue(entry, 0)
 
   const pages: CollectedPage[] = []
-  const origin = entry.origin
-  let truncated = false
 
   while (queue.length > 0 && pages.length < maxPages) {
     const batch = queue.splice(0, Math.min(REQUEST_CONCURRENCY, maxPages - pages.length))
@@ -325,15 +336,32 @@ export async function crawlSite(entry: URL, options: CrawlOptions = {}): Promise
     }
   }
 
-  if (queue.length > 0) truncated = true
+  return {
+    pages: byIdentity(pages),
+    origin: entry.origin,
+    failures,
+    // Anything still queued when the loop stopped is a page the caller asked
+    // for and is not getting, which they have to be told about.
+    truncated: queue.length > 0,
+    discovery,
+  }
+}
 
+/**
+ * One page per identity, in a stable order.
+ *
+ * The queue already refuses a URL it has seen, so this catches the case the
+ * queue cannot: two different URLs that redirect to the same page. Sorting is
+ * what makes two crawls of one site produce the same report even though the
+ * requests finish in whatever order the server answers them.
+ */
+function byIdentity(pages: readonly CollectedPage[]): CollectedPage[] {
   const seen = new Set<string>()
-  const unique = pages.filter((page) => {
-    if (seen.has(page.relativePath)) return false
-    seen.add(page.relativePath)
-    return true
-  })
-  unique.sort((a, b) => a.relativePath.localeCompare(b.relativePath))
-
-  return { pages: unique, origin, failures, truncated, discovery }
+  return pages
+    .filter((page) => {
+      if (seen.has(page.relativePath)) return false
+      seen.add(page.relativePath)
+      return true
+    })
+    .sort((a, b) => a.relativePath.localeCompare(b.relativePath))
 }

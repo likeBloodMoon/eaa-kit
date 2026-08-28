@@ -107,102 +107,125 @@ function toPosix(filePath: string): string {
   return filePath.split(path.sep).join('/')
 }
 
+/** Whether a path exists, relative to a project root. */
+async function present(root: string, name: string): Promise<boolean> {
+  try {
+    await stat(path.resolve(root, name))
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** A file's contents, or undefined if it is not there. */
+async function contents(root: string, name: string): Promise<string | undefined> {
+  try {
+    return await readFile(path.resolve(root, name), 'utf8')
+  } catch {
+    return undefined
+  }
+}
+
+const NEXT_CONFIGS = ['next.config.js', 'next.config.mjs', 'next.config.ts'] as const
+
+/** Common build output directories, in the order worth suggesting them. */
+const BUILD_DIRECTORIES = ['dist', 'build', 'out', '_site', 'public', '.output/public'] as const
+
 /**
- * What to suggest when a directory exists but holds no HTML.
+ * Advice for a Next.js project, or undefined if this is not one.
  *
- * Nearly always the wrong directory rather than a site with no pages, and the
- * commonest way to arrive here is a framework whose build does not emit
- * browsable HTML at all — `./dist` is every tutorial's answer and is wrong for
- * all of them. So rather than repeating "check the path", this looks at what
- * the project actually has and names the next step: an `out/` that already
- * exists, a `.next/` that was built without an export, a config with no
- * `output: 'export'` in it, or a site that cannot be exported at all, which is
- * what `--url` is for.
+ * Worth a branch of its own because it is the commonest way to arrive here at
+ * all: a default `next build` writes a server bundle rather than browsable
+ * HTML, and `./dist` — every tutorial's answer — is a directory it never uses.
  */
-export async function emptyDirectoryHint(dir: string, cwd = process.cwd()): Promise<string> {
-  const exists = async (name: string): Promise<boolean> => {
-    try {
-      await stat(path.resolve(cwd, name))
-      return true
-    } catch {
-      return false
-    }
-  }
-
-  const read = async (name: string): Promise<string | undefined> => {
-    try {
-      return await readFile(path.resolve(cwd, name), 'utf8')
-    } catch {
-      return undefined
-    }
-  }
-
-  // The caller reaches this both for a directory that holds no HTML and for one
-  // that is not there at all, and telling somebody a missing directory "holds
-  // no HTML files" reads as though the tool did not look.
-  const head = (await exists(dir)) ? `${dir} holds no HTML files.` : `${dir} does not exist.`
-
+async function nextJsAdvice(root: string, dir: string, head: string): Promise<string | undefined> {
   const configs = await Promise.all(
-    ['next.config.js', 'next.config.mjs', 'next.config.ts'].map(async (name) =>
-      (await exists(name)) ? name : undefined,
-    ),
+    NEXT_CONFIGS.map(async (name) => ((await present(root, name)) ? name : undefined)),
   )
   const config = configs.find((name) => name !== undefined)
+  if (config === undefined) return undefined
 
-  if (config !== undefined) {
-    // An export that already ran is the likeliest thing, and pointing at it is
-    // a one-line fix rather than an explanation.
-    if (await exists('out')) {
-      return `${head} A Next.js static export writes to out/, not ${dir}.\n  Try: eaa-kit audit ./out`
-    }
+  // An export that already ran is the likeliest case, and pointing at it is a
+  // one-line answer rather than an explanation.
+  if (await present(root, 'out')) {
+    return `${head} A Next.js static export writes to out/, not ${dir}.\n  Try: eaa-kit audit ./out`
+  }
 
-    const source = (await read(config)) ?? ''
-    const exports = /output\s*:\s*['"`]export['"`]/.test(source)
-
-    if (!exports) {
-      return (
-        `${head} A Next.js build writes a server bundle, not browsable HTML.\n` +
-        `  To audit it, add output: 'export' to ${config}, run your build, then:\n` +
-        '    eaa-kit audit ./out\n' +
-        '  A site with SSR, API routes, middleware or ISR cannot be exported. Audit it\n' +
-        '  running instead:\n' +
-        '    eaa-kit audit --url http://localhost:3000'
-      )
-    }
-
-    // Configured to export but nothing came out: the build has not run, or it
-    // failed. Saying which is beyond what can be told from here.
+  const source = (await contents(root, config)) ?? ''
+  if (!/output\s*:\s*['"`]export['"`]/.test(source)) {
     return (
-      `${head} ${config} sets output: 'export', but there is no out/ directory.\n` +
-      '  Run your build first, then: eaa-kit audit ./out\n' +
-      '  If the build failed, it names what blocks the export — an API route,\n' +
-      '  middleware, getServerSideProps or a revalidate.'
+      `${head} A Next.js build writes a server bundle, not browsable HTML.\n` +
+      `  To audit it, add output: 'export' to ${config}, run your build, then:\n` +
+      '    eaa-kit audit ./out\n' +
+      '  A site with SSR, API routes, middleware or ISR cannot be exported. Audit it\n' +
+      '  running instead:\n' +
+      '    eaa-kit audit --url http://localhost:3000'
     )
   }
 
-  if (await exists('nuxt.config.ts')) {
-    return (
-      `${head} Nuxt writes a static build to .output/public.\n` +
-      '  Try: eaa-kit audit ./.output/public\n' +
-      '  Or audit it running: eaa-kit audit --url http://localhost:3000'
-    )
-  }
+  // Configured to export but nothing came out: the build has not run, or it
+  // failed. Which of the two is beyond what can be told from here.
+  return (
+    `${head} ${config} sets output: 'export', but there is no out/ directory.\n` +
+    '  Run your build first, then: eaa-kit audit ./out\n' +
+    '  If the build failed, it names what blocks the export — an API route,\n' +
+    '  middleware, getServerSideProps or a revalidate.'
+  )
+}
 
-  // Nothing recognised. Naming a directory that is actually there beats listing
-  // the ones that usually are.
-  const candidates = ['dist', 'build', 'out', '_site', 'public', '.output/public']
-  const present: string[] = []
-  for (const name of candidates) {
-    if (name !== dir.replace(/^\.\//, '') && (await exists(name))) present.push(name)
-  }
-  if (present.length > 0) {
-    return `${head} This project also has ${present.map((name) => `${name}/`).join(', ')} — try one of those.`
-  }
+/** Advice for a Nuxt project, or undefined if this is not one. */
+async function nuxtAdvice(root: string, head: string): Promise<string | undefined> {
+  if (!(await present(root, 'nuxt.config.ts'))) return undefined
+  return (
+    `${head} Nuxt writes a static build to .output/public.\n` +
+    '  Try: eaa-kit audit ./.output/public\n' +
+    '  Or audit it running: eaa-kit audit --url http://localhost:3000'
+  )
+}
+
+/**
+ * Advice from whatever build directories are lying around.
+ *
+ * Naming one that is actually there beats listing the ones that usually are.
+ */
+async function siblingDirectoryAdvice(
+  root: string,
+  dir: string,
+  head: string,
+): Promise<string | undefined> {
+  const given = dir.replace(/^\.\//, '')
+  const found = await Promise.all(
+    BUILD_DIRECTORIES.map(async (name) =>
+      name !== given && (await present(root, name)) ? name : undefined,
+    ),
+  )
+  const others = found.filter((name) => name !== undefined)
+  if (others.length === 0) return undefined
+  return `${head} This project also has ${others.map((name) => `${name}/`).join(', ')} — try one of those.`
+}
+
+/**
+ * What to suggest when a directory holds no HTML, or is not there at all.
+ *
+ * Nearly always the wrong directory rather than a site with no pages, and the
+ * commonest way to arrive is a framework whose build emits no browsable HTML —
+ * so rather than repeating "check the path", each branch names the next step
+ * for the project actually in front of the reader. Where a static export cannot
+ * work at all, that step is `--url` rather than advice that cannot apply.
+ */
+export async function emptyDirectoryHint(dir: string, cwd = process.cwd()): Promise<string> {
+  // Both a missing directory and an empty one reach here, and telling somebody
+  // a directory that is not there "holds no HTML files" reads as though the
+  // tool never looked.
+  const head = (await present(cwd, dir)) ? `${dir} holds no HTML files.` : `${dir} does not exist.`
 
   return (
+    (await nextJsAdvice(cwd, dir, head)) ??
+    (await nuxtAdvice(cwd, head)) ??
+    (await siblingDirectoryAdvice(cwd, dir, head)) ??
     `${head} Point eaa-kit at the directory your build fills with .html files —\n` +
-    '  commonly dist/, build/, out/ or _site/, depending on the builder.\n' +
-    '  If your site renders on a server and never writes HTML, audit it running:\n' +
-    '    eaa-kit audit --url http://localhost:3000'
+      '  commonly dist/, build/, out/ or _site/, depending on the builder.\n' +
+      '  If your site renders on a server and never writes HTML, audit it running:\n' +
+      '    eaa-kit audit --url http://localhost:3000'
   )
 }

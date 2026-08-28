@@ -6,13 +6,10 @@ import {
   DEFAULT_BASELINE_FILE,
   writeBaseline,
 } from '../audit/baseline.ts'
-import { BuildDirectoryError, collectPages, emptyDirectoryHint } from '../audit/collect.ts'
 import type { PageAudit } from '../audit/runners/jsdom.ts'
-import { type CrawlCommandOptions, crawlPages } from './audit.ts'
+import { type CrawlCommandOptions, resolvePages } from './pages.ts'
 
 export interface BaselineCommandOptions extends CrawlCommandOptions {
-  /** Record a baseline from a running site instead of a build directory. */
-  url?: string
   include?: string[]
   exclude?: string[]
   baseUrl?: string
@@ -52,52 +49,15 @@ export async function runBaselineCommand(
 ): Promise<BaselineCommandResult> {
   const cwd = options.cwd ?? process.cwd()
 
-  let pages: Awaited<ReturnType<typeof collectPages>>
-  let crawledOrigin: string | undefined
-  let source = dir
-
-  if (options.url !== undefined) {
-    const crawled = await crawlPages(options.url, options)
-    if (!crawled) return { entries: 0, exitCode: 2 }
-    pages = crawled.pages
-    crawledOrigin = crawled.origin
-    source = options.url
-  } else {
-    try {
-      pages = await collectPages(path.resolve(cwd, dir), {
-        ...(options.include ? { include: options.include } : {}),
-        ...(options.exclude ? { exclude: options.exclude } : {}),
-      })
-    } catch (cause) {
-      if (cause instanceof BuildDirectoryError) {
-        process.stderr.write(`${pc.red('error')} ${cause.message}\n`)
-        process.stderr.write(
-          pc.dim(`${await emptyDirectoryHint(dir, options.cwd ?? process.cwd())}\n`),
-        )
-        return { entries: 0, exitCode: 2 }
-      }
-      throw cause
-    }
-  }
-
-  if (pages.length === 0) {
-    if (options.url !== undefined) {
-      process.stderr.write(
-        `${pc.yellow('warning')} No pages could be fetched from ${options.url}\n`,
-      )
-      return { entries: 0, exitCode: 2 }
-    }
-    process.stderr.write(
-      `${pc.yellow('warning')} ${await emptyDirectoryHint(dir, options.cwd ?? process.cwd())}\n`,
-    )
-    return { entries: 0, exitCode: 2 }
-  }
+  const resolved = await resolvePages(path.resolve(cwd, dir), { ...options, label: dir })
+  if (!resolved) return { entries: 0, exitCode: 2 }
+  const { pages, origin, label } = resolved
 
   process.stderr.write(
-    pc.dim(`Auditing ${pages.length} ${pages.length === 1 ? 'page' : 'pages'} in ${source}…\n`),
+    pc.dim(`Auditing ${pages.length} ${pages.length === 1 ? 'page' : 'pages'} in ${label}…\n`),
   )
 
-  const effectiveBaseUrl: string | undefined = options.baseUrl ?? crawledOrigin
+  const effectiveBaseUrl: string | undefined = options.baseUrl ?? origin
 
   const runnerOptions = {
     ...(effectiveBaseUrl === undefined ? {} : { baseUrl: effectiveBaseUrl }),
