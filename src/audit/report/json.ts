@@ -94,7 +94,25 @@ export interface JsonReport {
   /** ISO 8601, UTC. */
   generatedAt: string
   engine: ReportEngine
-  target: { directory: string; baseUrl: string | null }
+  target: {
+    /**
+     * What was audited: a build directory, or the URL a crawl started from.
+     * Read this rather than `directory`, which cannot say which it is.
+     */
+    source: string
+    /** Which of the two `source` is. */
+    kind: 'directory' | 'url'
+    /**
+     * The build directory, or null when the pages were crawled.
+     *
+     * Kept for consumers written against schemaVersion 1, where this field was
+     * the only one there. It never holds a URL: a field that changed meaning
+     * without the version moving would break exactly the consumers the version
+     * exists to protect.
+     */
+    directory: string | null
+    baseUrl: string | null
+  }
   summary: JsonSummary
   /** Every rule id appearing anywhere in the document, sorted by id. */
   rules: Record<string, JsonRule>
@@ -102,7 +120,10 @@ export interface JsonReport {
 }
 
 export interface JsonReportOptions {
+  /** What was audited: a build directory, or a crawl's entry URL. */
   directory: string
+  /** Which of the two `directory` holds. Defaults to a directory. */
+  sourceKind?: 'directory' | 'url'
   failOn: ImpactLevel
   baseUrl?: string
   /** Injectable so tests and snapshots are not time-dependent. */
@@ -130,7 +151,12 @@ export function buildJsonReport(
     tool: { name: 'eaa-kit', version: TOOL_VERSION, axeCore: axe.version },
     generatedAt,
     engine: audits[0]?.engine ?? 'jsdom',
-    target: { directory: options.directory, baseUrl: options.baseUrl ?? null },
+    target: {
+      source: options.directory,
+      kind: options.sourceKind ?? 'directory',
+      directory: (options.sourceKind ?? 'directory') === 'directory' ? options.directory : null,
+      baseUrl: options.baseUrl ?? null,
+    },
     summary: buildSummary(audits, options.failOn),
     rules: buildRuleIndex(audits),
     pages: audits.map(toJsonPage),

@@ -179,6 +179,8 @@ async function fetchPage(
   url: URL,
   impl: typeof fetch,
   timeoutMs: number,
+  /** Origin the crawl is confined to. A redirect that leaves it is refused. */
+  origin: string,
 ): Promise<{ ok: true; value: Fetched } | { ok: false; reason: string }> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
@@ -190,6 +192,23 @@ async function fetchPage(
     })
     if (!response.ok) return { ok: false, reason: `HTTP ${response.status}` }
 
+    // The response URL, not the requested one: a redirect means the page that
+    // was audited lives somewhere else, and reporting the old path would point
+    // whoever has to fix it at a URL that does not serve this markup.
+    const finalUrl = new URL(response.url || url.href)
+    finalUrl.hash = ''
+
+    // Checked before anything else about the response, because a redirect is
+    // the one way out of the origin that neither the link filter nor the
+    // sitemap filter sees. Without it a loopback crawl redirected anywhere — an
+    // internal host, the public internet — follows it and audits what it finds,
+    // which is exactly what --allow-remote exists to gate. It is also the more
+    // useful thing to report than whatever the off-origin response turned out
+    // to contain.
+    if (finalUrl.origin !== origin) {
+      return { ok: false, reason: `redirected off ${origin} to ${finalUrl.origin}` }
+    }
+
     // A crawl follows links, and a link can point at anything. Auditing a PDF
     // or a JSON endpoint as if it were markup produces findings about a
     // document that was never a page.
@@ -199,11 +218,6 @@ async function fetchPage(
     }
 
     const html = await response.text()
-    // The response URL, not the requested one: a redirect means the page that
-    // was audited lives somewhere else, and reporting the old path would point
-    // whoever has to fix it at a URL that does not serve this markup.
-    const finalUrl = new URL(response.url || url.href)
-    finalUrl.hash = ''
     return { ok: true, value: { url: finalUrl, html } }
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : String(cause)
@@ -308,7 +322,10 @@ export async function crawlSite(entry: URL, options: CrawlOptions = {}): Promise
   while (queue.length > 0 && pages.length < maxPages) {
     const batch = queue.splice(0, Math.min(REQUEST_CONCURRENCY, maxPages - pages.length))
     const results = await Promise.all(
-      batch.map(async (item) => ({ item, result: await fetchPage(item.url, impl, timeoutMs) })),
+      batch.map(async (item) => ({
+        item,
+        result: await fetchPage(item.url, impl, timeoutMs, entry.origin),
+      })),
     )
 
     for (const { item, result } of results) {

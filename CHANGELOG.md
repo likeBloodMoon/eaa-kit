@@ -11,6 +11,24 @@ consumers must ignore what they do not recognise.
 
 ## 0.2.0 — 2026-08-28
 
+### Breaking
+
+- `eaa-kit audit` no longer defaults to `./dist`. With no directory and no `--url` it works
+  the project out instead — see below. Naming a directory behaves exactly as before, and
+  anything scripted as `eaa-kit audit ./dist` is unaffected.
+- The console report leads with **Issues** and no longer prints the page-by-page listing
+  unless `--per-page` is passed. Anything parsing that listing out of stdout needs the
+  flag. The other three formats are unchanged.
+
+### Security
+
+- `--url` re-checks the origin after every redirect. `parseEntryUrl` gates the entry point
+  and the link and sitemap filters gate what is discovered, but a redirect was the one way
+  out of the origin that neither of them saw: a loopback crawl redirected to an internal
+  host or to the public internet followed it and audited what it found, which is precisely
+  what `--allow-remote` exists to prevent. A page that lands off-origin is now refused and
+  reported as a failure, naming where it went.
+
 ### Added
 
 - `eaa-kit audit --url http://localhost:3000` audits a running site instead of a build
@@ -69,6 +87,11 @@ consumers must ignore what they do not recognise.
 
 ### Changed
 
+- The JSON report's `target` gained `source` (what was audited) and `kind`
+  (`directory` or `url`). `directory` never holds a URL — under `--url` it is `null` — so
+  a consumer written against `schemaVersion` 1 sees exactly what it always did. The
+  version stays at 1 on that reasoning: crawls did not exist under 1, so no report shape
+  that version could already produce has changed.
 - The console report now leads with **Issues** and prints the page-by-page listing only
   under `--per-page`. The listing is the same information keyed the other way round, and
   on a fifty-page site it buries what somebody actually needs. On a seven-page fixture the

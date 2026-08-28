@@ -2,12 +2,14 @@
   "schemaVersion": 1,
   "tool": {
     "name": "eaa-kit",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "axeCore": "4.13.0"
   },
-  "generatedAt": "2026-08-21T17:35:49.120Z",
+  "generatedAt": "2026-08-28T19:28:08.531Z",
   "engine": "jsdom",
   "target": {
+    "source": "tests/fixtures/site",
+    "kind": "directory",
     "directory": "tests/fixtures/site",
     "baseUrl": null
   },
@@ -29,7 +31,8 @@
     "passes": 21,
     "inapplicable": 269,
     "failOn": "serious",
-    "failing": 3
+    "failing": 3,
+    "accepted": 0
   },
   "rules": {
     "area-alt": {
@@ -674,7 +677,7 @@
   "pages": [
     {
       "path": "about/index.html",
-      "url": "file:///C:/Users/krist/Desktop/Projects/eaa-kit/tests/fixtures/site/about/index.html",
+      "url": "file:///home/user/eaa-kit/tests/fixtures/site/about/index.html",
       "violations": [],
       "incomplete": [
         {
@@ -781,7 +784,7 @@
     },
     {
       "path": "blog/post-1.html",
-      "url": "file:///C:/Users/krist/Desktop/Projects/eaa-kit/tests/fixtures/site/blog/post-1.html",
+      "url": "file:///home/user/eaa-kit/tests/fixtures/site/blog/post-1.html",
       "violations": [],
       "incomplete": [
         {
@@ -888,7 +891,7 @@
     },
     {
       "path": "drafts/draft.html",
-      "url": "file:///C:/Users/krist/Desktop/Projects/eaa-kit/tests/fixtures/site/drafts/draft.html",
+      "url": "file:///home/user/eaa-kit/tests/fixtures/site/drafts/draft.html",
       "violations": [],
       "incomplete": [
         {
@@ -995,7 +998,7 @@
     },
     {
       "path": "index.html",
-      "url": "file:///C:/Users/krist/Desktop/Projects/eaa-kit/tests/fixtures/site/index.html",
+      "url": "file:///home/user/eaa-kit/tests/fixtures/site/index.html",
       "violations": [
         {
           "ruleId": "html-has-lang",
@@ -1167,7 +1170,7 @@
     },
     {
       "path": "legacy.htm",
-      "url": "file:///C:/Users/krist/Desktop/Projects/eaa-kit/tests/fixtures/site/legacy.htm",
+      "url": "file:///home/user/eaa-kit/tests/fixtures/site/legacy.htm",
       "violations": [],
       "incomplete": [
         {

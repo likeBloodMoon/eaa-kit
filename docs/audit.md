@@ -60,6 +60,13 @@ flag away from crawling production, or somebody else's site, out of CI, so a non
 host is refused until `--allow-remote` is passed. `robots.txt` is honoured either way
 unless `--ignore-robots` says not to.
 
+The origin is re-checked after every redirect, not only at the entry point. A redirect is
+the one way out of the origin that neither the link filter nor the sitemap filter sees, so
+a page that lands somewhere else is refused and reported rather than audited — a crawl of
+`localhost` cannot be redirected onto a host you did not ask for. Redirects that stay on
+the origin, such as the trailing-slash ones most servers issue, are followed normally and
+the page is reported at the URL it ended up on.
+
 A URL that could not be fetched is named and counted rather than skipped — a crawl that
 quietly dropped half a site would report the other half as though it were the whole
 thing. Anything that comes back as something other than HTML is refused for the same

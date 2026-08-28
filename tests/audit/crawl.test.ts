@@ -10,7 +10,12 @@ import {
 } from '../../src/audit/crawl.ts'
 
 /** A site in a record, served by a fetch stand-in. No network, no server. */
-function site(pages: Record<string, string | { body: string; type?: string; status?: number }>): {
+function site(
+  pages: Record<
+    string,
+    string | { body: string; type?: string; status?: number; redirectedTo?: string }
+  >,
+): {
   fetchImpl: typeof fetch
   requests: string[]
 } {
@@ -26,8 +31,15 @@ function site(pages: Record<string, string | { body: string; type?: string; stat
       body,
       type = 'text/html; charset=utf-8',
       status = 200,
-    } = typeof entry === 'string' ? { body: entry } : entry
-    return new Response(body, { status, headers: { 'content-type': type } })
+      redirectedTo,
+    } = typeof entry === 'string' ? { body: entry, redirectedTo: undefined } : entry
+    const response = new Response(body, { status, headers: { 'content-type': type } })
+    // redirect: 'follow' resolves with the final response, whose `url` is where
+    // it ended up. That is the only thing the crawler can see a redirect by.
+    if (redirectedTo !== undefined) {
+      Object.defineProperty(response, 'url', { value: redirectedTo })
+    }
+    return response
   }) as unknown as typeof fetch
   return { fetchImpl, requests }
 }
@@ -314,5 +326,76 @@ describe('crawlSite', () => {
       'http://localhost:3000/',
       'http://localhost:3000/about',
     ])
+  })
+})
+
+describe('crawlSite and redirects', () => {
+  const entry = new URL('http://localhost:3000/')
+
+  it('refuses a page that was redirected off the origin', async () => {
+    // The hole this closes: parseEntryUrl guards the entry point, and the link
+    // and sitemap filters guard what is discovered, but a redirect is the one
+    // way out of the origin that neither of them sees. Without this check a
+    // loopback crawl follows it and audits whatever it lands on, which is
+    // exactly what --allow-remote exists to gate.
+    const { fetchImpl } = site({
+      '/': page('<a href="/away">away</a>'),
+      '/away': { body: page('<h1>elsewhere</h1>'), redirectedTo: 'https://example.com/away' },
+    })
+
+    const result = await crawlSite(entry, { fetchImpl })
+
+    expect(result.pages.map((p) => p.relativePath)).toEqual(['/'])
+    expect(result.failures).toEqual([
+      {
+        url: 'http://localhost:3000/away',
+        reason: 'redirected off http://localhost:3000 to https://example.com',
+      },
+    ])
+  })
+
+  it('refuses one redirected to another port on the same host', async () => {
+    // A different port is a different origin, and on a developer's machine it
+    // is a different application.
+    const { fetchImpl } = site({
+      '/': page('<a href="/admin">a</a>'),
+      '/admin': { body: page('<h1>x</h1>'), redirectedTo: 'http://localhost:9999/admin' },
+    })
+
+    const result = await crawlSite(entry, { fetchImpl })
+
+    expect(result.pages).toHaveLength(1)
+    expect(result.failures[0]?.reason).toMatch(/redirected off/)
+  })
+
+  it('names the redirect rather than whatever it happened to return', async () => {
+    // An off-origin redirect to a PDF should report the redirect: it is the
+    // fact that matters, and "not HTML" would hide it.
+    const { fetchImpl } = site({
+      '/': page('<a href="/doc">d</a>'),
+      '/doc': {
+        body: '%PDF-1.4',
+        type: 'application/pdf',
+        redirectedTo: 'https://cdn.example.com/doc.pdf',
+      },
+    })
+
+    const result = await crawlSite(entry, { fetchImpl })
+
+    expect(result.failures[0]?.reason).toMatch(/^redirected off/)
+  })
+
+  it('still follows a redirect that stays on the origin', async () => {
+    // Trailing-slash and canonical redirects are ordinary, and refusing them
+    // would make the crawler useless on most real sites.
+    const { fetchImpl } = site({
+      '/': page('<a href="/about">a</a>'),
+      '/about': { body: page('<h1>About</h1>'), redirectedTo: 'http://localhost:3000/about/' },
+    })
+
+    const result = await crawlSite(entry, { fetchImpl })
+
+    expect(result.pages.map((p) => p.relativePath)).toEqual(['/', 'about/'])
+    expect(result.failures).toEqual([])
   })
 })

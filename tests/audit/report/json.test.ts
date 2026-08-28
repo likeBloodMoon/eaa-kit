@@ -254,3 +254,45 @@ describe('stability of the contract', () => {
     expect(serialised.split(helpText).length - 1).toBe(1)
   })
 })
+
+describe('the target block', () => {
+  it('says what was audited and which kind it is', () => {
+    const report = buildJsonReport(audits, { directory: './dist', failOn: 'serious', now: NOW })
+
+    expect(report.target).toMatchObject({
+      source: './dist',
+      kind: 'directory',
+      directory: './dist',
+    })
+  })
+
+  it('never puts a URL in directory', () => {
+    // schemaVersion 1 documented `directory` as the build directory. A field
+    // that quietly started holding something else would break exactly the
+    // consumers the version number exists to protect, so a crawl leaves it
+    // null and says what it was through `source` and `kind` instead.
+    const report = buildJsonReport(audits, {
+      directory: 'http://localhost:3000',
+      sourceKind: 'url',
+      failOn: 'serious',
+      now: NOW,
+    })
+
+    expect(report.target.directory).toBeNull()
+    expect(report.target).toMatchObject({ source: 'http://localhost:3000', kind: 'url' })
+  })
+
+  it('keeps schemaVersion 1, because no v1 report could have looked different', () => {
+    // Adding fields does not move the version. `directory` becoming nullable
+    // only shows up for crawls, which did not exist under v1 at all, so every
+    // report shape a v1 consumer could already receive is unchanged.
+    const report = buildJsonReport(audits, {
+      directory: 'http://localhost:3000',
+      sourceKind: 'url',
+      failOn: 'serious',
+      now: NOW,
+    })
+
+    expect(report.schemaVersion).toBe(1)
+  })
+})

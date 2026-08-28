@@ -6,7 +6,7 @@
       "tool": {
         "driver": {
           "name": "eaa-kit",
-          "version": "0.1.0",
+          "version": "0.2.0",
           "rules": [
             {
               "id": "area-alt",
@@ -1094,7 +1094,7 @@
       "invocations": [
         {
           "executionSuccessful": true,
-          "endTimeUtc": "2026-08-21T17:35:50.721Z",
+          "endTimeUtc": "2026-08-28T19:28:09.875Z",
           "toolExecutionNotifications": []
         }
       ],
