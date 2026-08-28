@@ -10,13 +10,26 @@ permissions:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         # The lower bound is what package.json claims in "engines". Node 20 is
-        # not on the list because jsdom, commander and tsdown all require 22+.
+        # not on the list because jsdom, commander and tsdown all require 22+,
+        # and the odd-numbered lines are absent because jsdom does not support
+        # them.
+        os: [ubuntu-latest]
         node-version: [22, 24]
+        # This tool globs paths, writes them into reports and matches baselines
+        # against them, and a good share of the people it is for work on
+        # Windows. Reading the path handling is not the same as running it, so
+        # one job per other platform runs the whole suite there.
+        include:
+          - os: windows-latest
+            node-version: 24
+          - os: macos-latest
+            node-version: 24
+
+    runs-on: ${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@v4
@@ -32,7 +45,8 @@ jobs:
 
       # Browser mode is covered by the test suite, so the runner needs the
       # binary. Playwright itself is a devDependency; the browser is not.
-      - run: npx playwright install --with-deps chromium
+      - name: Install Chromium for the browser-mode tests
+        run: npx playwright install ${{ runner.os == 'Linux' && '--with-deps' || '' }} chromium
 
       - run: pnpm lint
 

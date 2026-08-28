@@ -6,7 +6,7 @@ import {
   DEFAULT_BASELINE_FILE,
   writeBaseline,
 } from '../audit/baseline.ts'
-import { BuildDirectoryError, collectPages } from '../audit/collect.ts'
+import { BuildDirectoryError, collectPages, emptyDirectoryHint } from '../audit/collect.ts'
 import type { PageAudit } from '../audit/runners/jsdom.ts'
 
 export interface BaselineCommandOptions {
@@ -65,7 +65,9 @@ export async function runBaselineCommand(
   }
 
   if (pages.length === 0) {
-    process.stderr.write(`${pc.yellow('warning')} No HTML files found in ${dir}\n`)
+    process.stderr.write(
+      `${pc.yellow('warning')} ${await emptyDirectoryHint(dir, options.cwd ?? process.cwd())}\n`,
+    )
     return { entries: 0, exitCode: 2 }
   }
 

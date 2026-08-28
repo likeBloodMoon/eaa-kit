@@ -9,6 +9,33 @@ move: the JSON report's `schemaVersion` and the baseline file's. Both are bumped
 a field is removed, renamed, or changes meaning — new fields may appear without one, so
 consumers must ignore what they do not recognise.
 
+## 0.1.1 — 2026-08-28
+
+### Fixed
+
+- `engines.node` was `>=22.22.2`, which promised support for the odd-numbered Node
+  release lines. jsdom supports only the even-numbered ones, so installing on Node 23 or
+  25 produced an `EBADENGINE` warning naming jsdom rather than eaa-kit. The range is now
+  `^22.22.2 || ^24.15.0 || >=26.0.0`, matching what the dependency actually supports.
+- `pnpm smoke` passed its glob patterns in single quotes, which `cmd.exe` does not treat
+  as quotes, so on Windows the patterns arrived with the quotes attached and matched
+  nothing. The Astro build test invoked the extensionless `node_modules/.bin/tsdown`,
+  which `execFile` cannot run on Windows. Both are fixed, and CI now runs the whole suite
+  on Windows and macOS as well as Linux rather than inferring cross-platform behaviour
+  from reading the path handling.
+
+### Changed
+
+- A directory that exists but holds no HTML now says which directory to use instead, and
+  names the static export when it finds a Next.js or Nuxt config. `./dist` is the default
+  because most static builders emit it, and it is wrong for every framework that does not
+  — the old message left the reader no way to tell those apart.
+- `docs/audit.md` gained a section on which directory to point the tool at, and one on
+  what memory a large site needs: jsdom's DOMs are not reclaimed as fast as the loop
+  produces them, so peak memory follows the largest heap one thread holds. 800 pages runs
+  out of a 1 GB heap under `--concurrency 1` and completes on the threaded default, since
+  each worker is a separate isolate.
+
 ## 0.1.0 — 2026-08-28
 
 First release. Everything below is new, so it is written as what the tool does rather than

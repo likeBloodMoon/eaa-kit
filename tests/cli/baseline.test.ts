@@ -112,7 +112,7 @@ describe('runBaselineCommand', () => {
     const { exitCode } = await runBaselineCommand('dist', { cwd: dir, include: ['**/*.xhtml'] })
 
     expect(exitCode).toBe(2)
-    expect(stderr.join('')).toContain('No HTML files found')
+    expect(stderr.join('')).toContain('holds no HTML')
   })
 })
 
