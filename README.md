@@ -14,6 +14,12 @@ npx eaa-kit audit ./dist
 npx eaa-kit statement             # Barrierefreiheitserklärung from eaa.config
 ```
 
+Or as an [Astro integration](#astro-integration), auditing every build:
+
+```ts
+integrations: [eaaKit()]
+```
+
 > **Not legal advice.** eaa-kit reports what an automated engine can and cannot determine
 > about your markup. Automated testing catches a minority of accessibility barriers; it is
 > a floor, not a certificate.
@@ -197,6 +203,58 @@ where the bottleneck is the browser rather than this process.
 A page that could not be audited exits `2` rather than `0`. It is neither clean nor
 failing, and reporting a pass for markup nothing read would be worse than reporting a
 broken run.
+
+## Astro integration
+
+`astro build` already knows where the output went and when it finished, which is the one
+moment a build-time auditor wants. Wiring the CLI into a project's scripts works, but it
+means remembering to, and it means the audit is a separate step that is easy to drop from
+a pipeline when it goes red.
+
+```bash
+pnpm add -D eaa-kit
+```
+
+```ts
+// astro.config.mjs
+import { defineConfig } from 'astro/config'
+import eaaKit from 'eaa-kit/astro'
+
+export default defineConfig({
+  integrations: [eaaKit()],
+})
+```
+
+That audits `dist/` at the end of every `astro build`, prints the same report the CLI
+prints, and fails the build on violations at or above the threshold.
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `failOn` | `'serious'` | Lowest impact that fails the build |
+| `failBuild` | `true` | Whether a failing audit fails the build at all |
+| `enabled` | `true` | Set false to skip the audit entirely |
+| `baseline` | — | Accept the violations in this file; fail only on new ones |
+| `format`, `output` | — | Also write a report, as `--format` and `--output` do |
+| `include`, `exclude`, `baseUrl`, `browser`, `concurrency` | | As for `audit` |
+
+Failing the build by default is the point: an auditor that only ever prints is one nobody
+reads. `failBuild: false` exists for the week it takes to adopt the tool on a site that
+already exists — after that, a [baseline](#baseline) is the honest way to go green,
+because it records what is wrong instead of hiding it.
+
+```ts
+integrations: [eaaKit({ baseline: 'eaa-baseline.json' })]
+```
+
+Astro is an optional peer dependency. It is never imported at runtime — the integration
+describes the two shapes it needs structurally, so installing eaa-kit in a project that is
+not an Astro project costs nothing and typechecks fine. The test suite drives a real
+`astro build` to make sure that stand-in has not drifted from the API it stands in for.
+
+A build the audit could not complete — no HTML in the output, a page nothing could read, a
+baseline that is not there — fails the build too, but says so in those words. It is not a
+failing audit; it is a build that was never checked, and reporting it as violations would
+send somebody looking for defects that were never measured.
 
 ## baseline
 
