@@ -48,6 +48,20 @@ for (const { format, file } of outputs) {
   console.log(`wrote ${file}`)
 }
 
+// A baseline built from the same fixtures, so the format has a worked example.
+{
+  const result = spawnSync(
+    process.execPath,
+    [CLI, 'baseline', FIXTURES, '--output', 'examples/baseline.json'],
+    { stdio: ['ignore', 'inherit', 'inherit'] },
+  )
+  if (result.status !== 0 || result.error) {
+    console.error('failed to generate examples/baseline.json')
+    process.exit(1)
+  }
+  console.log('wrote examples/baseline.json')
+}
+
 for (const { args, file } of statements) {
   const result = spawnSync(
     process.execPath,

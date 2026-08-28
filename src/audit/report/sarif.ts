@@ -1,7 +1,7 @@
-import { createHash } from 'node:crypto'
 import path from 'node:path'
 import type { ImpactValue } from 'axe-core'
 import { TOOL_VERSION } from '../../version.ts'
+import { elementFingerprint } from '../fingerprint.ts'
 import { isImpactLevel } from '../impact.ts'
 import type { Finding, PageAudit, RuleOutcome } from '../runners/jsdom.ts'
 
@@ -19,6 +19,20 @@ export interface SarifRule {
   properties: { tags: string[] }
 }
 
+/**
+ * A result the baseline accounts for.
+ *
+ * SARIF models this natively, and GitHub code scanning reads it: a suppressed
+ * result is shown as closed rather than dropped, which is exactly what an
+ * accepted violation is. Emitting them as ordinary results would fail the
+ * build the baseline exists to unblock; leaving them out would hide a defect
+ * the project has on record.
+ */
+export interface SarifSuppression {
+  kind: 'external'
+  justification: string
+}
+
 export interface SarifResult {
   ruleId: string
   ruleIndex: number
@@ -29,6 +43,8 @@ export interface SarifResult {
     physicalLocation: { artifactLocation: { uri: string } }
   }>
   partialFingerprints: Record<string, string>
+  /** Present only on results an eaa-kit baseline accepted. */
+  suppressions?: SarifSuppression[]
 }
 
 export interface SarifNotification {
@@ -118,6 +134,12 @@ export function buildSarifReport(
       if (index === undefined) continue
       results.push(...toResults(finding, index, uri))
     }
+
+    for (const finding of audit.accepted ?? []) {
+      const index = ruleIndex.get(finding.ruleId)
+      if (index === undefined) continue
+      results.push(...toResults(finding, index, uri, SUPPRESSED))
+    }
   }
 
   return {
@@ -149,7 +171,16 @@ export function serialiseSarifReport(log: SarifLog): string {
  * single primary location, and one alert per element is what a reviewer acts
  * on. A violation that reported no elements still gets one result on the page.
  */
-function toResults(finding: Finding, ruleIndex: number, uri: string): SarifResult[] {
+const SUPPRESSED: SarifSuppression[] = [
+  { kind: 'external', justification: 'Recorded in the eaa-kit baseline' },
+]
+
+function toResults(
+  finding: Finding,
+  ruleIndex: number,
+  uri: string,
+  suppressions?: SarifSuppression[],
+): SarifResult[] {
   const level = toSarifLevel(finding.impact)
   const location = { physicalLocation: { artifactLocation: { uri } } }
 
@@ -163,6 +194,7 @@ function toResults(finding: Finding, ruleIndex: number, uri: string): SarifResul
         message: { text: finding.help },
         locations: [location],
         partialFingerprints: fingerprint(finding.ruleId, '', ''),
+        ...(suppressions ? { suppressions } : {}),
       },
     ]
   }
@@ -177,6 +209,7 @@ function toResults(finding: Finding, ruleIndex: number, uri: string): SarifResul
       message: { text: `${finding.help}. Element: ${selector}` },
       locations: [location],
       partialFingerprints: fingerprint(finding.ruleId, selector, node.html),
+      ...(suppressions ? { suppressions } : {}),
     }
   })
 }
@@ -187,8 +220,7 @@ function toResults(finding: Finding, ruleIndex: number, uri: string): SarifResul
  * combines the fingerprint with the location itself.
  */
 function fingerprint(ruleId: string, selector: string, html: string): Record<string, string> {
-  const digest = createHash('sha256').update(`${ruleId}\n${selector}\n${html}`).digest('hex')
-  return { 'eaaKit/v1': digest.slice(0, 16) }
+  return { 'eaaKit/v1': elementFingerprint(ruleId, selector, html) }
 }
 
 /** Every rule the run knows about, so the catalogue is complete in GitHub. */
@@ -198,6 +230,7 @@ function buildRules(audits: readonly PageAudit[]): SarifRule[] {
   for (const audit of audits) {
     const outcomes: RuleOutcome[] = [
       ...audit.violations,
+      ...(audit.accepted ?? []),
       ...audit.incomplete,
       ...audit.passes,
       ...audit.inapplicable,

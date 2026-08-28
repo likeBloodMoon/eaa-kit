@@ -151,8 +151,10 @@ function summary(
   let passes = 0
   let inapplicable = 0
   let elements = 0
+  let accepted = 0
 
   for (const audit of audits) {
+    for (const finding of audit.accepted ?? []) accepted += finding.nodes.length
     for (const finding of audit.violations) {
       const impact =
         finding.impact && isImpactLevel(finding.impact) ? finding.impact : 'unclassified'
@@ -183,6 +185,7 @@ function summary(
   <li><strong>${failing}</strong> at or above ${escapeText(options.failOn)}</li>
   <li><strong>${needsReview}</strong> ${needsReview === 1 ? 'rule needs' : 'rules need'} manual review</li>
   <li><strong>${blind}</strong> ${blind === 1 ? 'rule was' : 'rules were'} not evaluated by this engine</li>
+${accepted > 0 ? `  <li><strong>${accepted}</strong> ${accepted === 1 ? 'element is' : 'elements are'} accepted by the baseline, and not counted above</li>` : ''}
 </ul>
 ${impacts ? `<ul class="impacts">\n${impacts}\n</ul>` : ''}
 <p class="note">
@@ -209,7 +212,13 @@ function pageSection(audit: PageAudit): string {
   const parts: string[] = [heading]
 
   if (audit.violations.length === 0) {
-    parts.push('<p class="clean">No violations.</p>')
+    // "No violations" would be a lie on a page whose violations were all
+    // accepted by a baseline. They are still there; they just do not fail.
+    parts.push(
+      (audit.accepted ?? []).length === 0
+        ? '<p class="clean">No violations.</p>'
+        : '<p class="coverage">No new violations.</p>',
+    )
   } else {
     const findings = [...audit.violations].sort(byImpactThenRule).map(violation).join('\n')
     parts.push(`<ol class="findings">\n${findings}\n</ol>`)
@@ -224,6 +233,20 @@ function pageSection(audit: PageAudit): string {
       )
       .join('\n')
     parts.push(`<p class="review-heading">A human has to decide these:</p>\n<ul>\n${items}\n</ul>`)
+  }
+
+  const accepted = audit.accepted ?? []
+  if (accepted.length > 0) {
+    const items = [...accepted]
+      .sort(byImpactThenRule)
+      .map(
+        (finding) =>
+          `  <li><code>${escapeText(finding.ruleId)}</code> — ${escapeText(finding.help)} (${count(finding.nodes.length, 'element')})</li>`,
+      )
+      .join('\n')
+    parts.push(
+      `<p class="accepted-heading">Accepted by the baseline. Still violations, and not counted above:</p>\n<ul class="accepted">\n${items}\n</ul>`,
+    )
   }
 
   parts.push(coverage(audit))
@@ -405,7 +428,7 @@ ul.impacts li { display: inline-block; margin-right: 1rem; }
 ol.findings { list-style: none; padding-left: 0; }
 li.finding { margin: 0 0 1.5rem; padding-left: 0.9rem; border-left: 3px solid #d4d4d4; }
 p.rule { margin-bottom: 0.25rem; }
-p.standards, p.coverage, .reason, li.more { color: #4a4a4a; font-size: 0.9rem; }
+p.standards, p.coverage, .reason, li.more, p.accepted-heading, ul.accepted { color: #4a4a4a; font-size: 0.9rem; }
 p.coverage { margin-top: 0.5rem; }
 ul.nodes { list-style: none; padding-left: 0; }
 code.selector { color: #4a4a4a; }
@@ -419,7 +442,8 @@ footer { color: #4a4a4a; font-size: 0.9rem; }
   h2, hr { border-color: #3a3a3a; }
   pre { background: #1e1e1e; }
   li.finding { border-color: #3a3a3a; }
-  p.standards, p.coverage, .reason, li.more, code.selector, footer { color: #b6b6b6; }
+  p.standards, p.coverage, .reason, li.more, code.selector, footer,
+  p.accepted-heading, ul.accepted { color: #b6b6b6; }
   p.clean { color: #7ee2a8; }
   .verdict.pass { background: #10240f; border-color: #7ee2a8; }
   .verdict.fail { background: #2b1111; border-color: #ff9d9d; }

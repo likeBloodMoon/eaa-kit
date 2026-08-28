@@ -9,6 +9,7 @@ examples/*.json linguist-generated=true
 examples/*.sarif linguist-generated=true
 examples/*.txt linguist-generated=true
 examples/report.html linguist-generated=true
+examples/baseline.json linguist-generated=true
 examples/statement.*.md linguist-generated=true
 examples/statement.*.html linguist-generated=true
 

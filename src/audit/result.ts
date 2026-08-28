@@ -94,6 +94,16 @@ export interface PageAudit {
   durationMs: number
   /** Set when the page could not be audited at all; other fields stay empty. */
   error?: string
+  /**
+   * Violations a baseline accounts for, moved out of `violations` after the
+   * run. Never set by a runner: an engine has no opinion about what a project
+   * has decided to live with.
+   *
+   * These are still violations. They are kept apart so they can be reported
+   * without failing the build, and they never join `passes` — a barrier
+   * somebody agreed to defer is not a criterion that was met.
+   */
+  accepted?: Finding[]
 }
 
 export function runOptions(tags: readonly string[]): RunOptions {

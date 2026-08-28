@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "createdOn": "2026-08-28",
+  "entries": [
+    {
+      "page": "index.html",
+      "ruleId": "html-has-lang",
+      "fingerprint": "4c2a13ab4c8c0365",
+      "selector": "html",
+      "help": "<html> element must have a lang attribute",
+      "impact": "serious",
+      "acceptedOn": "2026-08-28"
+    },
+    {
+      "page": "index.html",
+      "ruleId": "image-alt",
+      "fingerprint": "f0e17d2582e9a5b3",
+      "selector": "img",
+      "help": "Images must have alternative text",
+      "impact": "critical",
+      "acceptedOn": "2026-08-28"
+    },
+    {
+      "page": "index.html",
+      "ruleId": "link-name",
+      "fingerprint": "e444708c0ffb67e0",
+      "selector": "a",
+      "help": "Links must have discernible text",
+      "impact": "serious",
+      "acceptedOn": "2026-08-28"
+    }
+  ]
+}

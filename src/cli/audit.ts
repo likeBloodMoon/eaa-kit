@@ -43,6 +43,10 @@ export interface AuditCommandOptions {
    * count and the machine's core count justify; 1 audits in this process.
    */
   concurrency?: number
+  /** Path to a baseline; violations it accounts for do not fail the run. */
+  baseline?: string
+  /** Where relative paths are resolved from. Defaults to the process's. */
+  cwd?: string
 }
 
 export interface AuditCommandResult {
@@ -122,6 +126,13 @@ export async function runAuditCommand(
   }
 
   const failOn = options.failOn ?? DEFAULT_FAIL_ON
+
+  if (options.baseline) {
+    const applied = await acceptBaseline(audits, options)
+    if (!applied) return { audits, exitCode: 2 }
+    audits = applied
+  }
+
   await emit(audits, dir, failOn, options)
 
   // A page that could not be audited is not a clean page. Exiting 0 here would
@@ -136,6 +147,52 @@ export async function runAuditCommand(
   }
 
   return { audits, exitCode: countAtOrAbove(audits, failOn) > 0 ? 1 : 0 }
+}
+
+/**
+ * Move the violations the baseline accounts for out of the failing set.
+ *
+ * Returns undefined when the baseline could not be read, which the caller
+ * turns into exit 2: a run asked to use a baseline it cannot find has not
+ * measured what it was told to measure, and silently failing on everything
+ * would be as wrong as silently passing.
+ */
+async function acceptBaseline(
+  audits: PageAudit[],
+  options: AuditCommandOptions,
+): Promise<PageAudit[] | undefined> {
+  const { applyBaseline, BaselineError, readBaseline } = await import('../audit/baseline.ts')
+
+  try {
+    const baseline = await readBaseline(options.baseline as string, options.cwd ?? process.cwd())
+    const outcome = applyBaseline(audits, baseline)
+
+    if (outcome.accepted > 0) {
+      process.stderr.write(pc.dim(`Baseline accepted ${outcome.accepted} violating elements\n`))
+    }
+    // A baseline that no longer matches anything is the good case — it means
+    // things were fixed — but only if somebody is told to delete the entries.
+    if (outcome.stale.length > 0) {
+      process.stderr.write(
+        pc.dim(`${outcome.stale.length} baseline entries matched nothing and can be removed\n`),
+      )
+    }
+    if (outcome.expired.length > 0) {
+      process.stderr.write(
+        pc.yellow(
+          `${outcome.expired.length} baseline entries have expired and no longer suppress anything\n`,
+        ),
+      )
+    }
+
+    return outcome.audits
+  } catch (cause) {
+    if (cause instanceof BaselineError) {
+      process.stderr.write(`${pc.red('error')} ${cause.message}\n`)
+      return undefined
+    }
+    throw cause
+  }
 }
 
 /**

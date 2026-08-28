@@ -11,6 +11,7 @@ this engine cannot evaluate.
 | [`report.json`](report.json) | `… --format json` |
 | [`report.sarif`](report.sarif) | `… --format sarif` |
 | [`report.html`](report.html) | `… --format html` |
+| [`baseline.json`](baseline.json) | `eaa-kit baseline tests/fixtures/site` |
 
 The statements come from [`eaa.config.json`](eaa.config.json), which is a complete
 config with every optional field filled in:
