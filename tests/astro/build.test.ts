@@ -1,7 +1,9 @@
 import { execFile } from 'node:child_process'
 import { access, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 
@@ -42,15 +44,15 @@ beforeAll(async () => {
   } catch {
     // not built yet
   }
-  // .bin/tsdown is extensionless and unrunnable by execFile on Windows, where
-  // the launcher npm writes is tsdown.CMD. Resolved rather than shelled out to,
-  // so the argument still never goes through a shell.
-  const binary = path.join(
-    REPO,
-    'node_modules/.bin',
-    process.platform === 'win32' ? 'tsdown.CMD' : 'tsdown',
-  )
-  await promisify(execFile)(binary, [], { cwd: REPO })
+  // Not node_modules/.bin/tsdown: that shim is extensionless and unrunnable by
+  // execFile on Windows, and its tsdown.CMD sibling needs shell: true there,
+  // which Node refuses to spawn without (EINVAL) and which would put this path
+  // through a shell on every platform. Resolving the package's own entry and
+  // handing it to the running node is the same on all three.
+  const require = createRequire(import.meta.url)
+  const manifest = require('tsdown/package.json') as { bin: { tsdown: string } }
+  const entry = path.join(path.dirname(require.resolve('tsdown/package.json')), manifest.bin.tsdown)
+  await promisify(execFile)(process.execPath, [entry], { cwd: REPO })
 }, 120_000)
 
 afterEach(async () => {
@@ -73,12 +75,22 @@ async function project(page: string, integrationOptions = ''): Promise<string> {
   await writeFile(
     path.join(dir, 'astro.config.mjs'),
     `import { defineConfig } from 'astro/config'\n` +
-      `import eaaKit from ${JSON.stringify(ENTRY)}\n` +
+      // A file: URL, not the path: a bare Windows absolute path
+      // (D:\\a\\eaa-kit\\dist\\astro\\index.js) is not a valid ESM specifier, and
+      // Vite fails to resolve it with an error of its own rather than one from
+      // this integration.
+      `import eaaKit from ${JSON.stringify(pathToFileURL(ENTRY).href)}\n` +
       `export default defineConfig({ integrations: [eaaKit({${integrationOptions}})] })\n`,
     'utf8',
   )
-  // Astro and its plugins resolve from the project root.
-  await symlink(path.join(REPO, 'node_modules'), path.join(dir, 'node_modules'), 'dir')
+  // Astro and its plugins resolve from the project root. A junction rather than
+  // a directory symlink on Windows: symlinks there need Developer Mode or an
+  // elevated process, junctions need neither and behave the same for this.
+  await symlink(
+    path.join(REPO, 'node_modules'),
+    path.join(dir, 'node_modules'),
+    process.platform === 'win32' ? 'junction' : 'dir',
+  )
 
   return dir
 }

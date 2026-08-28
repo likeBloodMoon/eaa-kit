@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import type { AstroIntegration } from 'astro'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import eaaKit, {
@@ -187,7 +187,7 @@ describe('auditing the build', () => {
 
   it('writes a report where it is told', async () => {
     const dir = await built({ 'index.html': BROKEN })
-    const output = path.join(path.dirname(dir.pathname), 'a11y.json')
+    const output = path.join(path.dirname(fileURLToPath(dir)), 'a11y.json')
 
     await run(eaaKit({ format: 'json', output }), dir, recorder().logger).catch(() => undefined)
 
@@ -198,9 +198,9 @@ describe('auditing the build', () => {
 
   it('accepts the violations a baseline records', async () => {
     const dir = await built({ 'index.html': BROKEN })
-    const projectDir = path.dirname(dir.pathname)
+    const projectDir = path.dirname(fileURLToPath(dir))
     const { runBaselineCommand } = await import('../../src/cli/baseline.ts')
-    await runBaselineCommand(dir.pathname, {
+    await runBaselineCommand(fileURLToPath(dir), {
       cwd: projectDir,
       output: path.join(projectDir, 'base.json'),
     })

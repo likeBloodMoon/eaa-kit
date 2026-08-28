@@ -22,7 +22,11 @@ consumers must ignore what they do not recognise.
   nothing. The Astro build test invoked the extensionless `node_modules/.bin/tsdown`,
   which `execFile` cannot run on Windows. Both are fixed, and CI now runs the whole suite
   on Windows and macOS as well as Linux rather than inferring cross-platform behaviour
-  from reading the path handling.
+  from reading the path handling. That job immediately caught two more test bugs: a
+  `file:` URL's `pathname` was used as a filesystem path, which on Windows is
+  percent-encoded and carries a leading slash before the drive letter, and the Astro
+  build test spawned a `.CMD` shim that Node refuses to run without a shell. The library
+  itself was correct in both cases — it uses `fileURLToPath` throughout.
 
 ### Changed
 
