@@ -1,6 +1,7 @@
 import { readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { glob } from 'tinyglobby'
+import { exists, toPosix } from '../fs.ts'
 
 /** Every HTML document a static build is expected to emit. */
 export const DEFAULT_INCLUDE = ['**/*.html', '**/*.htm'] as const
@@ -10,6 +11,11 @@ export const DEFAULT_EXCLUDE = ['**/node_modules/**', '**/.git/**'] as const
 
 /** Number of files read in parallel; keeps large builds under the fd limit. */
 const READ_CONCURRENCY = 24
+
+/** A UTF-8 byte-order mark is not markup, and jsdom treats it as text. */
+export function stripBom(html: string): string {
+  return html.charCodeAt(0) === 0xfeff ? html.slice(1) : html
+}
 
 export interface CollectedPage {
   /** Absolute path on disk, in platform-native separators. */
@@ -96,25 +102,7 @@ async function assertDirectory(root: string, original: string): Promise<void> {
 async function readPage(root: string, relativePath: string): Promise<CollectedPage> {
   const absolutePath = path.join(root, relativePath)
   const html = await readFile(absolutePath, 'utf8')
-  return {
-    absolutePath,
-    relativePath,
-    html: html.charCodeAt(0) === 0xfeff ? html.slice(1) : html,
-  }
-}
-
-function toPosix(filePath: string): string {
-  return filePath.split(path.sep).join('/')
-}
-
-/** Whether a path exists, relative to a project root. */
-async function present(root: string, name: string): Promise<boolean> {
-  try {
-    await stat(path.resolve(root, name))
-    return true
-  } catch {
-    return false
-  }
+  return { absolutePath, relativePath, html: stripBom(html) }
 }
 
 /**
@@ -130,7 +118,7 @@ export async function emptyDirectoryHint(dir: string, cwd = process.cwd()): Prom
   // Both a missing directory and an empty one reach here, and telling somebody
   // a directory that is not there "holds no HTML files" reads as though the
   // tool never looked.
-  const head = (await present(cwd, dir)) ? `${dir} holds no HTML files.` : `${dir} does not exist.`
+  const head = (await exists(dir, cwd)) ? `${dir} holds no HTML files.` : `${dir} does not exist.`
 
   const { detectFramework } = await import('./frameworks.ts')
   const { readPackageJson } = await import('./project.ts')
@@ -153,7 +141,7 @@ async function frameworkAdvice(
   // An output that already exists is a one-line answer rather than an
   // explanation, so it is checked before anything else is said.
   for (const output of outputs) {
-    if (output !== given && (await present(cwd, output))) {
+    if (output !== given && (await exists(output, cwd))) {
       return `${head} ${framework.name} writes to ${output}/, not ${dir}.\n  Try: eaa-kit audit ./${output}`
     }
   }
@@ -193,7 +181,7 @@ async function siblingAdvice(head: string, cwd: string, dir: string): Promise<st
   const given = dir.replace(/^\.\//, '')
   const found = await Promise.all(
     FALLBACK_OUTPUTS.map(async (name) =>
-      name !== given && (await present(cwd, name)) ? name : undefined,
+      name !== given && (await exists(name, cwd)) ? name : undefined,
     ),
   )
   const others = found.filter((name) => name !== undefined)

@@ -1,9 +1,8 @@
-import { stat } from 'node:fs/promises'
 import { availableParallelism } from 'node:os'
-import { pathToFileURL } from 'node:url'
 import { Worker } from 'node:worker_threads'
+import { isFile } from '../../fs.ts'
 import type { CollectedPage } from '../collect.ts'
-import { failedPage, type PageAudit } from '../result.ts'
+import { failedPage, type PageAudit, pageUrl } from '../result.ts'
 import type { JsdomRunnerOptions } from './jsdom.ts'
 
 /**
@@ -274,12 +273,6 @@ function identity(
   }
 }
 
-/** Kept in step with the sequential runner's own URL derivation. */
-function pageUrl(page: CollectedPage, baseUrl?: string): string {
-  if (!baseUrl) return pathToFileURL(page.absolutePath).href
-  return new URL(page.relativePath, baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`).href
-}
-
 /**
  * Locate the worker entry point.
  *
@@ -298,11 +291,7 @@ export async function findWorkerEntry(): Promise<URL | undefined> {
   ]
 
   for (const candidate of candidates) {
-    try {
-      if ((await stat(candidate)).isFile()) return candidate
-    } catch {
-      // try the next one
-    }
+    if (await isFile(candidate)) return candidate
   }
   return undefined
 }

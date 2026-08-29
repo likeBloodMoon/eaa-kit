@@ -1,10 +1,11 @@
 import axe from 'axe-core'
-import { escapeAttribute, escapeText } from '../../escape.ts'
+import { collapse, count, escapeAttribute, escapeText, standardsReference } from '../../text.ts'
 import { TOOL_VERSION } from '../../version.ts'
-import { countAtOrAbove, type ImpactLevel, isImpactLevel } from '../impact.ts'
-import { groupIssues, isShared } from '../issues.ts'
+import { countAtOrAbove, type ImpactLevel, impactLabel, impactRank } from '../impact.ts'
+import { blindRules, coverageParts, groupIssues, isShared } from '../issues.ts'
 import { manualCheckFor, understandingUrl } from '../manual.ts'
 import type { Finding, IncompleteFinding, PageAudit } from '../runners/jsdom.ts'
+import { buildSummary } from './json.ts'
 
 /**
  * A standalone HTML audit report.
@@ -22,6 +23,9 @@ import type { Finding, IncompleteFinding, PageAudit } from '../runners/jsdom.ts'
  * found, which is not the same as a site being accessible, and the document
  * says so in its own footer rather than leaving the reader to infer it.
  */
+
+/** Severity levels, worst first, as both the scoreboard and the summary list them. */
+const IMPACT_ORDER = ['critical', 'serious', 'moderate', 'minor', 'unclassified'] as const
 
 /** Elements listed per rule before the rest are summarised. */
 const MAX_NODES = 5
@@ -148,56 +152,38 @@ function runDetails(
   return `<h2>The run</h2>\n<dl class="run">\n${body}\n</dl>`
 }
 
+/**
+ * The counts, taken from the JSON report's own tally rather than recomputed.
+ *
+ * Two reports of one run disagreeing about how many violations there were is
+ * the kind of bug nobody notices until a client does, so there is one place
+ * that counts.
+ */
 function summary(
   audits: readonly PageAudit[],
   failing: number,
   options: HtmlReportOptions,
 ): string {
-  const byImpact = new Map<string, number>()
-  let needsReview = 0
-  let blind = 0
-  let passes = 0
-  let inapplicable = 0
-  let elements = 0
-  let accepted = 0
+  const totals = buildSummary(audits, options.failOn)
 
-  for (const audit of audits) {
-    for (const finding of audit.accepted ?? []) accepted += finding.nodes.length
-    for (const finding of audit.violations) {
-      const impact =
-        finding.impact && isImpactLevel(finding.impact) ? finding.impact : 'unclassified'
-      byImpact.set(impact, (byImpact.get(impact) ?? 0) + 1)
-      elements += finding.nodes.length
-    }
-    for (const finding of audit.incomplete) {
-      if (finding.reason === 'engine-limitation') blind += 1
-      else needsReview += 1
-    }
-    passes += audit.passes.length
-    inapplicable += audit.inapplicable.length
-  }
-
-  const impacts = (['critical', 'serious', 'moderate', 'minor', 'unclassified'] as const)
-    .filter((impact) => (byImpact.get(impact) ?? 0) > 0)
+  const impacts = IMPACT_ORDER.filter((impact) => totals.byImpact[impact] > 0)
     .map(
       (impact) =>
-        `  <li><span class="badge ${escapeAttribute(impact)}">${escapeText(impact)}</span> ${byImpact.get(impact)}</li>`,
+        `  <li><span class="badge ${escapeAttribute(impact)}">${escapeText(impact)}</span> ${totals.byImpact[impact]}</li>`,
     )
     .join('\n')
 
-  const withViolations = audits.filter((audit) => audit.violations.length > 0).length
-
   return `<h2>Summary</h2>
 <ul class="counts">
-  <li><strong>${count(totalViolations(audits), 'violation')}</strong> on ${withViolations} of ${count(audits.length, 'page')}, across ${count(elements, 'element')}</li>
+  <li><strong>${count(totals.violations, 'violation')}</strong> on ${totals.pagesWithViolations} of ${count(totals.pages, 'page')}, across ${count(totals.violatingElements, 'element')}</li>
   <li><strong>${failing}</strong> at or above ${escapeText(options.failOn)}</li>
-  <li><strong>${needsReview}</strong> ${needsReview === 1 ? 'rule needs' : 'rules need'} manual review</li>
-  <li><strong>${blind}</strong> ${blind === 1 ? 'rule was' : 'rules were'} not evaluated by this engine</li>
-${accepted > 0 ? `  <li><strong>${accepted}</strong> ${accepted === 1 ? 'element is' : 'elements are'} accepted by the baseline, and not counted above</li>` : ''}
+  <li><strong>${totals.needsReview}</strong> ${totals.needsReview === 1 ? 'rule needs' : 'rules need'} manual review</li>
+  <li><strong>${totals.notEvaluated}</strong> ${totals.notEvaluated === 1 ? 'rule was' : 'rules were'} not evaluated by this engine</li>
+${totals.accepted > 0 ? `  <li><strong>${totals.accepted}</strong> ${totals.accepted === 1 ? 'element is' : 'elements are'} accepted by the baseline, and not counted above</li>` : ''}
 </ul>
 ${impacts ? `<ul class="impacts">\n${impacts}\n</ul>` : ''}
 <p class="note">
-  <strong>${passes}</strong> rule results were checked and met, and <strong>${inapplicable}</strong>
+  <strong>${totals.passes}</strong> rule results were checked and met, and <strong>${totals.inapplicable}</strong>
   found nothing on the page to check. Those two are counted separately and never added
   together: a rule with nothing to check is not a rule that passed, and a page with no
   images proves nothing about image alternatives.
@@ -262,7 +248,7 @@ function pageSection(audit: PageAudit): string {
 }
 
 function violation(finding: Finding): string {
-  const impact = finding.impact && isImpactLevel(finding.impact) ? finding.impact : 'unclassified'
+  const impact = impactLabel(finding.impact)
   const shown = finding.nodes.slice(0, MAX_NODES)
   const remaining = finding.nodes.length - shown.length
 
@@ -270,7 +256,7 @@ function violation(finding: Finding): string {
     .map(
       (node) => `    <li>
       <code class="selector">${escapeText(node.target.join(' '))}</code>
-      <pre><code>${escapeText(snippet(node.html))}</code></pre>
+      <pre><code>${escapeText(collapse(node.html, MAX_SNIPPET))}</code></pre>
     </li>`,
     )
     .join('\n')
@@ -291,20 +277,8 @@ ${nodes}${more}
   </li>`
 }
 
-/**
- * What this page's result rests on.
- *
- * The four counts stay apart for the same reason they do everywhere else: only
- * `passed` is evidence that anything was met here.
- */
 function coverage(audit: PageAudit): string {
-  const blind = audit.incomplete.filter((finding) => finding.reason === 'engine-limitation').length
-  const review = audit.incomplete.length - blind
-  const parts = [`${audit.passes.length} passed`, `${audit.inapplicable.length} not applicable`]
-  if (review > 0) parts.push(`${review} to review`)
-  if (blind > 0) parts.push(`${blind} not evaluated`)
-
-  return `<p class="coverage">${escapeText(parts.join(' · '))}</p>`
+  return `<p class="coverage">${escapeText(coverageParts(audit).join(' · '))}</p>`
 }
 
 /**
@@ -314,26 +288,15 @@ function coverage(audit: PageAudit): string {
  * the reader take the rest of the document for full coverage.
  */
 function notEvaluated(audits: readonly PageAudit[]): string {
-  const byRule = new Map<string, { pages: number; detail: string; finding: IncompleteFinding }>()
+  const blind = blindRules(audits)
+  if (blind.length === 0) return ''
 
-  for (const audit of audits) {
-    for (const finding of audit.incomplete) {
-      if (finding.reason !== 'engine-limitation') continue
-      const existing = byRule.get(finding.ruleId)
-      if (existing) existing.pages += 1
-      else byRule.set(finding.ruleId, { pages: 1, detail: finding.reasonDetail, finding })
-    }
-  }
-
-  if (byRule.size === 0) return ''
-
-  const items = [...byRule.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
+  const items = blind
     .map(
-      ([ruleId, entry]) => `  <li>
-    <code>${escapeText(ruleId)}</code> on ${count(entry.pages, 'page')}${standards(entry.finding)}
-    <span class="reason">${escapeText(entry.detail)}</span>
-${manualBlock(ruleId, entry.finding)}
+      ({ ruleId, pages, finding }) => `  <li>
+    <code>${escapeText(ruleId)}</code> on ${count(pages, 'page')}${standards(finding)}
+    <span class="reason">${escapeText(finding.reasonDetail)}</span>
+${manualBlock(ruleId, finding)}
   </li>`,
     )
     .join('\n')
@@ -369,17 +332,7 @@ function standards(finding: Finding): string {
 }
 
 function standardsText(finding: Finding): string {
-  const parts = [
-    ...finding.successCriteria.map((criterion) => `WCAG ${criterion}`),
-    ...finding.enClauses.map((clause) => `EN 301 549 ${clause}`),
-  ]
-  return escapeText(parts.join(', '))
-}
-
-/** Element markup, on one line and bounded, so one minified page cannot fill the report. */
-function snippet(html: string): string {
-  const collapsed = html.replace(/\s+/g, ' ').trim()
-  return collapsed.length > MAX_SNIPPET ? `${collapsed.slice(0, MAX_SNIPPET - 1)}…` : collapsed
+  return escapeText(standardsReference(finding.successCriteria, finding.enClauses))
 }
 
 function totalViolations(audits: readonly PageAudit[]): number {
@@ -387,19 +340,7 @@ function totalViolations(audits: readonly PageAudit[]): number {
 }
 
 function byImpactThenRule(a: Finding, b: Finding): number {
-  const order = ['critical', 'serious', 'moderate', 'minor']
-  const rank = (finding: Finding): number => {
-    const index = finding.impact ? order.indexOf(finding.impact) : -1
-    // Unclassified sorts with the most severe, on the same reasoning as
-    // --fail-on: not knowing how bad something is is not evidence it is mild.
-    return index === -1 ? -1 : index
-  }
-  const difference = rank(a) - rank(b)
-  return difference === 0 ? a.ruleId.localeCompare(b.ruleId) : difference
-}
-
-function count(value: number, noun: string): string {
-  return `${value} ${noun}${value === 1 ? '' : 's'}`
+  return impactRank(a.impact) - impactRank(b.impact) || a.ruleId.localeCompare(b.ruleId)
 }
 
 const STYLES = `:root { color-scheme: light dark; }
@@ -521,29 +462,20 @@ ul.page-list { margin: 0.35rem 0 0; padding-left: 1.25rem; }
  * a section further down that nobody scrolls to.
  */
 function scoreboard(audits: readonly PageAudit[]): string {
-  const issueList = groupIssues(audits)
   const counted = new Map<string, number>()
-  for (const issue of issueList) {
-    const key = issue.impact ?? 'unclassified'
+  for (const issue of groupIssues(audits)) {
+    const key = impactLabel(issue.impact)
     counted.set(key, (counted.get(key) ?? 0) + issue.occurrences)
   }
 
-  const blind = new Set<string>()
-  for (const audit of audits) {
-    for (const finding of audit.incomplete) {
-      if (finding.reason === 'engine-limitation') blind.add(finding.ruleId)
-    }
-  }
+  const blind = blindRules(audits)
 
   // Only the levels that occurred, so a clean run is not a row of zeroes
   // implying the tool went looking for things it did not find.
-  const order = ['critical', 'serious', 'moderate', 'minor', 'unclassified'] as const
-  const tiles = order
-    .filter((level) => (counted.get(level) ?? 0) > 0)
-    .map(
-      (level) =>
-        `<li class="tile ${level}"><span class="figure">${counted.get(level)}</span> <span class="label">${level}</span></li>`,
-    )
+  const tiles = IMPACT_ORDER.filter((level) => (counted.get(level) ?? 0) > 0).map(
+    (level) =>
+      `<li class="tile ${level}"><span class="figure">${counted.get(level)}</span> <span class="label">${level}</span></li>`,
+  )
 
   if (tiles.length === 0) {
     tiles.push(
@@ -551,9 +483,9 @@ function scoreboard(audits: readonly PageAudit[]): string {
     )
   }
 
-  if (blind.size > 0) {
+  if (blind.length > 0) {
     tiles.push(
-      `<li class="tile unchecked"><span class="figure">${blind.size}</span> <span class="label">not evaluated</span></li>`,
+      `<li class="tile unchecked"><span class="figure">${blind.length}</span> <span class="label">not evaluated</span></li>`,
     )
   }
 
@@ -592,7 +524,7 @@ function issueSection(
   issue: ReturnType<typeof groupIssues>[number],
   options: HtmlReportOptions,
 ): string {
-  const impact = issue.impact ?? 'unclassified'
+  const impact = impactLabel(issue.impact)
   const criteria =
     issue.successCriteria.length > 0
       ? `<span class="wcag">WCAG ${escapeText(issue.successCriteria.join(' '))}</span>`
@@ -635,7 +567,7 @@ function issueElement(
   const component = options.componentFor?.(element.html)
 
   return `<div class="element">
-<pre><code>${escapeText(collapseWhitespace(element.html))}</code></pre>
+<pre><code>${escapeText(collapse(element.html, MAX_SNIPPET))}</code></pre>
 ${component === undefined ? '' : `<p class="written-in">Written in <code>${escapeText(component)}</code></p>`}
 ${element.selector === '' ? '' : `<p class="selector"><code>${escapeText(element.selector)}</code></p>`}
 <p class="reach">Found on ${count(element.pages.length, 'page')}.${
@@ -648,12 +580,6 @@ ${
 }
 <details><summary>${count(element.pages.length, 'page')}</summary><ul class="page-list">${list}</ul></details>
 </div>`
-}
-
-/** Long markup is unreadable in a report; the identifying part is the start. */
-function collapseWhitespace(html: string): string {
-  const flat = html.replace(/\s+/g, ' ').trim()
-  return flat.length > 200 ? `${flat.slice(0, 199)}…` : flat
 }
 
 /**

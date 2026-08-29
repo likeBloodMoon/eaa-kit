@@ -1,7 +1,8 @@
 import { spawn } from 'node:child_process'
-import { readFile, stat } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { glob } from 'tinyglobby'
+import { exists, isDirectory } from '../fs.ts'
 import { candidateOutputs } from './frameworks.ts'
 
 /**
@@ -52,12 +53,7 @@ export async function detectPackageManager(cwd: string): Promise<'pnpm' | 'yarn'
     ['bun.lockb', 'bun'],
   ] as const
   for (const [file, manager] of lockfiles) {
-    try {
-      await stat(path.join(cwd, file))
-      return manager
-    } catch {
-      // try the next one
-    }
+    if (await exists(path.join(cwd, file))) return manager
   }
   return 'npm'
 }
@@ -75,11 +71,7 @@ export async function findBuildOutput(cwd: string): Promise<string | undefined> 
   const candidates = await candidateOutputs(cwd, await readPackageJson(cwd))
   for (const candidate of candidates) {
     const directory = path.join(cwd, candidate)
-    try {
-      if (!(await stat(directory)).isDirectory()) continue
-    } catch {
-      continue
-    }
+    if (!(await isDirectory(directory))) continue
     const found = await glob(['**/*.html', '**/*.htm'], {
       cwd: directory,
       ignore: ['**/node_modules/**'],

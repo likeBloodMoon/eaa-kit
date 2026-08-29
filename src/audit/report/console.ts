@@ -1,6 +1,13 @@
 import pc from 'picocolors'
-import { countAtOrAbove, DEFAULT_FAIL_ON, IMPACT_LEVELS, type ImpactLevel } from '../impact.ts'
-import { groupIssues, type IssueElement, isShared } from '../issues.ts'
+import { collapse, count, plural } from '../../text.ts'
+import {
+  countAtOrAbove,
+  DEFAULT_FAIL_ON,
+  type ImpactLevel,
+  impactLabel,
+  impactRank,
+} from '../impact.ts'
+import { blindRules, coverageParts, groupIssues, type IssueElement, isShared } from '../issues.ts'
 import { manualCheckFor, understandingUrl } from '../manual.ts'
 import type { Finding, IncompleteFinding, PageAudit } from '../runners/jsdom.ts'
 
@@ -153,16 +160,20 @@ function render(ctx: Context, segments: Segment[]): string {
   return parts.join('')
 }
 
+/** One line from a single segment, which is what most of this report is. */
+function line(ctx: Context, text: string, paint?: Segment['paint']): string {
+  return render(ctx, paint === undefined ? [{ text }] : [{ text, paint }])
+}
+
 function headerLines(audits: readonly PageAudit[], ctx: Context): string[] {
   const engine = audits[0]?.engine ?? 'jsdom'
   // The label has to follow the engine: calling a Chromium run "browserless"
   // was the first thing wrong with the browser mode's output.
   const engineLabel = engine === 'browser' ? 'chromium' : 'jsdom (browserless)'
-  const pageCount = `${audits.length} ${plural(audits.length, 'page')}`
   return [
     render(ctx, [
       { text: 'eaa-kit audit', paint: ctx.c.bold },
-      { text: ` ${pageCount} · ${engineLabel}`, paint: ctx.c.dim },
+      { text: ` ${count(audits.length, 'page')} · ${engineLabel}`, paint: ctx.c.dim },
     ]),
   ]
 }
@@ -175,15 +186,11 @@ function headerLines(audits: readonly PageAudit[], ctx: Context): string[] {
  * the gloss for a section that is not there is noise.
  */
 function legendLines(ctx: Context): string[] {
-  return [
-    render(ctx, [
-      { text: 'passed = checked and met · not applicable = nothing to check', paint: ctx.c.dim },
-    ]),
-  ]
+  return [line(ctx, 'passed = checked and met · not applicable = nothing to check', ctx.c.dim)]
 }
 
 function pageSection(audit: PageAudit, ctx: Context): string[] {
-  const lines: string[] = [render(ctx, [{ text: audit.relativePath, paint: ctx.c.underline }])]
+  const lines: string[] = [line(ctx, audit.relativePath, ctx.c.underline)]
 
   if (audit.error) {
     lines.push(
@@ -227,17 +234,8 @@ function pageSection(audit: PageAudit, ctx: Context): string[] {
   }
 
   for (const finding of sortByImpact(audit.accepted ?? [])) {
-    const elements = finding.nodes.length
-    lines.push(
-      render(ctx, [
-        { text: '  · ', paint: ctx.c.dim },
-        { text: finding.ruleId, paint: ctx.c.dim },
-        {
-          text: ` accepted by the baseline (${elements} ${plural(elements, 'element')})`,
-          paint: ctx.c.dim,
-        },
-      ]),
-    )
+    const elements = count(finding.nodes.length, 'element')
+    lines.push(line(ctx, `  · ${finding.ruleId} accepted by the baseline (${elements})`, ctx.c.dim))
   }
 
   lines.push(coverageLine(audit, ctx))
@@ -245,22 +243,8 @@ function pageSection(audit: PageAudit, ctx: Context): string[] {
   return lines
 }
 
-/**
- * What this page's result actually rests on.
- *
- * The four counts stay separate on purpose. Only `passed` is evidence that a
- * criterion was met here; `not applicable` means the rule found nothing to
- * check, and adding the two together would turn an empty page into a
- * near-perfect score.
- */
 function coverageLine(audit: PageAudit, ctx: Context): string {
-  const blind = audit.incomplete.filter((finding) => finding.reason === 'engine-limitation').length
-  const review = audit.incomplete.length - blind
-  const parts = [`${audit.passes.length} passed`, `${audit.inapplicable.length} not applicable`]
-  if (review > 0) parts.push(`${review} to review`)
-  if (blind > 0) parts.push(`${blind} not evaluated`)
-
-  return render(ctx, [{ text: `    ${parts.join(' · ')}`, paint: ctx.c.dim }])
+  return line(ctx, `    ${coverageParts(audit).join(' · ')}`, ctx.c.dim)
 }
 
 function violationLines(finding: Finding, ctx: Context): string[] {
@@ -271,21 +255,17 @@ function violationLines(finding: Finding, ctx: Context): string[] {
       { text: finding.ruleId, paint: ctx.c.bold },
       { text: ` ${impact}${criteria(finding)}`, paint: ctx.c.dim },
     ]),
-    render(ctx, [{ text: `      ${finding.help}` }]),
+    line(ctx, `      ${finding.help}`),
   ]
 
   for (const node of finding.nodes.slice(0, ctx.maxNodes)) {
-    lines.push(render(ctx, [{ text: `      ${node.target.join(' ')}`, paint: ctx.c.cyan }]))
-    lines.push(render(ctx, [{ text: `        ${collapse(node.html)}`, paint: ctx.c.dim }]))
+    lines.push(line(ctx, `      ${node.target.join(' ')}`, ctx.c.cyan))
+    lines.push(line(ctx, `        ${collapse(node.html)}`, ctx.c.dim))
   }
 
   const hidden = finding.nodes.length - ctx.maxNodes
   if (hidden > 0) {
-    lines.push(
-      render(ctx, [
-        { text: `      + ${hidden} more ${plural(hidden, 'element')}`, paint: ctx.c.dim },
-      ]),
-    )
+    lines.push(line(ctx, `      + ${count(hidden, 'more element')}`, ctx.c.dim))
   }
 
   return lines
@@ -301,45 +281,32 @@ function summary(audits: readonly PageAudit[], ctx: Context): string[] {
     0,
   )
   const reviewCount = countRules(audits, 'needs-review')
-  const pages = `${audits.length} ${plural(audits.length, 'page')}`
+  const pages = count(audits.length, 'page')
 
-  const lines = [render(ctx, [{ text: 'Summary', paint: ctx.c.bold }])]
+  const lines = [line(ctx, 'Summary', ctx.c.bold)]
 
   if (ruleCount === 0) {
-    lines.push(render(ctx, [{ text: `  No violations across ${pages}.`, paint: ctx.c.green }]))
+    lines.push(line(ctx, `  No violations across ${pages}.`, ctx.c.green))
   } else {
     lines.push(
       render(ctx, [
         {
-          text: `  ${ruleCount} ${plural(ruleCount, 'violation')} on ${withViolations.length} of ${pages}`,
+          text: `  ${count(ruleCount, 'violation')} on ${withViolations.length} of ${pages}`,
           paint: ctx.c.red,
         },
-        { text: ` (${elementCount} ${plural(elementCount, 'element')})`, paint: ctx.c.dim },
+        { text: ` (${count(elementCount, 'element')})`, paint: ctx.c.dim },
       ]),
     )
     lines.push(thresholdLine(audits, ctx))
   }
 
   if (reviewCount > 0) {
-    lines.push(
-      render(ctx, [
-        {
-          text: `  ${reviewCount} ${plural(reviewCount, 'rule')} ${reviewCount === 1 ? 'needs' : 'need'} manual review`,
-          paint: ctx.c.yellow,
-        },
-      ]),
-    )
+    const verb = reviewCount === 1 ? 'needs' : 'need'
+    lines.push(line(ctx, `  ${count(reviewCount, 'rule')} ${verb} manual review`, ctx.c.yellow))
   }
 
   if (errored.length > 0) {
-    lines.push(
-      render(ctx, [
-        {
-          text: `  ${errored.length} ${plural(errored.length, 'page')} could not be audited`,
-          paint: ctx.c.red,
-        },
-      ]),
-    )
+    lines.push(line(ctx, `  ${count(errored.length, 'page')} could not be audited`, ctx.c.red))
   }
 
   const accepted = audits.reduce(
@@ -351,12 +318,11 @@ function summary(audits: readonly PageAudit[], ctx: Context): string[] {
     // Counted and named, never folded into the passes: a barrier somebody
     // agreed to defer is not a criterion that was met.
     lines.push(
-      render(ctx, [
-        {
-          text: `  ${accepted} ${plural(accepted, 'element')} accepted by the baseline, not counted above`,
-          paint: ctx.c.dim,
-        },
-      ]),
+      line(
+        ctx,
+        `  ${count(accepted, 'element')} accepted by the baseline, not counted above`,
+        ctx.c.dim,
+      ),
     )
   }
 
@@ -373,20 +339,11 @@ function thresholdLine(audits: readonly PageAudit[], ctx: Context): string {
   const failing = countAtOrAbove(audits, failOn)
 
   if (failing === 0) {
-    return render(ctx, [
-      {
-        text: `  none at or above ${failOn} (--fail-on ${failOn}), so this run passes`,
-        paint: ctx.c.green,
-      },
-    ])
+    const text = `  none at or above ${failOn} (--fail-on ${failOn}), so this run passes`
+    return line(ctx, text, ctx.c.green)
   }
 
-  return render(ctx, [
-    {
-      text: `  ${failing} at or above ${failOn} (--fail-on ${failOn})`,
-      paint: ctx.c.red,
-    },
-  ])
+  return line(ctx, `  ${failing} at or above ${failOn} (--fail-on ${failOn})`, ctx.c.red)
 }
 
 /**
@@ -395,59 +352,49 @@ function thresholdLine(audits: readonly PageAudit[], ctx: Context): string {
  * of "not evaluated" would bury the findings that are real.
  */
 function blindSection(audits: readonly PageAudit[], ctx: Context): string[] {
-  const byRule = new Map<string, { pages: number; finding: IncompleteFinding }>()
-  for (const audit of audits) {
-    for (const finding of audit.incomplete) {
-      if (finding.reason !== 'engine-limitation') continue
-      const entry = byRule.get(finding.ruleId)
-      if (entry) entry.pages += 1
-      else byRule.set(finding.ruleId, { pages: 1, finding })
-    }
-  }
-  if (byRule.size === 0) return []
+  // Widest reach first: the rule left unevaluated on every page is the one
+  // whose gap in coverage is largest.
+  const blind = blindRules(audits).sort((a, b) => b.pages - a.pages)
+  if (blind.length === 0) return []
 
   const lines = [
     '',
-    render(ctx, [{ text: 'Not evaluated', paint: ctx.c.bold }]),
-    render(ctx, [{ text: '  This engine reached no verdict on these.', paint: ctx.c.dim }]),
-    render(ctx, [{ text: '  They are never reported as passing.', paint: ctx.c.dim }]),
+    line(ctx, 'Not evaluated', ctx.c.bold),
+    line(ctx, '  This engine reached no verdict on these.', ctx.c.dim),
+    line(ctx, '  They are never reported as passing.', ctx.c.dim),
   ]
 
-  for (const [ruleId, { pages, finding }] of [...byRule].sort((a, b) => b[1].pages - a[1].pages)) {
+  for (const { ruleId, pages, finding } of blind) {
     lines.push(
       render(ctx, [
         { text: `  ${ctx.symbol('blind')} ` },
         { text: ruleId },
-        { text: ` ${pages} ${plural(pages, 'page')}${criteria(finding)}`, paint: ctx.c.dim },
+        { text: ` ${count(pages, 'page')}${criteria(finding)}`, paint: ctx.c.dim },
       ]),
+      line(ctx, `      ${finding.reasonDetail}`, ctx.c.dim),
     )
-    lines.push(render(ctx, [{ text: `      ${finding.reasonDetail}`, paint: ctx.c.dim }]))
 
     // The check somebody does by hand. Without it "could not be evaluated"
     // leaves a reader knowing there is a gap and not what to do about it,
     // which is the half of compliance every tool waves at.
     const manual = manualCheckFor(ruleId)
     if (manual !== undefined && ctx.manual) {
-      for (const line of wrap(manual.check, ctx.width - 8)) {
-        lines.push(render(ctx, [{ text: `      ${line}`, paint: ctx.c.dim }]))
+      for (const wrapped of wrap(manual.check, ctx.width - 8)) {
+        lines.push(line(ctx, `      ${wrapped}`, ctx.c.dim))
       }
       if (manual.browserAnswers) {
-        lines.push(render(ctx, [{ text: '      or run again with --browser', paint: ctx.c.dim }]))
+        lines.push(line(ctx, '      or run again with --browser', ctx.c.dim))
       }
     }
 
     for (const criterion of finding.successCriteria) {
       const url = understandingUrl(criterion)
-      if (url !== undefined) {
-        lines.push(render(ctx, [{ text: `      ${criterion}: ${url}`, paint: ctx.c.dim }]))
-      }
+      if (url !== undefined) lines.push(line(ctx, `      ${criterion}: ${url}`, ctx.c.dim))
     }
   }
 
-  if (!ctx.manual && byRule.size > 0) {
-    lines.push(
-      render(ctx, [{ text: '  Run with --manual for what to check by hand.', paint: ctx.c.dim }]),
-    )
+  if (!ctx.manual) {
+    lines.push(line(ctx, '  Run with --manual for what to check by hand.', ctx.c.dim))
   }
 
   return lines
@@ -464,28 +411,13 @@ function countRules(audits: readonly PageAudit[], reason: IncompleteFinding['rea
 }
 
 function sortByImpact(findings: readonly Finding[]): Finding[] {
-  return [...findings].sort((a, b) => {
-    const rank = impactRank(a) - impactRank(b)
-    return rank === 0 ? a.ruleId.localeCompare(b.ruleId) : rank
-  })
-}
-
-/** Most severe first; anything axe-core left unclassified sorts last. */
-function impactRank(finding: Finding): number {
-  const index = IMPACT_LEVELS.indexOf(finding.impact as ImpactLevel)
-  return index === -1 ? IMPACT_LEVELS.length : IMPACT_LEVELS.length - index
+  return [...findings].sort(
+    (a, b) => impactRank(a.impact) - impactRank(b.impact) || a.ruleId.localeCompare(b.ruleId),
+  )
 }
 
 function criteria(finding: Finding): string {
   return finding.successCriteria.length > 0 ? `, WCAG ${finding.successCriteria.join(' ')}` : ''
-}
-
-function collapse(html: string): string {
-  return html.replace(/\s+/g, ' ').trim()
-}
-
-function plural(count: number, word: string): string {
-  return count === 1 ? word : `${word}s`
 }
 
 /**
@@ -505,21 +437,15 @@ function issuesSection(audits: readonly PageAudit[], ctx: Context): string[] {
   const occurrences = issues.reduce((total, issue) => total + issue.occurrences, 0)
 
   // No leading blank: the caller has already put one after the header.
-  const lines = [render(ctx, [{ text: 'Issues', paint: ctx.c.bold }])]
+  const lines = [line(ctx, 'Issues', ctx.c.bold)]
 
   // Only worth stating when the two numbers differ; on a one-page site they do
   // not, and saying "1 element on 1 page" is noise.
-  lines.push(
-    render(ctx, [
-      {
-        text:
-          occurrences === elements
-            ? `  ${elements} ${plural(elements, 'distinct element')} to fix.`
-            : `  ${occurrences} ${plural(occurrences, 'violation')} across the site come from ${elements} ${plural(elements, 'distinct element')}.`,
-        paint: ctx.c.dim,
-      },
-    ]),
-  )
+  const intro =
+    occurrences === elements
+      ? `  ${count(elements, 'distinct element')} to fix.`
+      : `  ${count(occurrences, 'violation')} across the site come from ${count(elements, 'distinct element')}.`
+  lines.push(line(ctx, intro, ctx.c.dim))
 
   for (const issue of issues) {
     lines.push('')
@@ -527,27 +453,21 @@ function issuesSection(audits: readonly PageAudit[], ctx: Context): string[] {
       render(ctx, [
         { text: `  ${ctx.symbol('violation')} ` },
         { text: issue.ruleId, paint: ctx.c.bold },
-        { text: ` ${issue.impact ?? 'unclassified'}`, paint: ctx.c.dim },
+        { text: ` ${impactLabel(issue.impact)}`, paint: ctx.c.dim },
         ...(issue.successCriteria.length > 0
           ? [{ text: `, WCAG ${issue.successCriteria.join(' ')}`, paint: ctx.c.dim }]
           : []),
       ]),
     )
-    lines.push(render(ctx, [{ text: `      ${issue.help}`, paint: ctx.c.dim }]))
+    lines.push(line(ctx, `      ${issue.help}`, ctx.c.dim))
 
     for (const element of issue.elements.slice(0, ctx.maxNodes)) {
-      lines.push(render(ctx, [{ text: `      ${collapse(element.html)}` }]))
+      lines.push(line(ctx, `      ${collapse(element.html)}`))
       lines.push(...whereLines(element, ctx))
     }
-    if (issue.elements.length > ctx.maxNodes) {
-      lines.push(
-        render(ctx, [
-          {
-            text: `      …and ${issue.elements.length - ctx.maxNodes} more ${plural(issue.elements.length - ctx.maxNodes, 'element')}`,
-            paint: ctx.c.dim,
-          },
-        ]),
-      )
+    const hidden = issue.elements.length - ctx.maxNodes
+    if (hidden > 0) {
+      lines.push(line(ctx, `      …and ${count(hidden, 'more element')}`, ctx.c.dim))
     }
   }
 
@@ -567,14 +487,7 @@ function whereLines(element: IssueElement, ctx: Context): string[] {
       ? []
       : [render(ctx, [{ text: '        written in ', paint: ctx.c.dim }, { text: component }])]
 
-  lines.push(
-    render(ctx, [
-      {
-        text: `        on ${element.pages.length} ${plural(element.pages.length, 'page')}:`,
-        paint: ctx.c.dim,
-      },
-    ]),
-  )
+  lines.push(line(ctx, `        on ${count(element.pages.length, 'page')}:`, ctx.c.dim))
 
   // One per line rather than a comma-separated list: with a source file
   // alongside each, the list runs past any terminal and gets truncated exactly
@@ -589,21 +502,13 @@ function whereLines(element: IssueElement, ctx: Context): string[] {
     )
   }
   if (rest > 0) {
-    lines.push(
-      render(ctx, [
-        { text: `          …and ${rest} more ${plural(rest, 'page')}`, paint: ctx.c.dim },
-      ]),
-    )
+    lines.push(line(ctx, `          …and ${count(rest, 'more page')}`, ctx.c.dim))
   }
 
   // The point of grouping: identical markup on several pages is one component,
   // and saying so turns a list of findings into a single edit.
   if (isShared(element)) {
-    lines.push(
-      render(ctx, [
-        { text: '        identical on each — likely one shared component', paint: ctx.c.dim },
-      ]),
-    )
+    lines.push(line(ctx, '        identical on each — likely one shared component', ctx.c.dim))
   }
   return lines
 }

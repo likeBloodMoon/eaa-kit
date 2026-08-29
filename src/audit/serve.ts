@@ -2,6 +2,7 @@ import { createReadStream } from 'node:fs'
 import { stat } from 'node:fs/promises'
 import { createServer, type Server } from 'node:http'
 import path from 'node:path'
+import { isFile } from '../fs.ts'
 
 /**
  * Content types for what a static build actually contains. Anything else is
@@ -97,7 +98,7 @@ async function handle(
     // The status line has to be decided before it is sent, not after the stream
     // has already failed. A directory with no index.html is the ordinary way to
     // get here: `<a href="/assets/">` on any real site.
-    if (!(await isReadableFile(target))) {
+    if (!(await isFile(target))) {
       response.writeHead(404).end()
       return
     }
@@ -114,14 +115,6 @@ async function handle(
       .pipe(response)
   } catch {
     response.writeHead(404).end()
-  }
-}
-
-async function isReadableFile(candidate: string): Promise<boolean> {
-  try {
-    return (await stat(candidate)).isFile()
-  } catch {
-    return false
   }
 }
 

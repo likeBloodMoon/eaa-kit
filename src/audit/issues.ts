@@ -1,6 +1,6 @@
 import { elementFingerprint } from './fingerprint.ts'
-import { IMPACT_LEVELS, type ImpactLevel } from './impact.ts'
-import type { PageAudit } from './result.ts'
+import { type ImpactLevel, impactRank } from './impact.ts'
+import { findingElements, type IncompleteFinding, type PageAudit } from './result.ts'
 
 /**
  * Violations grouped by the element that causes them, across the whole site.
@@ -86,15 +86,7 @@ export function groupIssues(audits: readonly PageAudit[]): Issue[] {
 
       if (!issue.pages.includes(audit.relativePath)) issue.pages.push(audit.relativePath)
 
-      // A rule can fail with no node attached — a document-level rule. It still
-      // has an identity, and the empty fingerprint is the one the baseline
-      // writer records for exactly this case, so the two agree.
-      const nodes =
-        finding.nodes.length > 0
-          ? finding.nodes.map((node) => ({ selector: node.target.join(' '), html: node.html }))
-          : [{ selector: '', html: '' }]
-
-      for (const node of nodes) {
+      for (const node of findingElements(finding)) {
         issue.occurrences += 1
         const fingerprint = elementFingerprint(finding.ruleId, node.selector, node.html)
         const existing = issue.elements.find((element) => element.fingerprint === fingerprint)
@@ -122,19 +114,62 @@ export function groupIssues(audits: readonly PageAudit[]): Issue[] {
   return issues
 }
 
+/** One rule this engine reached no verdict on, and how far it reached. */
+export interface BlindRuleGroup {
+  ruleId: string
+  /** Pages the rule was left unevaluated on. */
+  pages: number
+  /** One of the findings, for the detail and the criteria it maps to. */
+  finding: IncompleteFinding
+}
+
+/**
+ * Unevaluated rules folded across the site, sorted by rule id.
+ *
+ * Both reports list these once at the end rather than under every page: on a
+ * large site the same handful recurs on each one, and a wall of "not evaluated"
+ * would bury the findings that are real.
+ */
+export function blindRules(audits: readonly PageAudit[]): BlindRuleGroup[] {
+  const byRule = new Map<string, BlindRuleGroup>()
+  for (const audit of audits) {
+    for (const finding of audit.incomplete) {
+      if (finding.reason !== 'engine-limitation') continue
+      const entry = byRule.get(finding.ruleId)
+      if (entry) entry.pages += 1
+      else byRule.set(finding.ruleId, { ruleId: finding.ruleId, pages: 1, finding })
+    }
+  }
+  return [...byRule.values()].sort((a, b) => a.ruleId.localeCompare(b.ruleId))
+}
+
+/**
+ * What one page's result actually rests on, as phrases both reports print.
+ *
+ * The counts stay separate on purpose. Only `passed` is evidence that a
+ * criterion was met here; `not applicable` means the rule found nothing to
+ * check, and adding the two together would turn an empty page into a
+ * near-perfect score.
+ */
+export function coverageParts(audit: PageAudit): string[] {
+  const blind = audit.incomplete.filter((finding) => finding.reason === 'engine-limitation').length
+  const review = audit.incomplete.length - blind
+  const parts = [`${audit.passes.length} passed`, `${audit.inapplicable.length} not applicable`]
+  if (review > 0) parts.push(`${review} to review`)
+  if (blind > 0) parts.push(`${blind} not evaluated`)
+  return parts
+}
+
 /** Widest reach first, then by selector so two runs agree. */
 function byReachThenSelector(a: IssueElement, b: IssueElement): number {
   return b.pages.length - a.pages.length || a.selector.localeCompare(b.selector)
 }
 
-/**
- * Worst first, then widest reach, then by rule id.
- *
- * An unclassified impact sorts with the most severe, on the same reasoning as
- * `--fail-on`: not knowing how bad a barrier is is not evidence that it is mild.
- */
+/** Worst first, then widest reach, then by rule id. */
 function bySeverityThenReach(a: Issue, b: Issue): number {
-  const rank = (issue: Issue): number =>
-    issue.impact === null ? IMPACT_LEVELS.length : IMPACT_LEVELS.indexOf(issue.impact)
-  return rank(b) - rank(a) || b.pages.length - a.pages.length || a.ruleId.localeCompare(b.ruleId)
+  return (
+    impactRank(a.impact) - impactRank(b.impact) ||
+    b.pages.length - a.pages.length ||
+    a.ruleId.localeCompare(b.ruleId)
+  )
 }

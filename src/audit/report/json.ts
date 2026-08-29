@@ -1,7 +1,8 @@
 import axe from 'axe-core'
 import { TOOL_VERSION } from '../../version.ts'
-import { countAtOrAbove, type ImpactLevel, isImpactLevel } from '../impact.ts'
-import type { Finding, IncompleteFinding, PageAudit, RuleOutcome } from '../runners/jsdom.ts'
+import { countAtOrAbove, type ImpactLevel, impactLabel, isImpactLevel } from '../impact.ts'
+import { ruleOutcomes } from '../result.ts'
+import type { Finding, IncompleteFinding, PageAudit } from '../runners/jsdom.ts'
 
 /**
  * Bumped only when an existing field is removed, renamed, or changes meaning.
@@ -168,14 +169,7 @@ function buildRuleIndex(audits: readonly PageAudit[]): Record<string, JsonRule> 
   const index = new Map<string, JsonRule>()
 
   for (const audit of audits) {
-    const outcomes: RuleOutcome[] = [
-      ...audit.violations,
-      ...(audit.accepted ?? []),
-      ...audit.incomplete,
-      ...audit.passes,
-      ...audit.inapplicable,
-    ]
-    for (const outcome of outcomes) {
+    for (const outcome of ruleOutcomes(audit)) {
       if (index.has(outcome.ruleId)) continue
       index.set(outcome.ruleId, {
         help: outcome.help,
@@ -194,7 +188,8 @@ export function serialiseJsonReport(report: JsonReport): string {
   return `${JSON.stringify(report, null, 2)}\n`
 }
 
-function buildSummary(audits: readonly PageAudit[], failOn: ImpactLevel): JsonSummary {
+/** The run's tally, exported so the HTML report reads the same numbers. */
+export function buildSummary(audits: readonly PageAudit[], failOn: ImpactLevel): JsonSummary {
   const byImpact: Record<ImpactLevel | 'unclassified', number> = {
     critical: 0,
     serious: 0,
@@ -216,8 +211,7 @@ function buildSummary(audits: readonly PageAudit[], failOn: ImpactLevel): JsonSu
     for (const finding of audit.violations) {
       violations += 1
       violatingElements += finding.nodes.length
-      const impact = finding.impact
-      byImpact[impact && isImpactLevel(impact) ? impact : 'unclassified'] += 1
+      byImpact[impactLabel(finding.impact)] += 1
     }
     for (const finding of audit.incomplete) {
       if (finding.reason === 'engine-limitation') notEvaluated += 1

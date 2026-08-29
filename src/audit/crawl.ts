@@ -1,4 +1,4 @@
-import type { CollectedPage } from './collect.ts'
+import { type CollectedPage, stripBom } from './collect.ts'
 
 /**
  * Collect pages from a running site instead of a build directory.
@@ -251,32 +251,22 @@ export function disallowedPaths(robots: string): string[] {
 }
 
 /**
- * Paths this crawler must not visit, from the site's own robots.txt.
+ * One of the two files a site publishes about itself, or undefined.
  *
  * Read directly rather than through fetchPage, which correctly refuses anything
- * that is not a page. A site with no robots.txt disallows nothing.
+ * that is not a page. A site that does not publish one is the ordinary case,
+ * not a failure, so it comes back empty either way.
  */
-async function blockedPaths(entry: URL, impl: typeof fetch): Promise<string[]> {
+async function fetchSiteFile(
+  entry: URL,
+  impl: typeof fetch,
+  name: string,
+): Promise<string | undefined> {
   try {
-    const response = await impl(new URL('/robots.txt', entry).href, { redirect: 'follow' })
-    return response.ok ? disallowedPaths(await response.text()) : []
+    const response = await impl(new URL(name, entry).href, { redirect: 'follow' })
+    return response.ok ? await response.text() : undefined
   } catch {
-    return []
-  }
-}
-
-/**
- * Page URLs the site lists for itself.
- *
- * Worth one request: a sitemap finds pages nothing links to, which link
- * following alone never reaches.
- */
-async function sitemapUrls(entry: URL, impl: typeof fetch): Promise<URL[]> {
-  try {
-    const response = await impl(new URL('/sitemap.xml', entry).href, { redirect: 'follow' })
-    return response.ok ? urlsFromSitemap(await response.text(), entry) : []
-  } catch {
-    return []
+    return undefined
   }
 }
 
@@ -294,7 +284,9 @@ export async function crawlSite(entry: URL, options: CrawlOptions = {}): Promise
   const timeoutMs = options.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS
   const failures: CrawlResult['failures'] = []
 
-  const blocked = options.ignoreRobots ? [] : await blockedPaths(entry, impl)
+  // Paths the site's own robots.txt puts off limits.
+  const robots = options.ignoreRobots ? undefined : await fetchSiteFile(entry, impl, '/robots.txt')
+  const blocked = robots === undefined ? [] : disallowedPaths(robots)
 
   const allowed = (url: URL): boolean => !blocked.some((path) => url.pathname.startsWith(path))
 
@@ -310,7 +302,10 @@ export async function crawlSite(entry: URL, options: CrawlOptions = {}): Promise
     queue.push({ url, depth })
   }
 
-  const listed = await sitemapUrls(entry, impl)
+  // Worth one request: a sitemap finds pages nothing links to, which link
+  // following alone never reaches.
+  const sitemap = await fetchSiteFile(entry, impl, '/sitemap.xml')
+  const listed = sitemap === undefined ? [] : urlsFromSitemap(sitemap, entry)
   if (listed.length > 0) {
     discovery = 'sitemap'
     for (const url of listed) enqueue(url, 0)
@@ -340,7 +335,7 @@ export async function crawlSite(entry: URL, options: CrawlOptions = {}): Promise
         // something true rather than a path that does not exist.
         absolutePath: url.href,
         relativePath: pageIdentity(url),
-        html: html.charCodeAt(0) === 0xfeff ? html.slice(1) : html,
+        html: stripBom(html),
       })
       options.onProgress?.(pages.length, queue.length)
 

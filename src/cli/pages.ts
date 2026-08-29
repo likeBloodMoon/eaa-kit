@@ -1,11 +1,12 @@
 import path from 'node:path'
-import pc from 'picocolors'
 import {
   BuildDirectoryError,
   type CollectedPage,
   collectPages,
   emptyDirectoryHint,
 } from '../audit/collect.ts'
+import { count } from '../text.ts'
+import { fail, note, warn } from './report.ts'
 
 /**
  * Where the pages a command audits come from.
@@ -83,9 +84,7 @@ export async function resolvePages(
     const crawled = await crawlPages(options.url, options)
     if (!crawled) return undefined
     if (crawled.pages.length === 0) {
-      process.stderr.write(
-        `${pc.yellow('warning')} No pages could be fetched from ${options.url}\n`,
-      )
+      warn(`No pages could be fetched from ${options.url}`)
       return undefined
     }
     return { pages: crawled.pages, origin: crawled.origin, label: options.url }
@@ -105,13 +104,13 @@ export async function resolvePages(
     // mistake to whoever typed the path, so they get the same advice. This is
     // what somebody sees pointing the tool at ./dist in a Next.js project,
     // which is the commonest way to arrive here at all.
-    process.stderr.write(`${pc.red('error')} ${cause.message}\n`)
-    process.stderr.write(pc.dim(`${await emptyDirectoryHint(shown, cwd)}\n`))
+    fail(cause.message)
+    note(await emptyDirectoryHint(shown, cwd))
     return undefined
   }
 
   if (pages.length === 0) {
-    process.stderr.write(`${pc.yellow('warning')} ${await emptyDirectoryHint(shown, cwd)}\n`)
+    warn(await emptyDirectoryHint(shown, cwd))
     return undefined
   }
 
@@ -135,13 +134,13 @@ async function crawlPages(
     entry = parseEntryUrl(url, options.allowRemote ?? false)
   } catch (cause) {
     if (cause instanceof CrawlError) {
-      process.stderr.write(`${pc.red('error')} ${cause.message}\n`)
+      fail(cause.message)
       return undefined
     }
     throw cause
   }
 
-  process.stderr.write(pc.dim(`Crawling ${entry.origin}…\n`))
+  note(`Crawling ${entry.origin}…`)
 
   const result = await crawlSite(entry, {
     ...(options.allowRemote ? { allowRemote: true } : {}),
@@ -154,43 +153,31 @@ async function crawlPages(
   if (result.pages.length === 0 && result.failures.length > 0) {
     // Nothing came back at all. Almost always a server that is not running,
     // and saying so beats reporting a site with no pages.
-    process.stderr.write(
-      `${pc.red('error')} Could not fetch ${entry.href} (${result.failures[0]?.reason})\n`,
-    )
-    process.stderr.write(pc.dim('  Is the site running at that address?\n'))
+    fail(`Could not fetch ${entry.href} (${result.failures[0]?.reason})`)
+    note('  Is the site running at that address?')
     return undefined
   }
 
-  process.stderr.write(
-    pc.dim(
-      `Found ${result.pages.length} ${result.pages.length === 1 ? 'page' : 'pages'} from ${
-        result.discovery === 'sitemap' ? 'sitemap.xml and links' : 'links'
-      }\n`,
-    ),
-  )
+  const found = result.discovery === 'sitemap' ? 'sitemap.xml and links' : 'links'
+  note(`Found ${count(result.pages.length, 'page')} from ${found}`)
 
   // Pages that could not be fetched are named rather than counted away: a
   // crawl that quietly skipped half the site would report the other half as if
   // it were the whole thing.
   if (result.failures.length > 0) {
-    process.stderr.write(
-      `${pc.yellow('warning')} ${result.failures.length} ${
-        result.failures.length === 1 ? 'URL was' : 'URLs were'
-      } not fetched, and so not audited:\n`,
-    )
+    const verb = result.failures.length === 1 ? 'URL was' : 'URLs were'
+    warn(`${result.failures.length} ${verb} not fetched, and so not audited:`)
     for (const failure of result.failures.slice(0, 10)) {
-      process.stderr.write(pc.dim(`  ${failure.url} — ${failure.reason}\n`))
+      note(`  ${failure.url} — ${failure.reason}`)
     }
     if (result.failures.length > 10) {
-      process.stderr.write(pc.dim(`  …and ${result.failures.length - 10} more\n`))
+      note(`  …and ${result.failures.length - 10} more`)
     }
   }
 
   if (result.truncated) {
-    process.stderr.write(
-      `${pc.yellow('warning')} Stopped at ${result.pages.length} ${
-        result.pages.length === 1 ? 'page' : 'pages'
-      }; the site has more. Raise --max-pages to go further.\n`,
+    warn(
+      `Stopped at ${count(result.pages.length, 'page')}; the site has more. Raise --max-pages to go further.`,
     )
   }
 
@@ -212,15 +199,14 @@ async function resolveAutomatically(
 
   const detected = await autoDetectSource(cwd, {
     ...(options.noBuild ? { noBuild: true } : {}),
-    onStep: (message) => process.stderr.write(pc.dim(`${message}\n`)),
+    onStep: note,
   })
 
   if (detected?.directory !== undefined) {
-    const resolved = await resolvePages(detected.directory, {
+    return resolvePages(detected.directory, {
       ...options,
       label: path.relative(cwd, detected.directory) || '.',
     })
-    return resolved
   }
 
   if (detected?.url !== undefined) {
@@ -235,6 +221,6 @@ async function resolveAutomatically(
   await detected?.cleanup?.()
   // Nothing worked. The directory hint knows this project better than anything
   // here does, so it explains rather than a second message competing with it.
-  process.stderr.write(`${pc.yellow('warning')} ${await emptyDirectoryHint('./dist', cwd)}\n`)
+  warn(await emptyDirectoryHint('./dist', cwd))
   return undefined
 }

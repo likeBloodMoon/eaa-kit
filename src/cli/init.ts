@@ -1,9 +1,10 @@
-import { readFile, stat, writeFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { createInterface } from 'node:readline/promises'
 import pc from 'picocolors'
 import { COUNTRIES, type Country } from '../config/define.ts'
 import { CONFIG_FILENAMES } from '../config/load.ts'
+import { exists } from '../fs.ts'
 
 /**
  * `eaa-kit init`.
@@ -86,12 +87,7 @@ export async function detectDefaults(cwd: string): Promise<Detected> {
 /** Whether a config is already there, so init never overwrites one silently. */
 export async function existingConfig(cwd: string): Promise<string | undefined> {
   for (const name of CONFIG_FILENAMES) {
-    try {
-      await stat(path.join(cwd, name))
-      return name
-    } catch {
-      // try the next one
-    }
+    if (await exists(path.join(cwd, name))) return name
   }
   return undefined
 }

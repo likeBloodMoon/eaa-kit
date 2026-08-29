@@ -1,4 +1,4 @@
-import { escapeAttribute, escapeText } from '../escape.ts'
+import { escapeAttribute, escapeText } from '../text.ts'
 import { TOOL_VERSION } from '../version.ts'
 
 /**

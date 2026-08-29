@@ -1,4 +1,3 @@
-import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import pc from 'picocolors'
 import { ConfigError, type Country, type StatementLocale } from '../config/define.ts'
@@ -6,15 +5,13 @@ import { loadConfig } from '../config/load.ts'
 import { StatementError } from '../statement/error.ts'
 import { type AuditSummary, readAuditReport } from '../statement/findings.ts'
 import { renderStatement } from '../statement/render.ts'
+import { count } from '../text.ts'
+import { emitDocument, fail, note } from './report.ts'
 
 /** Markdown for a content directory, HTML for dropping straight onto a site. */
 export const STATEMENT_FORMATS = ['markdown', 'html'] as const
 
 export type StatementFormat = (typeof STATEMENT_FORMATS)[number]
-
-export function isStatementFormat(value: string): value is StatementFormat {
-  return (STATEMENT_FORMATS as readonly string[]).includes(value)
-}
 
 export interface StatementCommandOptions {
   /** Explicit config path; otherwise the loader searches upwards. */
@@ -66,18 +63,13 @@ export async function runStatementCommand(
       ...(audit ? { audit } : {}),
     })
 
-    process.stderr.write(
-      pc.dim(
-        `Statement for ${config.site.url} from ${path.basename(configPath)} (${statement.template}, ${format})\n`,
-      ),
+    note(
+      `Statement for ${config.site.url} from ${path.basename(configPath)} (${statement.template}, ${format})`,
     )
 
     if (audit) {
-      process.stderr.write(
-        pc.dim(
-          `${audit.findings.length} ${audit.findings.length === 1 ? 'barrier' : 'barriers'} taken from ${path.basename(options.audit ?? '')}\n`,
-        ),
-      )
+      const from = path.basename(options.audit ?? '')
+      note(`${count(audit.findings.length, 'barrier')} taken from ${from}`)
       // The descriptions are axe-core's, in English, and they are published
       // under the provider's name. Saying so once on stderr is cheap; a German
       // legal document full of English rule text that nobody was warned about
@@ -91,14 +83,8 @@ export async function runStatementCommand(
 
     const document = format === 'html' ? statement.html : statement.markdown
 
-    if (options.output) {
-      const target = path.resolve(options.cwd ?? process.cwd(), options.output)
-      await mkdir(path.dirname(target), { recursive: true })
-      await writeFile(target, document, 'utf8')
-      process.stderr.write(pc.dim(`Written to ${options.output}\n`))
-    } else {
-      process.stdout.write(document)
-    }
+    await emitDocument(document, options.output, options.cwd ?? process.cwd())
+    if (options.output !== undefined) note(`Written to ${options.output}`)
 
     // The generated text says this too, but someone piping it into a file may
     // never read it, and a legal document is the wrong place to be quiet about
@@ -110,11 +96,9 @@ export async function runStatementCommand(
     return { document, format, exitCode: 0 }
   } catch (cause) {
     if (cause instanceof ConfigError || cause instanceof StatementError) {
-      process.stderr.write(`${pc.red('error')} ${cause.message}\n`)
+      fail(cause.message)
       if (cause instanceof ConfigError) {
-        for (const issue of cause.issues) {
-          process.stderr.write(pc.dim(`  ${issue}\n`))
-        }
+        for (const issue of cause.issues) note(`  ${issue}`)
       }
       return { document: '', format, exitCode: 2 }
     }

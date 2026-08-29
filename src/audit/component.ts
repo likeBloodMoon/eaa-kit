@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { glob } from 'tinyglobby'
+import { toPosix } from '../fs.ts'
 
 /**
  * Which source file a failing element was written in.
@@ -133,8 +134,4 @@ export function componentFor(index: ComponentIndex, html: string): string | unde
     if (matches.length === 1) return matches[0]
   }
   return undefined
-}
-
-function toPosix(filePath: string): string {
-  return filePath.split(path.sep).join('/')
 }

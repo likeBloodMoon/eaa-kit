@@ -101,9 +101,8 @@ export default function eaaKit(options: EaaKitPluginOptions = {}): VitePluginLik
 function prefixed(logger: ResolvedConfigLike['logger']): IntegrationLogger {
   const write = (level: 'info' | 'warn' | 'error', message: string): void => {
     const line = `eaa-kit: ${message}`
-    if (logger !== undefined) logger[level](line)
-    else if (level === 'info') process.stderr.write(`${line}\n`)
-    else process.stderr.write(`${line}\n`)
+    if (logger === undefined) process.stderr.write(`${line}\n`)
+    else logger[level](line)
   }
   return {
     info: (message) => write('info', message),

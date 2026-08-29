@@ -1,8 +1,10 @@
 import path from 'node:path'
 import type { ImpactValue } from 'axe-core'
+import { standardsReference } from '../../text.ts'
 import { TOOL_VERSION } from '../../version.ts'
 import { elementFingerprint } from '../fingerprint.ts'
 import { isImpactLevel } from '../impact.ts'
+import { findingElements, ruleOutcomes } from '../result.ts'
 import type { Finding, PageAudit, RuleOutcome } from '../runners/jsdom.ts'
 
 export const SARIF_VERSION = '2.1.0'
@@ -184,34 +186,16 @@ function toResults(
   const level = toSarifLevel(finding.impact)
   const location = { physicalLocation: { artifactLocation: { uri } } }
 
-  if (finding.nodes.length === 0) {
-    return [
-      {
-        ruleId: finding.ruleId,
-        ruleIndex,
-        level,
-        kind: 'fail',
-        message: { text: finding.help },
-        locations: [location],
-        partialFingerprints: fingerprint(finding.ruleId, '', ''),
-        ...(suppressions ? { suppressions } : {}),
-      },
-    ]
-  }
-
-  return finding.nodes.map((node) => {
-    const selector = node.target.join(' ')
-    return {
-      ruleId: finding.ruleId,
-      ruleIndex,
-      level,
-      kind: 'fail',
-      message: { text: `${finding.help}. Element: ${selector}` },
-      locations: [location],
-      partialFingerprints: fingerprint(finding.ruleId, selector, node.html),
-      ...(suppressions ? { suppressions } : {}),
-    }
-  })
+  return findingElements(finding).map(({ selector, html }) => ({
+    ruleId: finding.ruleId,
+    ruleIndex,
+    level,
+    kind: 'fail',
+    message: { text: selector === '' ? finding.help : `${finding.help}. Element: ${selector}` },
+    locations: [location],
+    partialFingerprints: fingerprint(finding.ruleId, selector, html),
+    ...(suppressions ? { suppressions } : {}),
+  }))
 }
 
 /**
@@ -228,14 +212,7 @@ function buildRules(audits: readonly PageAudit[]): SarifRule[] {
   const rules = new Map<string, SarifRule>()
 
   for (const audit of audits) {
-    const outcomes: RuleOutcome[] = [
-      ...audit.violations,
-      ...(audit.accepted ?? []),
-      ...audit.incomplete,
-      ...audit.passes,
-      ...audit.inapplicable,
-    ]
-    for (const outcome of outcomes) {
+    for (const outcome of ruleOutcomes(audit)) {
       if (rules.has(outcome.ruleId)) continue
       rules.set(outcome.ruleId, toSarifRule(outcome))
     }
@@ -245,9 +222,7 @@ function buildRules(audits: readonly PageAudit[]): SarifRule[] {
 }
 
 function toSarifRule(outcome: RuleOutcome): SarifRule {
-  const criteria = outcome.successCriteria.map((criterion) => `WCAG ${criterion}`)
-  const clauses = outcome.enClauses.map((clause) => `EN 301 549 ${clause}`)
-  const references = [...criteria, ...clauses].join(', ')
+  const references = standardsReference(outcome.successCriteria, outcome.enClauses)
 
   return {
     id: outcome.ruleId,

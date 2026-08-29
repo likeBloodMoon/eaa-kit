@@ -25,6 +25,22 @@ export function meetsThreshold(impact: ImpactValue, threshold: ImpactLevel): boo
   return IMPACT_LEVELS.indexOf(impact) >= IMPACT_LEVELS.indexOf(threshold)
 }
 
+/**
+ * Where an impact sorts, most severe first.
+ *
+ * An unclassified impact ranks with the most severe, on the same reasoning as
+ * `--fail-on`: not knowing how bad a barrier is is not evidence that it is mild.
+ */
+export function impactRank(impact: ImpactValue): number {
+  if (impact === null || !isImpactLevel(impact)) return 0
+  return IMPACT_LEVELS.length - IMPACT_LEVELS.indexOf(impact)
+}
+
+/** The impact as a word, naming the gap rather than hiding it. */
+export function impactLabel(impact: ImpactValue): ImpactLevel | 'unclassified' {
+  return impact !== null && isImpactLevel(impact) ? impact : 'unclassified'
+}
+
 /** Violations at or above `threshold`, counted per rule per page. */
 export function countAtOrAbove(audits: readonly PageAudit[], threshold: ImpactLevel): number {
   let total = 0

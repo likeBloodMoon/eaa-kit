@@ -2,7 +2,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import * as s from '../schema.ts'
 import { elementFingerprint } from './fingerprint.ts'
-import type { Finding, FindingNode, PageAudit } from './result.ts'
+import { type Finding, type FindingNode, findingElements, type PageAudit } from './result.ts'
 
 /**
  * A record of the violations a project has decided to live with for now.
@@ -98,13 +98,11 @@ export function applyBaseline(
   options: ApplyBaselineOptions = {},
 ): BaselineOutcome {
   const today = isoDate(options.today ?? new Date())
-  const expired = baseline.entries.filter(
-    (entry) => entry.expiresOn !== undefined && entry.expiresOn < today,
-  )
+  const expired: BaselineEntry[] = []
   const live = new Map<string, BaselineEntry>()
   for (const entry of baseline.entries) {
-    if (entry.expiresOn !== undefined && entry.expiresOn < today) continue
-    live.set(key(entry.page, entry.ruleId, entry.fingerprint), entry)
+    if (entry.expiresOn !== undefined && entry.expiresOn < today) expired.push(entry)
+    else live.set(key(entry.page, entry.ruleId, entry.fingerprint), entry)
   }
 
   const matched = new Set<string>()
@@ -182,7 +180,7 @@ export function applyBaseline(
     .map(([, entry]) => entry)
     .sort(byEntry)
 
-  return { audits: next, stale, expired: [...expired].sort(byEntry), accepted }
+  return { audits: next, stale, expired: expired.sort(byEntry), accepted }
 }
 
 export interface BuildBaselineOptions {
@@ -204,12 +202,7 @@ export function buildBaseline(
 
   for (const audit of audits) {
     for (const finding of audit.violations) {
-      const nodes: Array<{ selector: string; html: string }> =
-        finding.nodes.length > 0
-          ? finding.nodes.map((node) => ({ selector: node.target.join(' '), html: node.html }))
-          : [{ selector: '', html: '' }]
-
-      for (const node of nodes) {
+      for (const node of findingElements(finding)) {
         entries.push({
           page: audit.relativePath,
           ruleId: finding.ruleId,
