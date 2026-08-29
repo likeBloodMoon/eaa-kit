@@ -268,9 +268,16 @@ try {
     // The same page the browser called a violation. Unevaluated and passing are
     // the distinction this whole tool rests on, so it is worth asserting that
     // dropping the browser moves contrast to the first and not the second.
+    //
+    // Matched on words rather than on the bullet the report puts in front of
+    // them: the console falls back to ASCII on Windows consoles that render
+    // those glyphs as mojibake, so `·` becomes `-` on exactly the platform this
+    // harness exists to cover.
     check(
       'leaves contrast unevaluated rather than passing it',
-      /Not evaluated/.test(run.output) && /· color-contrast/.test(run.output),
+      /Not evaluated/.test(run.output) &&
+        /color-contrast/.test(run.output) &&
+        /No violations/.test(run.output),
       run.output,
     )
   }
