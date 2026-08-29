@@ -2,12 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import {
-  detectFramework,
-  detectPackageManager,
-  findBuildOutput,
-  readPackageJson,
-} from '../../src/audit/project.ts'
+import { detectPackageManager, findBuildOutput, readPackageJson } from '../../src/audit/project.ts'
 
 const dirs: string[] = []
 
@@ -74,28 +69,6 @@ describe('detectPackageManager', () => {
     // Running the wrong one either fails or silently installs a second
     // dependency tree, so this is decided by the lockfile, never guessed.
     expect(await detectPackageManager(await project({ 'package.json': '{}' }))).toBe('npm')
-  })
-})
-
-describe('detectFramework', () => {
-  it.each(['next', 'nuxt', 'astro', '@sveltejs/kit'])('recognises %s', async (name) => {
-    const dir = await project({
-      'package.json': JSON.stringify({ dependencies: { [name]: '1.0.0' } }),
-    })
-
-    expect(await detectFramework(dir)).toBe(name)
-  })
-
-  it('looks in devDependencies too', async () => {
-    const dir = await project({
-      'package.json': JSON.stringify({ devDependencies: { astro: '5.0.0' } }),
-    })
-
-    expect(await detectFramework(dir)).toBe('astro')
-  })
-
-  it('returns nothing for a project it does not recognise', async () => {
-    expect(await detectFramework(await project({ 'package.json': '{}' }))).toBeUndefined()
   })
 })
 

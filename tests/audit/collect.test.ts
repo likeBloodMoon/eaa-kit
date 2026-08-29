@@ -144,45 +144,91 @@ describe('emptyDirectoryHint', () => {
     return dir
   }
 
-  const NEXT_EXPORT = `const nextConfig = { output: 'export' }\nexport default nextConfig\n`
-  const NEXT_PLAIN = `const nextConfig = {}\nexport default nextConfig\n`
+  const deps = (name: string): string => JSON.stringify({ devDependencies: { [name]: '1.0.0' } })
 
-  it('points at an out/ that already exists', async () => {
-    const dir = await project({ 'next.config.mjs': NEXT_EXPORT, 'out/index.html': '<html>' })
+  it('points at an output that already exists', async () => {
+    const dir = await project({ 'package.json': deps('next'), 'out/index.html': '<html>' })
 
     const hint = await emptyDirectoryHint('./dist', dir)
 
-    expect(hint).toMatch(/writes to out\/, not \.\/dist/)
+    expect(hint).toMatch(/Next\.js writes to out\/, not \.\/dist/)
     expect(hint).toMatch(/eaa-kit audit \.\/out/)
   })
 
-  it.each(['next.config.js', 'next.config.mjs', 'next.config.ts'])(
-    'explains the export when %s does not set one',
-    async (config) => {
-      const hint = await emptyDirectoryHint('./dist', await project({ [config]: NEXT_PLAIN }))
+  it.each([
+    ['next', /output: 'export'/],
+    ['nuxt', /nuxt generate/],
+    ['@sveltejs/kit', /adapter-static/],
+  ])('names what static output takes for %s', async (dependency, expected) => {
+    const hint = await emptyDirectoryHint(
+      './dist',
+      await project({ 'package.json': deps(dependency) }),
+    )
 
-      expect(hint).toMatch(/server bundle, not browsable HTML/)
-      expect(hint).toMatch(new RegExp(`add output: 'export' to ${config.replace('.', '\\.')}`))
-      // The case the export cannot cover has to be named too, or the advice is
-      // a dead end for every site that has an API route.
+    expect(hint).toMatch(expected)
+  })
+
+  it.each([
+    ['@11ty/eleventy', 'Eleventy', /_site/],
+    ['gatsby', 'Gatsby', /public/],
+    ['@docusaurus/core', 'Docusaurus', /build/],
+  ])('names where %s writes, since it needs no extra configuration', async (dep, name, dir) => {
+    const hint = await emptyDirectoryHint('./dist', await project({ 'package.json': deps(dep) }))
+
+    expect(hint).toContain(name)
+    expect(hint).toMatch(dir)
+  })
+
+  it.each(['next', 'nuxt', 'astro'])(
+    'points %s at --url, which static output cannot cover',
+    async (dependency) => {
+      // A site with server-rendered routes cannot be written to disk at all, so
+      // advice that stops at "run your build" is a dead end for it.
+      const hint = await emptyDirectoryHint(
+        './dist',
+        await project({ 'package.json': deps(dependency) }),
+      )
+
       expect(hint).toMatch(/--url http:\/\/localhost:3000/)
     },
   )
 
-  it('says to build when the export is configured but nothing came out', async () => {
-    const hint = await emptyDirectoryHint(
-      './out',
-      await project({ 'next.config.mjs': NEXT_EXPORT }),
-    )
+  it.each(['gatsby', '@11ty/eleventy'])(
+    'does not offer --url for %s, which always writes files',
+    async (dependency) => {
+      const hint = await emptyDirectoryHint(
+        './dist',
+        await project({ 'package.json': deps(dependency) }),
+      )
 
-    expect(hint).toMatch(/sets output: 'export', but there is no out\/ directory/)
-    expect(hint).toMatch(/Run your build first/)
+      expect(hint).not.toMatch(/--url/)
+    },
+  )
+
+  it('recognises the framework from its config file alone', async () => {
+    // package.json may be missing, unreadable, or belong to a workspace root
+    // rather than the project in front of us.
+    const hint = await emptyDirectoryHint('./dist', await project({ 'next.config.mjs': '' }))
+
+    expect(hint).toContain('Next.js')
   })
 
-  it('names .output/public for a Nuxt project', async () => {
-    const hint = await emptyDirectoryHint('./dist', await project({ 'nuxt.config.ts': '' }))
+  it('reads a custom output directory out of the config', async () => {
+    const dir = await project({
+      'package.json': deps('vite'),
+      'vite.config.ts': "export default { build: { outDir: 'www' } }",
+    })
 
-    expect(hint).toMatch(/\.output\/public/)
+    expect(await emptyDirectoryHint('./dist', dir)).toMatch(/www/)
+  })
+
+  it('does not tell somebody to try the directory they just tried', async () => {
+    const hint = await emptyDirectoryHint(
+      './dist',
+      await project({ 'package.json': deps('gatsby'), x: '' }),
+    )
+
+    expect(hint).not.toMatch(/eaa-kit audit \.\/dist\b/)
   })
 
   it('names a build directory the project actually has', async () => {
@@ -191,31 +237,22 @@ describe('emptyDirectoryHint', () => {
     expect(hint).toMatch(/This project also has _site\//)
   })
 
-  it('does not suggest the directory it was just given', async () => {
-    const hint = await emptyDirectoryHint('./dist', await project({ 'dist/readme.md': 'x' }))
-
-    expect(hint).not.toMatch(/also has/)
-  })
-
   it('falls back to the usual directories and to --url', async () => {
     const hint = await emptyDirectoryHint('./dist', await project({ 'package.json': '{}' }))
 
     expect(hint).toMatch(/commonly dist\/, build\/, out\/ or _site\//)
     expect(hint).toMatch(/--url http:\/\/localhost:3000/)
-    expect(hint).not.toMatch(/Next\.js/)
+  })
+
+  it('says a missing directory is missing rather than empty', async () => {
+    const hint = await emptyDirectoryHint('./nope', await project())
+
+    expect(hint).toMatch(/^\.\/nope does not exist\./)
   })
 
   it('repeats back the directory it was given', async () => {
     const hint = await emptyDirectoryHint('./build', await project({ 'build/x.txt': '' }))
 
     expect(hint).toMatch(/^\.\/build holds no HTML files\./)
-  })
-
-  it('says a missing directory is missing rather than empty', async () => {
-    // The same helper answers both cases, and telling somebody a directory that
-    // is not there "holds no HTML files" reads as though the tool never looked.
-    const hint = await emptyDirectoryHint('./nope', await project())
-
-    expect(hint).toMatch(/^\.\/nope does not exist\./)
   })
 })

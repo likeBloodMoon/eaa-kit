@@ -9,6 +9,51 @@ move: the JSON report's `schemaVersion` and the baseline file's. Both are bumped
 a field is removed, renamed, or changes meaning — new fields may appear without one, so
 consumers must ignore what they do not recognise.
 
+## 0.2.2 — 2026-08-28
+
+### Fixed
+
+- `--browser` also failed against a perfectly good install with *Playwright is installed
+  but exports no chromium launcher*. Playwright is CommonJS, and whether `await import()`
+  exposes its named exports depends on Node's static analysis of the file succeeding —
+  which is not guaranteed and differs between versions. Where it does not, everything sits
+  on `default`. Both shapes are read now, `@playwright/test` is accepted alongside
+  `playwright` since it is what most projects install, and if something does resolve
+  without a launcher the error names what was found instead of only that the tool is
+  unhappy.
+
+### Added
+
+- Framework detection covers fourteen builders instead of two: Next.js, Nuxt, SvelteKit,
+  React Router/Remix, Astro, Gatsby, Docusaurus, VitePress, Eleventy, Angular, Create
+  React App, Hugo, Jekyll and Vite. Each knows where it writes browsable HTML, whether
+  that takes extra configuration, and whether it can serve pages it never writes to disk
+  — which is what decides whether `--url` is a real answer or a consolation.
+- A custom output directory is read out of the framework's own config, so a Vite project
+  with `outDir: 'www'` or an Astro one with `outDir: './built'` is found without being
+  told. Read with a pattern rather than executed: a config file is code, and this runs
+  before anything has decided the project is trustworthy.
+
+### Changed
+
+- The three lists that used to hold this knowledge — a flat array of output directories,
+  a five-name dependency check, and the route conventions — are one registry. They
+  disagreed, and none of them knew that `out/` belongs to Next.js and `_site/` to
+  Eleventy.
+
+- The HTML report leads with what to fix. A severity scoreboard, then the violations
+  grouped by the element that causes them — with the source file where a router
+  convention names one, and identical markup on three or more pages called out as likely
+  one shared component. The page-by-page listing is still there, below.
+- The scoreboard carries what could **not** be evaluated in the same row as the severity
+  counts, at the same size. A row reading "0 critical, 0 serious" is the one place this
+  document could mislead: on a real run that same result may mean six whole rule
+  categories went unchecked, and a client reading only the top of the page would take it
+  for a clean site.
+- Every colour pair the new sections add was checked against the surface it sits on:
+  seventeen pairs, worst 7.30:1, against the 4.5:1 that AA asks of text. Severity is
+  still carried by the word as well as the colour.
+
 ## 0.2.1 — 2026-08-28
 
 ### Fixed
