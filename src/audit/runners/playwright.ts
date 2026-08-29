@@ -304,8 +304,15 @@ async function tryLoad(specifier: string, root: string | undefined): Promise<unk
  * guaranteed and differs between versions; when it does not, everything is on
  * `default` instead. Reading only the named export produced "installed but
  * exports no chromium launcher" against a perfectly good install.
+ *
+ * Exported for its own tests. Driving this through a real import under vitest
+ * proves nothing: vitest hands CommonJS back through an interop proxy that
+ * answers `.chromium` whether or not Node hoisted it, so both shapes look
+ * identical from in there and the test passes with this function broken. The
+ * shapes are checked here directly, and the real interop is exercised against
+ * real Node by scripts/test-packaged.mjs.
  */
-function launcherIn(module: unknown): ChromiumLike | undefined {
+export function launcherIn(module: unknown): ChromiumLike | undefined {
   const candidates = [module, (module as { default?: unknown })?.default]
   for (const candidate of candidates) {
     const chromium = (candidate as { chromium?: ChromiumLike } | undefined)?.chromium

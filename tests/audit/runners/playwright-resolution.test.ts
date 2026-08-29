@@ -3,7 +3,11 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
-import { BrowserUnavailableError, loadChromium } from '../../../src/audit/runners/playwright.ts'
+import {
+  BrowserUnavailableError,
+  launcherIn,
+  loadChromium,
+} from '../../../src/audit/runners/playwright.ts'
 
 /**
  * Where Playwright is resolved from, which is not where this module lives.
@@ -39,20 +43,29 @@ async function project(
   // CommonJS, because Playwright is, and this whole function is about what
   // `await import()` does to a CommonJS module. An ESM stand-in with a default
   // export would exercise a shape that never occurs here.
-  const launcher = `{ launch: async () => ({ marker: ${JSON.stringify(name)} }) }`
+  //
+  // These live under node_modules, which is load-bearing: vitest externalises
+  // anything there and lets Node load it, so the two shapes below really do
+  // behave differently. Anywhere else vitest transforms the file and
+  // synthesises named exports for both, and the distinction disappears.
+  const launcher = `const chromium = { launch: async () => ({ marker: ${JSON.stringify(name)} }) }`
   const body = {
-    // Node's lexer reads straight through an object literal, so the named
-    // export hoists and `chromium` sits on the namespace. Playwright on a good
-    // day.
-    named: `module.exports = { chromium: ${launcher} }\n`,
-    // The same module the lexer cannot see into. Nothing hoists, everything
-    // lands on `default`, and reading only the named export reported a working
-    // install as exporting no chromium launcher.
-    'default-only': `module.exports = Object.assign(Object.create(null), { chromium: ${launcher} })\n`,
-    'no-launcher': 'module.exports = { devices: {} }\n',
+    // Assigned by shorthand, which is the form Node's lexer can follow, so
+    // `chromium` hoists onto the namespace. Playwright on a good day.
+    named: `${launcher}\nmodule.exports = { chromium }\n`,
+    // The same module, assembled so the lexer cannot follow it. Nothing hoists,
+    // everything lands on `default`, and reading only the named export reported
+    // a working install as exporting no chromium launcher.
+    'default-only': `${launcher}\nmodule.exports = Object.assign(Object.create(null), { chromium })\n`,
+    'no-launcher': 'const devices = {}\nmodule.exports = { devices }\n',
   }[shape]
   await writeFile(path.join(module, 'index.cjs'), body)
   return dir
+}
+
+/** The namespace `await import()` gives for a project's stand-in module. */
+async function namespaceOf(dir: string): Promise<Record<string, unknown>> {
+  return await import(pathToFileURL(path.join(dir, 'node_modules', 'playwright', 'index.cjs')).href)
 }
 
 describe('loadChromium', () => {
@@ -66,24 +79,18 @@ describe('loadChromium', () => {
     expect(await chromium.launch()).toEqual({ marker: 'playwright' })
   })
 
-  it('builds a fixture the lexer genuinely cannot see into', async () => {
-    // Without this, a change in Node's static analysis would quietly turn the
-    // test below into one that passes for the wrong reason.
-    const dir = await project('playwright', 'default-only')
-    const loaded = await import(
-      pathToFileURL(path.join(dir, 'node_modules', 'playwright', 'index.cjs')).href
-    )
-
-    expect(Object.keys(loaded)).toEqual(['default'])
-  })
-
-  it('reads the launcher off default when the named export is not hoisted', async () => {
-    // Reported from a real install as "installed but exports no chromium
-    // launcher". Playwright is CommonJS and Node's named-export hoisting is not
-    // guaranteed; when it fails everything sits on `default`.
-    const chromium = await loadChromium(await project('playwright', 'default-only'))
-
-    expect(await chromium.launch()).toEqual({ marker: 'playwright' })
+  it('builds two fixtures that really do load differently', async () => {
+    // The pair is the point. If both shapes hoisted, or neither did, the two
+    // tests below would exercise one code path while appearing to cover two —
+    // so this asserts the difference they depend on actually exists here.
+    //
+    // Membership rather than the whole key list: what a CommonJS namespace
+    // carries besides `default` is Node's business and has grown between
+    // releases, and `module.exports` shows up as one on newer builds.
+    expect(Object.keys(await namespaceOf(await project('playwright')))).toContain('chromium')
+    expect(
+      Object.keys(await namespaceOf(await project('playwright', 'default-only'))),
+    ).not.toContain('chromium')
   })
 
   it('accepts @playwright/test, which is what most projects install', async () => {
@@ -111,5 +118,53 @@ describe('loadChromium', () => {
 
     expect(error).toBeInstanceOf(Error)
     expect(error.name).toBe('BrowserUnavailableError')
+  })
+})
+
+/**
+ * The shape question, asked directly rather than through an import.
+ *
+ * Going through `loadChromium` for this would prove nothing under vitest: it
+ * hands CommonJS back through an interop proxy that answers `.chromium`
+ * whether or not Node hoisted it, so a module with its launcher only on
+ * `default` is indistinguishable from one without, and these tests pass with
+ * the fallback deleted. The same shapes are driven through real Node, from a
+ * real install, by scripts/test-packaged.mjs.
+ */
+describe('launcherIn', () => {
+  const chromium = { launch: async () => 'launched' }
+
+  it('takes the launcher off the namespace when it hoisted', () => {
+    expect(launcherIn({ chromium })).toBe(chromium)
+  })
+
+  it('takes it off default when it did not', () => {
+    // "Playwright is installed but exports no chromium launcher", reported
+    // against a perfectly good install, was this branch missing.
+    expect(launcherIn({ default: { chromium } })).toBe(chromium)
+  })
+
+  it('prefers the namespace, so a good install never reaches the fallback', () => {
+    const other = { launch: async () => 'other' }
+
+    expect(launcherIn({ chromium, default: { chromium: other } })).toBe(chromium)
+  })
+
+  it('finds nothing on a module that carries no launcher', () => {
+    expect(launcherIn({ devices: {} })).toBeUndefined()
+    expect(launcherIn({ default: { devices: {} } })).toBeUndefined()
+  })
+
+  it('rejects a chromium that cannot launch, rather than failing later', () => {
+    // A half-installed package can leave the key in place without the method.
+    expect(launcherIn({ chromium: {} })).toBeUndefined()
+    expect(launcherIn({ chromium: { launch: 'not a function' } })).toBeUndefined()
+  })
+
+  it('survives the shapes an import can legitimately hand back', () => {
+    expect(launcherIn(undefined)).toBeUndefined()
+    expect(launcherIn(null)).toBeUndefined()
+    expect(launcherIn({})).toBeUndefined()
+    expect(launcherIn({ default: undefined })).toBeUndefined()
   })
 })
