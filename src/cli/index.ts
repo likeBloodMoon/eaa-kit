@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { Command, InvalidArgumentError } from 'commander'
 import { DEFAULT_BASELINE_FILE } from '../audit/baseline.ts'
-import { DEFAULT_FAIL_ON, IMPACT_LEVELS, type ImpactLevel, isImpactLevel } from '../audit/impact.ts'
+import { DEFAULT_FAIL_ON, IMPACT_LEVELS, type ImpactLevel } from '../audit/impact.ts'
 import {
   COUNTRIES,
   type Country,
@@ -9,14 +9,71 @@ import {
   type StatementLocale,
 } from '../config/define.ts'
 import { TOOL_VERSION } from '../version.ts'
-import { isOutputFormat, OUTPUT_FORMATS, type OutputFormat, runAuditCommand } from './audit.ts'
-import { runBaselineCommand } from './baseline.ts'
+import { type AuditCommandOptions, OUTPUT_FORMATS, runAuditCommand } from './audit.ts'
+import { type BaselineCommandOptions, runBaselineCommand } from './baseline.ts'
 import {
-  isStatementFormat,
   runStatementCommand,
   STATEMENT_FORMATS,
-  type StatementFormat,
+  type StatementCommandOptions,
 } from './statement.ts'
+
+/**
+ * Commander has already validated and converted every flag through the parsers
+ * below, and it leaves an option nobody passed out of the object entirely — so
+ * the parsed flags are the command options, and each action hands them over
+ * rather than rebuilding them key by key. The two exceptions are named where
+ * they occur: `--no-build`, which commander reports as `build`, and `--lang`,
+ * which the statement command calls `locale`.
+ */
+type AuditFlags = Omit<AuditCommandOptions, 'noBuild' | 'cwd' | 'timeoutMs'> & { build: boolean }
+type BaselineFlags = Omit<BaselineCommandOptions, 'cwd' | 'timeoutMs'>
+type StatementFlags = Omit<StatementCommandOptions, 'locale' | 'cwd'> & { lang?: StatementLocale }
+
+/**
+ * A parser for a fixed set of words, listing them when the answer is not one.
+ *
+ * `normalise` is for `--country de`, where the accepted spelling differs from
+ * what somebody types.
+ */
+function oneOf<const T extends readonly string[]>(
+  values: T,
+  normalise: (value: string) => string = (value) => value,
+): (value: string) => T[number] {
+  return (value) => {
+    const candidate = normalise(value)
+    if (!(values as readonly string[]).includes(candidate)) {
+      throw new InvalidArgumentError(`expected one of ${values.join(', ')}`)
+    }
+    return candidate as T[number]
+  }
+}
+
+/** A whole number no smaller than `min`. Depth allows 0: audit the entry page alone. */
+function wholeNumber(min: number): (value: string) => number {
+  return (value) => {
+    const parsed = Number(value)
+    if (!Number.isInteger(parsed) || parsed < min) {
+      throw new InvalidArgumentError(`expected a whole number of ${min} or more`)
+    }
+    return parsed
+  }
+}
+
+function parseDate(value: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(Date.parse(`${value}T00:00:00Z`))) {
+    throw new InvalidArgumentError('expected an ISO date, e.g. 2026-12-31')
+  }
+  return value
+}
+
+const parseLocale = oneOf(STATEMENT_LOCALES)
+const parseCountry = oneOf(COUNTRIES, (value) => value.toUpperCase())
+const parseStatementFormat = oneOf(STATEMENT_FORMATS)
+const parseImpact = oneOf(IMPACT_LEVELS)
+const parseFormat = oneOf(OUTPUT_FORMATS)
+const parsePositive = wholeNumber(1)
+const parseDepth = wholeNumber(0)
+const parseConcurrency = wholeNumber(1)
 
 const program = new Command()
 
@@ -67,27 +124,11 @@ program
     parseConcurrency,
   )
   .option('--baseline <path>', 'accept the violations recorded in this file; fail only on new ones')
-  .action(async (dir: string | undefined, options: Record<string, unknown>) => {
+  .action(async (dir: string | undefined, flags: AuditFlags) => {
+    const { build, ...options } = flags
     const { exitCode } = await runAuditCommand(dir, {
-      ...(options['build'] === false ? { noBuild: true } : {}),
-      ...(options['perPage'] === true ? { perPage: true } : {}),
-      ...(options['manual'] === true ? { manual: true } : {}),
-      ...(Array.isArray(options['include']) ? { include: options['include'] as string[] } : {}),
-      ...(Array.isArray(options['exclude']) ? { exclude: options['exclude'] as string[] } : {}),
-      ...(typeof options['baseUrl'] === 'string' ? { baseUrl: options['baseUrl'] } : {}),
-      failOn: options['failOn'] as ImpactLevel,
-      format: options['format'] as OutputFormat,
-      ...(typeof options['output'] === 'string' ? { output: options['output'] } : {}),
-      ...(options['browser'] === true ? { browser: true } : {}),
-      ...(typeof options['concurrency'] === 'number'
-        ? { concurrency: options['concurrency'] }
-        : {}),
-      ...(typeof options['baseline'] === 'string' ? { baseline: options['baseline'] } : {}),
-      ...(typeof options['url'] === 'string' ? { url: options['url'] } : {}),
-      ...(options['allowRemote'] === true ? { allowRemote: true } : {}),
-      ...(options['ignoreRobots'] === true ? { ignoreRobots: true } : {}),
-      ...(typeof options['maxPages'] === 'number' ? { maxPages: options['maxPages'] } : {}),
-      ...(typeof options['maxDepth'] === 'number' ? { maxDepth: options['maxDepth'] } : {}),
+      ...options,
+      ...(build === false ? { noBuild: true } : {}),
     })
     process.exitCode = exitCode
   })
@@ -109,24 +150,8 @@ program
   .option('--expires-on <date>', 'ISO date after which the entries stop suppressing', parseDate)
   .option('--browser', 'audit in real Chromium instead of jsdom')
   .option('--concurrency <n>', 'worker threads to audit with, or 1 for none', parseConcurrency)
-  .action(async (dir: string, options: Record<string, unknown>) => {
-    const { exitCode } = await runBaselineCommand(dir, {
-      ...(Array.isArray(options['include']) ? { include: options['include'] as string[] } : {}),
-      ...(Array.isArray(options['exclude']) ? { exclude: options['exclude'] as string[] } : {}),
-      ...(typeof options['baseUrl'] === 'string' ? { baseUrl: options['baseUrl'] } : {}),
-      ...(typeof options['output'] === 'string' ? { output: options['output'] } : {}),
-      ...(typeof options['note'] === 'string' ? { note: options['note'] } : {}),
-      ...(typeof options['expiresOn'] === 'string' ? { expiresOn: options['expiresOn'] } : {}),
-      ...(options['browser'] === true ? { browser: true } : {}),
-      ...(typeof options['concurrency'] === 'number'
-        ? { concurrency: options['concurrency'] }
-        : {}),
-      ...(typeof options['url'] === 'string' ? { url: options['url'] } : {}),
-      ...(options['allowRemote'] === true ? { allowRemote: true } : {}),
-      ...(options['ignoreRobots'] === true ? { ignoreRobots: true } : {}),
-      ...(typeof options['maxPages'] === 'number' ? { maxPages: options['maxPages'] } : {}),
-      ...(typeof options['maxDepth'] === 'number' ? { maxDepth: options['maxDepth'] } : {}),
-    })
+  .action(async (dir: string, flags: BaselineFlags) => {
+    const { exitCode } = await runBaselineCommand(dir, flags)
     process.exitCode = exitCode
   })
 
@@ -136,13 +161,9 @@ program
   .option('--output <path>', 'write here instead of eaa.config.json')
   .option('--force', 'overwrite a config that is already there')
   .option('-y, --yes', 'take every default without asking')
-  .action(async (options: Record<string, unknown>) => {
+  .action(async (flags: { output?: string; force?: true; yes?: true }) => {
     const { runInitCommand } = await import('./init.ts')
-    const { exitCode } = await runInitCommand({
-      ...(typeof options['output'] === 'string' ? { output: options['output'] } : {}),
-      ...(options['force'] === true ? { force: true } : {}),
-      ...(options['yes'] === true ? { yes: true } : {}),
-    })
+    const { exitCode } = await runInitCommand(flags)
     process.exitCode = exitCode
   })
 
@@ -163,85 +184,14 @@ program
     parseStatementFormat,
   )
   .option('--output <path>', 'write the statement to a file instead of stdout')
-  .action(async (options: Record<string, unknown>) => {
+  .action(async (flags: StatementFlags) => {
+    const { lang, ...options } = flags
     const { exitCode } = await runStatementCommand({
-      ...(typeof options['config'] === 'string' ? { config: options['config'] } : {}),
-      ...(options['lang'] ? { locale: options['lang'] as StatementLocale } : {}),
-      ...(options['country'] ? { country: options['country'] as Country } : {}),
-      ...(typeof options['audit'] === 'string' ? { audit: options['audit'] } : {}),
-      ...(options['format'] ? { format: options['format'] as StatementFormat } : {}),
-      ...(typeof options['output'] === 'string' ? { output: options['output'] } : {}),
+      ...options,
+      ...(lang === undefined ? {} : { locale: lang }),
     })
     process.exitCode = exitCode
   })
-
-function parseLocale(value: string): StatementLocale {
-  if (!(STATEMENT_LOCALES as readonly string[]).includes(value)) {
-    throw new InvalidArgumentError(`expected one of ${STATEMENT_LOCALES.join(', ')}`)
-  }
-  return value as StatementLocale
-}
-
-function parseCountry(value: string): Country {
-  const upper = value.toUpperCase()
-  if (!(COUNTRIES as readonly string[]).includes(upper)) {
-    throw new InvalidArgumentError(`expected one of ${COUNTRIES.join(', ')}`)
-  }
-  return upper as Country
-}
-
-function parseStatementFormat(value: string): StatementFormat {
-  if (!isStatementFormat(value)) {
-    throw new InvalidArgumentError(`expected one of ${STATEMENT_FORMATS.join(', ')}`)
-  }
-  return value
-}
-
-function parseDate(value: string): string {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(Date.parse(`${value}T00:00:00Z`))) {
-    throw new InvalidArgumentError('expected an ISO date, e.g. 2026-12-31')
-  }
-  return value
-}
-
-function parsePositive(value: string): number {
-  const parsed = Number(value)
-  if (!Number.isInteger(parsed) || parsed < 1) {
-    throw new InvalidArgumentError('expected a whole number of 1 or more')
-  }
-  return parsed
-}
-
-/** Depth 0 is meaningful here: audit only the entry page. */
-function parseDepth(value: string): number {
-  const parsed = Number(value)
-  if (!Number.isInteger(parsed) || parsed < 0) {
-    throw new InvalidArgumentError('expected a whole number of 0 or more')
-  }
-  return parsed
-}
-
-function parseConcurrency(value: string): number {
-  const parsed = Number(value)
-  if (!Number.isInteger(parsed) || parsed < 1) {
-    throw new InvalidArgumentError('expected a whole number of 1 or more')
-  }
-  return parsed
-}
-
-function parseImpact(value: string): ImpactLevel {
-  if (!isImpactLevel(value)) {
-    throw new InvalidArgumentError(`expected one of ${IMPACT_LEVELS.join(', ')}`)
-  }
-  return value
-}
-
-function parseFormat(value: string): OutputFormat {
-  if (!isOutputFormat(value)) {
-    throw new InvalidArgumentError(`expected one of ${OUTPUT_FORMATS.join(', ')}`)
-  }
-  return value
-}
 
 try {
   await program.parseAsync(process.argv)

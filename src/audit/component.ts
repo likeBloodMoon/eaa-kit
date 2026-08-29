@@ -1,6 +1,8 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { glob } from 'tinyglobby'
+import { toPosix } from '../fs.ts'
+import { collapse } from '../text.ts'
 
 /**
  * Which source file a failing element was written in.
@@ -104,10 +106,7 @@ export function searchTermsFor(html: string): string[] {
 
   // Text content last: it is the least reliable, being the thing most likely to
   // come from a CMS or a translation file rather than the component.
-  const text = html
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
+  const text = collapse(html.replace(/<[^>]*>/g, ' '))
   if (text.length >= 8) add(text.slice(0, 60))
 
   return terms
@@ -133,8 +132,4 @@ export function componentFor(index: ComponentIndex, html: string): string | unde
     if (matches.length === 1) return matches[0]
   }
   return undefined
-}
-
-function toPosix(filePath: string): string {
-  return filePath.split(path.sep).join('/')
 }

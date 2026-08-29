@@ -1,12 +1,12 @@
 import path from 'node:path'
-import pc from 'picocolors'
 import {
   BaselineError,
   buildBaseline,
   DEFAULT_BASELINE_FILE,
   writeBaseline,
 } from '../audit/baseline.ts'
-import type { PageAudit } from '../audit/runners/jsdom.ts'
+import { count } from '../text.ts'
+import { advise, fail, note, runEngine } from './command.ts'
 import { type CrawlCommandOptions, resolvePages } from './pages.ts'
 
 export interface BaselineCommandOptions extends CrawlCommandOptions {
@@ -53,51 +53,26 @@ export async function runBaselineCommand(
   if (!resolved) return { entries: 0, exitCode: 2 }
   const { pages, origin, label } = resolved
 
-  process.stderr.write(
-    pc.dim(`Auditing ${pages.length} ${pages.length === 1 ? 'page' : 'pages'} in ${label}…\n`),
-  )
+  note(`Auditing ${count(pages.length, 'page')} in ${label}…`)
 
-  const effectiveBaseUrl: string | undefined = options.baseUrl ?? origin
-
-  const runnerOptions = {
+  const baseUrl = options.baseUrl ?? origin
+  const audits = await runEngine(pages, {
     cwd,
-    ...(effectiveBaseUrl === undefined ? {} : { baseUrl: effectiveBaseUrl }),
+    ...(baseUrl === undefined ? {} : { baseUrl }),
     ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
-  }
-
-  let audits: PageAudit[]
-  if (options.browser) {
-    const { BrowserUnavailableError, runBrowserAudit } = await import(
-      '../audit/runners/playwright.ts'
-    )
-    try {
-      audits = await runBrowserAudit(
-        options.url === undefined ? path.resolve(cwd, dir) : undefined,
-        pages,
-        runnerOptions,
-      )
-    } catch (cause) {
-      if (cause instanceof BrowserUnavailableError) {
-        process.stderr.write(`${pc.red('error')} ${cause.message}\n`)
-        return { entries: 0, exitCode: 2 }
-      }
-      throw cause
-    }
-  } else {
-    const { runPooledAudit } = await import('../audit/runners/pool.ts')
-    audits = await runPooledAudit(pages, {
-      ...runnerOptions,
-      ...(options.concurrency === undefined ? {} : { concurrency: options.concurrency }),
-    })
-  }
+    ...(options.browser ? { browser: true } : {}),
+    ...(options.concurrency === undefined ? {} : { concurrency: options.concurrency }),
+    ...(options.url === undefined ? { directory: path.resolve(cwd, dir) } : {}),
+  })
+  if (!audits) return { entries: 0, exitCode: 2 }
 
   // A page nothing could read has no violations to record, and writing a
   // baseline from a half-finished run would accept an unknown amount of
   // nothing. The audit command refuses to give a verdict here; so does this.
   const unaudited = audits.filter((audit) => audit.error)
   if (unaudited.length > 0) {
-    process.stderr.write(
-      `${pc.red('error')} ${unaudited.length} of ${audits.length} pages could not be audited, so no baseline was written\n`,
+    fail(
+      `${unaudited.length} of ${audits.length} pages could not be audited, so no baseline was written`,
     )
     return { entries: 0, exitCode: 2 }
   }
@@ -112,22 +87,20 @@ export async function runBaselineCommand(
     await writeBaseline(target, baseline, cwd)
   } catch (cause) {
     if (cause instanceof BaselineError) {
-      process.stderr.write(`${pc.red('error')} ${cause.message}\n`)
+      fail(cause.message)
       return { entries: 0, exitCode: 2 }
     }
     throw cause
   }
 
-  const count = baseline.entries.length
-  process.stderr.write(pc.dim(`Wrote ${count} ${count === 1 ? 'entry' : 'entries'} to ${target}\n`))
-  if (count > 0) {
+  const entries = baseline.entries.length
+  note(`Wrote ${entries} ${entries === 1 ? 'entry' : 'entries'} to ${target}`)
+  if (entries > 0) {
     // The file is a list of things that are wrong with the site. Saying so
     // where somebody will read it is the difference between a baseline and a
     // way of turning the tool off.
-    process.stderr.write(
-      pc.yellow('These are barriers, not exceptions. Commit the file, then work the list down.\n'),
-    )
+    advise('These are barriers, not exceptions. Commit the file, then work the list down.')
   }
 
-  return { entries: count, exitCode: 0 }
+  return { entries, exitCode: 0 }
 }

@@ -4,7 +4,14 @@ import { pathToFileURL } from 'node:url'
 import type { AxeResults } from 'axe-core'
 import axe from 'axe-core'
 import type { CollectedPage } from '../collect.ts'
-import { DEFAULT_TAGS, failedPage, type PageAudit, runOptions, shapeResults } from '../result.ts'
+import {
+  DEFAULT_TAGS,
+  failedPage,
+  type PageAudit,
+  pageUrl,
+  runOptions,
+  shapeResults,
+} from '../result.ts'
 import { serveDirectory } from '../serve.ts'
 
 /** Per-page ceiling. Real pages fetch real resources, so it is looser. */
@@ -119,7 +126,7 @@ async function auditOne(
     absolutePath: page.absolutePath,
     // The loopback port is ephemeral and would churn between runs, so the
     // report carries the same logical URL the browserless engine would use.
-    url: reportedUrl(page, options.baseUrl),
+    url: pageUrl(page, options.baseUrl),
     engine: 'browser' as const,
   }
 
@@ -172,11 +179,6 @@ async function auditOne(
  */
 export function servedUrl(origin: string, relativePath: string): string {
   return `${origin}/${relativePath.split('/').map(encodeURIComponent).join('/')}`
-}
-
-function reportedUrl(page: CollectedPage, baseUrl?: string): string {
-  if (!baseUrl) return pathToFileURL(page.absolutePath).href
-  return new URL(page.relativePath, baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`).href
 }
 
 /** The bits of playwright this runner uses, so the import can stay dynamic. */

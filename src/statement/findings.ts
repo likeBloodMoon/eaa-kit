@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
-import { IMPACT_LEVELS, type ImpactLevel } from '../audit/impact.ts'
+import { IMPACT_LEVELS, type ImpactLevel, impactRank } from '../audit/impact.ts'
 import * as s from '../schema.ts'
 import { StatementError } from './error.ts'
 
@@ -188,13 +188,8 @@ function toImpact(value: string | null): ImpactLevel | null {
 
 /**
  * Most severe first, then by rule id so two runs of the same build order the
- * list identically. An unclassified impact sorts with the most severe, on the
- * same reasoning as `--fail-on`: a missing impact is a gap in what we know, not
- * evidence that the barrier is harmless.
+ * list identically.
  */
 function bySeverityThenRule(a: AuditFinding, b: AuditFinding): number {
-  const rank = (finding: AuditFinding): number =>
-    finding.impact === null ? IMPACT_LEVELS.length : IMPACT_LEVELS.indexOf(finding.impact)
-  const difference = rank(b) - rank(a)
-  return difference === 0 ? a.ruleId.localeCompare(b.ruleId) : difference
+  return impactRank(a.impact) - impactRank(b.impact) || a.ruleId.localeCompare(b.ruleId)
 }

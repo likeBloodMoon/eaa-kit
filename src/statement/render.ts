@@ -1,7 +1,9 @@
-import { readdir, readFile, stat } from 'node:fs/promises'
+import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Country, EaaConfig, KnownIssue, StatementLocale } from '../config/define.ts'
+import { isDirectory } from '../fs.ts'
+import { standardsReference } from '../text.ts'
 import { StatementError } from './error.ts'
 import type { AuditFinding, AuditSummary } from './findings.ts'
 import { toHtmlDocument } from './html.ts'
@@ -181,13 +183,6 @@ function reasonScope(reason: KnownIssue['reason']): TemplateScope {
   }
 }
 
-function standardsReference(successCriteria: string[], en301549: string[]): string {
-  return [
-    ...successCriteria.map((criterion) => `WCAG ${criterion}`),
-    ...en301549.map((clause) => `EN 301 549 ${clause}`),
-  ].join(', ')
-}
-
 /**
  * 2026-08-20 becomes 20. August 2026 or 20 August 2026.
  *
@@ -256,11 +251,7 @@ async function findTemplateDirectory(): Promise<string> {
   ]
 
   for (const candidate of candidates) {
-    try {
-      if ((await stat(candidate)).isDirectory()) return candidate
-    } catch {
-      // try the next one
-    }
+    if (await isDirectory(candidate)) return candidate
   }
 
   throw new StatementError(

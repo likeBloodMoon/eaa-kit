@@ -1,5 +1,7 @@
+import { pathToFileURL } from 'node:url'
 import type { AxeResults, ImpactValue, NodeResult, Result, RunOptions } from 'axe-core'
 import axe from 'axe-core'
+import type { CollectedPage } from './collect.ts'
 
 /** WCAG 2.2 AA and everything it builds on. Best-practice rules stay off. */
 export const DEFAULT_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] as const
@@ -104,6 +106,39 @@ export interface PageAudit {
    * somebody agreed to defer is not a criterion that was met.
    */
   accepted?: Finding[]
+}
+
+/**
+ * The URL a page is audited under, shared by every runner so their reports name
+ * the same page. Without a base URL that is the file it came off disk as.
+ */
+export function pageUrl(page: CollectedPage, baseUrl?: string): string {
+  if (!baseUrl) return pathToFileURL(page.absolutePath).href
+  return new URL(page.relativePath, baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`).href
+}
+
+/**
+ * The elements a finding points at, as selector and markup.
+ *
+ * A rule can fail with no node attached — a document-level rule. It still has
+ * an identity, so it gets one empty element: the baseline writer, the baseline
+ * matcher, the issues view and SARIF all have to agree on what that identity
+ * is, and they only do because they all come through here.
+ */
+export function findingElements(finding: Finding): Array<{ selector: string; html: string }> {
+  if (finding.nodes.length === 0) return [{ selector: '', html: '' }]
+  return finding.nodes.map((node) => ({ selector: node.target.join(' '), html: node.html }))
+}
+
+/** Every rule this page reached any verdict on, in one list. */
+export function ruleOutcomes(audit: PageAudit): RuleOutcome[] {
+  return [
+    ...audit.violations,
+    ...(audit.accepted ?? []),
+    ...audit.incomplete,
+    ...audit.passes,
+    ...audit.inapplicable,
+  ]
 }
 
 export function runOptions(tags: readonly string[]): RunOptions {

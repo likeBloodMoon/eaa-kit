@@ -1,9 +1,11 @@
-import { readFile, stat, writeFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { createInterface } from 'node:readline/promises'
 import pc from 'picocolors'
 import { COUNTRIES, type Country } from '../config/define.ts'
 import { CONFIG_FILENAMES } from '../config/load.ts'
+import { exists } from '../fs.ts'
+import { fail, note, warn } from './command.ts'
 
 /**
  * `eaa-kit init`.
@@ -86,12 +88,7 @@ export async function detectDefaults(cwd: string): Promise<Detected> {
 /** Whether a config is already there, so init never overwrites one silently. */
 export async function existingConfig(cwd: string): Promise<string | undefined> {
   for (const name of CONFIG_FILENAMES) {
-    try {
-      await stat(path.join(cwd, name))
-      return name
-    } catch {
-      // try the next one
-    }
+    if (await exists(path.join(cwd, name))) return name
   }
   return undefined
 }
@@ -121,9 +118,7 @@ export async function runInitCommand(options: InitCommandOptions = {}): Promise<
 
   const already = await existingConfig(cwd)
   if (already !== undefined && !options.force) {
-    process.stderr.write(
-      `${pc.yellow('warning')} ${already} already exists. Pass --force to overwrite it.\n`,
-    )
+    warn(`${already} already exists. Pass --force to overwrite it.`)
     return { exitCode: 1 }
   }
 
@@ -177,11 +172,8 @@ export async function runInitCommand(options: InitCommandOptions = {}): Promise<
   try {
     await writeFile(target, `${JSON.stringify(config, null, 2)}\n`, 'utf8')
   } catch (cause) {
-    process.stderr.write(
-      `${pc.red('error')} Could not write ${path.basename(target)}: ${
-        cause instanceof Error ? cause.message : String(cause)
-      }\n`,
-    )
+    const reason = cause instanceof Error ? cause.message : String(cause)
+    fail(`Could not write ${path.basename(target)}: ${reason}`)
     return { exitCode: 2 }
   }
 
@@ -191,17 +183,16 @@ export async function runInitCommand(options: InitCommandOptions = {}): Promise<
     email === '' ? 'provider.email' : undefined,
   ].filter((field) => field !== undefined)
   if (missing.length > 0) {
-    process.stderr.write(
-      `${pc.yellow('warning')} ${missing.join(' and ')} ${missing.length === 1 ? 'is' : 'are'} empty and required. Fill ${missing.length === 1 ? 'it' : 'them'} in before generating a statement.\n`,
+    const [verb, pronoun] = missing.length === 1 ? ['is', 'it'] : ['are', 'them']
+    warn(
+      `${missing.join(' and ')} ${verb} empty and required. Fill ${pronoun} in before generating a statement.`,
     )
   }
-  process.stderr.write(
-    pc.dim(
-      'Read it before publishing anything from it: status is partially-compliant,\n' +
-        'which is the honest default before an audit has run.\n' +
-        '\n' +
-        'Next:  eaa-kit audit  ·  eaa-kit statement\n',
-    ),
+  note(
+    'Read it before publishing anything from it: status is partially-compliant,\n' +
+      'which is the honest default before an audit has run.\n' +
+      '\n' +
+      'Next:  eaa-kit audit  ·  eaa-kit statement',
   )
 
   return { file: target, exitCode: 0 }

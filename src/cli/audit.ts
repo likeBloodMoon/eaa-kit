@@ -1,9 +1,7 @@
-import { mkdir, writeFile } from 'node:fs/promises'
-import path from 'node:path'
-import pc from 'picocolors'
 import { countAtOrAbove, DEFAULT_FAIL_ON, type ImpactLevel } from '../audit/impact.ts'
 import { formatConsoleReport } from '../audit/report/console.ts'
 import type { PageAudit } from '../audit/runners/jsdom.ts'
+import { count } from '../text.ts'
 
 /**
  * The engines and the machine-readable reporters are imported where they are
@@ -16,15 +14,12 @@ import type { PageAudit } from '../audit/runners/jsdom.ts'
  */
 
 import type { CollectedPage } from '../audit/collect.ts'
+import { advise, emitDocument, fail, note, runEngine } from './command.ts'
 import { type CrawlCommandOptions, resolvePages } from './pages.ts'
 
 export const OUTPUT_FORMATS = ['console', 'json', 'sarif', 'html'] as const
 
 export type OutputFormat = (typeof OUTPUT_FORMATS)[number]
-
-export function isOutputFormat(value: string): value is OutputFormat {
-  return (OUTPUT_FORMATS as readonly string[]).includes(value)
-}
 
 export interface AuditCommandOptions extends CrawlCommandOptions {
   include?: string[]
@@ -84,55 +79,25 @@ export async function runAuditCommand(
   // started the project's server, and leaving it running would hold the process
   // open after the report is written.
   try {
-    const engineNote = await describeEngine(pages, options)
-    process.stderr.write(
-      pc.dim(
-        `Auditing ${pages.length} ${pages.length === 1 ? 'page' : 'pages'} in ${label}${engineNote}…\n`,
-      ),
+    note(
+      `Auditing ${count(pages.length, 'page')} in ${label}${await describeEngine(pages, options)}…`,
     )
 
-    // An explicit --base-url still wins; the crawl's own origin is the default, so
-    // a fetched page is audited under the URL it was actually fetched from.
-    const effectiveBaseUrl: string | undefined = options.baseUrl ?? origin
+    // An explicit --base-url still wins; the crawl's own origin is the default
+    // so that a fetched page is audited under the URL it was fetched from.
+    const baseUrl = options.baseUrl ?? origin
 
-    const runnerOptions = {
-      // The audited project, so the browser runner resolves Playwright from
-      // there rather than from wherever npx unpacked this package.
+    let audits = await runEngine(pages, {
       cwd: options.cwd ?? process.cwd(),
-      // An explicit --base-url still wins; the crawl's own origin is the default
-      // so that a fetched page is audited under the URL it was fetched from.
-      ...(effectiveBaseUrl === undefined ? {} : { baseUrl: effectiveBaseUrl }),
+      ...(baseUrl === undefined ? {} : { baseUrl }),
       ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
-    }
-
-    let audits: PageAudit[]
-    if (options.browser) {
-      const { BrowserUnavailableError, runBrowserAudit } = await import(
-        '../audit/runners/playwright.ts'
-      )
-      try {
-        // No directory when the pages were crawled: they are audited at the URL
-        // they came from, not served back out of a copy on disk.
-        audits = await runBrowserAudit(
-          options.url === undefined ? dir : undefined,
-          pages,
-          runnerOptions,
-        )
-      } catch (cause) {
-        // Playwright missing is a setup problem with a specific fix, not a crash.
-        if (cause instanceof BrowserUnavailableError) {
-          process.stderr.write(`${pc.red('error')} ${cause.message}\n`)
-          return { audits: [], exitCode: 2 }
-        }
-        throw cause
-      }
-    } else {
-      const { runPooledAudit } = await import('../audit/runners/pool.ts')
-      audits = await runPooledAudit(pages, {
-        ...runnerOptions,
-        ...(options.concurrency === undefined ? {} : { concurrency: options.concurrency }),
-      })
-    }
+      ...(options.browser ? { browser: true } : {}),
+      ...(options.concurrency === undefined ? {} : { concurrency: options.concurrency }),
+      // No directory when the pages were crawled: they are audited at the URL
+      // they came from, not served back out of a copy on disk.
+      ...(options.url === undefined && dir !== undefined ? { directory: dir } : {}),
+    })
+    if (!audits) return { audits: [], exitCode: 2 }
 
     const failOn = options.failOn ?? DEFAULT_FAIL_ON
 
@@ -152,9 +117,7 @@ export async function runAuditCommand(
     // failed run rather than as a verdict.
     const unaudited = audits.filter((audit) => audit.error)
     if (unaudited.length > 0) {
-      process.stderr.write(
-        `${pc.red('error')} ${unaudited.length} of ${audits.length} pages could not be audited\n`,
-      )
+      fail(`${unaudited.length} of ${audits.length} pages could not be audited`)
       return { audits, exitCode: 2 }
     }
 
@@ -183,32 +146,27 @@ async function acceptBaseline(
     const outcome = applyBaseline(audits, baseline)
 
     if (outcome.accepted > 0) {
-      process.stderr.write(pc.dim(`Baseline accepted ${outcome.accepted} violating elements\n`))
+      note(`Baseline accepted ${outcome.accepted} violating elements`)
     }
     // A baseline that no longer matches is the good case — it means things were
     // fixed — but only if somebody is told to delete the entries. Entries for
     // pages this run did not audit are not counted here, so the advice is safe
     // to follow after a run narrowed by --include.
     if (outcome.stale.length > 0) {
-      const count = outcome.stale.length
-      process.stderr.write(
-        pc.dim(
-          `${count} baseline ${count === 1 ? 'entry no longer matches' : 'entries no longer match'} and can be removed\n`,
-        ),
-      )
+      const stale = outcome.stale.length
+      const verb = stale === 1 ? 'entry no longer matches' : 'entries no longer match'
+      note(`${stale} baseline ${verb} and can be removed`)
     }
     if (outcome.expired.length > 0) {
-      process.stderr.write(
-        pc.yellow(
-          `${outcome.expired.length} baseline entries have expired and no longer suppress anything\n`,
-        ),
+      advise(
+        `${outcome.expired.length} baseline entries have expired and no longer suppress anything`,
       )
     }
 
     return outcome.audits
   } catch (cause) {
     if (cause instanceof BaselineError) {
-      process.stderr.write(`${pc.red('error')} ${cause.message}\n`)
+      fail(cause.message)
       return undefined
     }
     throw cause
@@ -246,20 +204,12 @@ async function emit(
 ): Promise<void> {
   const format = options.format ?? 'console'
   const toFile = typeof options.output === 'string'
-
   const body = await renderReport(audits, dir, failOn, format, toFile, options)
-
-  if (!options.output) {
-    process.stdout.write(body)
-    return
-  }
 
   // Against the same working directory as --baseline, rather than the process's:
   // a caller that says where relative paths start means it for all of them.
-  const target = path.resolve(options.cwd ?? process.cwd(), options.output)
-  await mkdir(path.dirname(target), { recursive: true })
-  await writeFile(target, body, 'utf8')
-  process.stderr.write(pc.dim(`Report written to ${options.output}\n`))
+  await emitDocument(body, options.output, options.cwd ?? process.cwd())
+  if (options.output !== undefined) note(`Report written to ${options.output}`)
 }
 
 async function renderReport(
@@ -289,36 +239,41 @@ async function renderReport(
     }
     case 'html': {
       const { buildHtmlReport } = await import('../audit/report/html.ts')
-      const { buildRouteMap: mapRoutes, sourceFor: lookup } = await import('../audit/routes.ts')
-      const { buildComponentIndex: indexSource, componentFor: findComponent } = await import(
-        '../audit/component.ts'
-      )
-      const routeMap = await mapRoutes(options.cwd ?? process.cwd())
-      const sourceIndex = await indexSource(options.cwd ?? process.cwd())
       return buildHtmlReport(audits, {
-        sourceFor: (page) => lookup(routeMap, page),
-        componentFor: (html) => findComponent(sourceIndex, html),
+        ...(await sourceLookups(options.cwd ?? process.cwd())),
         directory: dir,
         failOn,
         ...(options.baseUrl ? { baseUrl: options.baseUrl } : {}),
       })
     }
     case 'console': {
-      // Best-effort: a project using no convention this recognises gets the
-      // report it always got, with no source column.
-      const { buildRouteMap, sourceFor } = await import('../audit/routes.ts')
-      const { buildComponentIndex, componentFor } = await import('../audit/component.ts')
-      const routes = await buildRouteMap(options.cwd ?? process.cwd())
-      const components = await buildComponentIndex(options.cwd ?? process.cwd())
       return `${formatConsoleReport(audits, {
+        ...(await sourceLookups(options.cwd ?? process.cwd())),
         dir,
         failOn,
-        sourceFor: (page) => sourceFor(routes, page),
-        componentFor: (html) => componentFor(components, html),
         ...(options.perPage ? { perPage: true } : {}),
         ...(options.manual ? { manual: true } : {}),
         ...(toFile ? { color: false } : {}),
       })}\n`
     }
+  }
+}
+
+/**
+ * Where a page and a failing element were written, for the two reports that say
+ * so. Best-effort: a project using no convention this recognises gets the
+ * report it always got, with no source named.
+ */
+async function sourceLookups(cwd: string): Promise<{
+  sourceFor: (page: string) => string | undefined
+  componentFor: (html: string) => string | undefined
+}> {
+  const { buildRouteMap, sourceFor } = await import('../audit/routes.ts')
+  const { buildComponentIndex, componentFor } = await import('../audit/component.ts')
+  const routes = await buildRouteMap(cwd)
+  const components = await buildComponentIndex(cwd)
+  return {
+    sourceFor: (page) => sourceFor(routes, page),
+    componentFor: (html) => componentFor(components, html),
   }
 }

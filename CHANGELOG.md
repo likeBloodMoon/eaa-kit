@@ -9,6 +9,31 @@ move: the JSON report's `schemaVersion` and the baseline file's. Both are bumped
 a field is removed, renamed, or changes meaning — new fields may appear without one, so
 consumers must ignore what they do not recognise.
 
+## Unreleased
+
+### Changed
+
+- **Duplicated code folded into shared helpers**, with no change to any report, exit code
+  or public export. Six modules had their own `try`/`stat`/`catch` for whether a path
+  exists; the URL a page is audited under was written out three times, once with a comment
+  asking that it be kept in step with the others; four sorters separately agreed by hand
+  that an unclassified impact ranks with the most severe; the console and HTML reports each
+  grouped the unevaluated rules and built the coverage line themselves; and `audit` and
+  `baseline` each spelled out the same engine selection and the same setup-failure
+  handling. The HTML report now reads the JSON report's tally rather than recomputing it,
+  so the two cannot disagree about what a run found.
+- **Rules the engine could not evaluate tie-break by rule id** in the console report's
+  "Not evaluated" section when they appear on the same number of pages, rather than by the
+  order they were encountered. Two runs of one site now order that section identically,
+  which is the guarantee the rest of the reports already make.
+
+### Removed
+
+- Dead code: a Vite logger branch identical to its own `else`, two format type guards with
+  no callers left, a flag parser that was another one duplicated verbatim, and the Astro
+  integration's options interface, which restated the shared one field for field and is now
+  an alias of it, so the Astro and Vite entries cannot drift apart.
+
 ## 0.3.0 — 2026-08-29
 
 ### Added

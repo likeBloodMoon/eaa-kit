@@ -1,5 +1,6 @@
-import { readFile, stat } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import path from 'node:path'
+import { exists } from '../fs.ts'
 
 /**
  * What this tool knows about the things that build websites.
@@ -200,15 +201,6 @@ export interface DetectedFramework {
   outputs: string[]
 }
 
-async function exists(root: string, name: string): Promise<boolean> {
-  try {
-    await stat(path.resolve(root, name))
-    return true
-  } catch {
-    return false
-  }
-}
-
 /**
  * The framework this project uses, if it is one this knows.
  *
@@ -228,7 +220,7 @@ export async function detectFramework(
     let byFile = false
     if (!byPackage && framework.files !== undefined) {
       for (const file of framework.files) {
-        if (await exists(cwd, file)) {
+        if (await exists(file, cwd)) {
           byFile = true
           break
         }

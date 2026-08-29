@@ -1,4 +1,5 @@
 import type { ImpactLevel } from '../audit/impact.ts'
+import type { OutputFormat } from '../cli/audit.ts'
 
 /**
  * What a build-time integration does once the build has written its files.
@@ -19,7 +20,7 @@ export interface IntegrationOptions {
   browser?: boolean
   concurrency?: number
   baseline?: string
-  format?: 'console' | 'json' | 'sarif' | 'html'
+  format?: OutputFormat
   /** Write the report here instead of the build log. */
   output?: string
   /**
@@ -58,7 +59,10 @@ export async function auditBuild(
   options: IntegrationOptions,
   logger: IntegrationLogger,
 ): Promise<void> {
-  if (options.enabled === false) {
+  // enabled and failBuild are this layer's own; everything else is what the
+  // audit command already takes, and is handed over unchanged.
+  const { enabled, failBuild, ...auditOptions } = options
+  if (enabled === false) {
     logger.info('skipped (enabled: false)')
     return
   }
@@ -68,17 +72,7 @@ export async function auditBuild(
   // would charge most of a second to every dev-server start as well.
   const { runAuditCommand } = await import('../cli/audit.ts')
 
-  const { exitCode } = await runAuditCommand(directory, {
-    ...(options.failOn ? { failOn: options.failOn } : {}),
-    ...(options.include ? { include: options.include } : {}),
-    ...(options.exclude ? { exclude: options.exclude } : {}),
-    ...(options.baseUrl ? { baseUrl: options.baseUrl } : {}),
-    ...(options.browser ? { browser: true } : {}),
-    ...(options.concurrency === undefined ? {} : { concurrency: options.concurrency }),
-    ...(options.baseline ? { baseline: options.baseline } : {}),
-    ...(options.format ? { format: options.format } : {}),
-    ...(options.output ? { output: options.output } : {}),
-  })
+  const { exitCode } = await runAuditCommand(directory, auditOptions)
 
   if (exitCode === 0) {
     logger.info('no violations at or above the threshold')
@@ -94,7 +88,7 @@ export async function auditBuild(
       ? 'the audit could not be completed, so this build was not checked'
       : 'accessibility violations at or above the threshold'
 
-  if (options.failBuild === false) {
+  if (failBuild === false) {
     logger.warn(`${message} (failBuild: false, so the build continues)`)
     return
   }

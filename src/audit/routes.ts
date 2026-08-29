@@ -1,6 +1,6 @@
-import { stat } from 'node:fs/promises'
 import path from 'node:path'
 import { glob } from 'tinyglobby'
+import { isDirectory, toPosix } from '../fs.ts'
 
 /**
  * Which source file produced an audited page.
@@ -47,7 +47,7 @@ export function routePathFor(
   relativeFile: string,
   framework: RouteMap['framework'],
 ): string | undefined {
-  const posix = relativeFile.split(path.sep).join('/')
+  const posix = toPosix(relativeFile)
   let route = posix
 
   if (framework === 'next-app' || framework === 'sveltekit') {
@@ -88,11 +88,7 @@ function emittedPathsFor(route: string): string[] {
 export async function buildRouteMap(cwd: string): Promise<RouteMap | undefined> {
   for (const convention of CONVENTIONS) {
     const directory = path.join(cwd, convention.dir)
-    try {
-      if (!(await stat(directory)).isDirectory()) continue
-    } catch {
-      continue
-    }
+    if (!(await isDirectory(directory))) continue
 
     const files = await glob([convention.pattern], {
       cwd: directory,
@@ -105,7 +101,7 @@ export async function buildRouteMap(cwd: string): Promise<RouteMap | undefined> 
     for (const file of files) {
       const route = routePathFor(file, convention.framework)
       if (route === undefined) continue
-      const source = `${convention.dir}/${file.split(path.sep).join('/')}`
+      const source = `${convention.dir}/${toPosix(file)}`
       for (const emitted of emittedPathsFor(route)) {
         // First writer wins, so a more specific convention is not overwritten
         // by a looser one matching the same page.

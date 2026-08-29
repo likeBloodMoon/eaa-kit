@@ -1,4 +1,3 @@
-import { pathToFileURL } from 'node:url'
 import { Script } from 'node:vm'
 import axe from 'axe-core'
 import { JSDOM, VirtualConsole } from 'jsdom'
@@ -8,6 +7,7 @@ import {
   DEFAULT_TAGS,
   failedPage,
   type PageAudit,
+  pageUrl,
   runOptions,
   shapeResults,
 } from '../result.ts'
@@ -206,11 +206,6 @@ export function blindRulesInScope(tags: readonly string[]): Map<string, BlindRul
   }
   blindScopeCache.set(key, inScope)
   return inScope
-}
-
-function pageUrl(page: CollectedPage, baseUrl?: string): string {
-  if (!baseUrl) return pathToFileURL(page.absolutePath).href
-  return new URL(page.relativePath, baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`).href
 }
 
 async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {

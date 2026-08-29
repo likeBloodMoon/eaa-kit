@@ -1,6 +1,7 @@
-import { readFile, stat } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { isFile } from '../fs.ts'
 import { ConfigError, type EaaConfig, parseConfig } from './define.ts'
 
 /** Checked in this order, first match wins. */
@@ -100,12 +101,4 @@ async function importModule(file: string): Promise<unknown> {
     ])
   }
   return module.default
-}
-
-async function isFile(candidate: string): Promise<boolean> {
-  try {
-    return (await stat(candidate)).isFile()
-  } catch {
-    return false
-  }
 }

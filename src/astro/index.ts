@@ -1,7 +1,5 @@
 import { fileURLToPath } from 'node:url'
-import type { ImpactLevel } from '../audit/impact.ts'
-import type { OutputFormat } from '../cli/audit.ts'
-import { auditBuild, BuildAuditError } from '../integration/run.ts'
+import { auditBuild, BuildAuditError, type IntegrationOptions } from '../integration/run.ts'
 
 /**
  * An Astro integration that audits the build Astro just produced.
@@ -40,35 +38,12 @@ export interface AstroIntegrationLike {
   }
 }
 
-export interface EaaKitIntegrationOptions {
-  /** Lowest impact that fails the build. Defaults to 'serious'. */
-  failOn?: ImpactLevel
-  /**
-   * Whether a failing audit fails the build. Defaults to true.
-   *
-   * The CLI has no equivalent because a shell can ignore an exit code; a build
-   * hook cannot. Turning this off is for the first week of adopting the tool on
-   * an existing site — after that, a baseline is the honest way to go green,
-   * because it records what is wrong instead of hiding it.
-   */
-  failBuild?: boolean
-  /** Skip the audit entirely. For turning it off by environment. */
-  enabled?: boolean
-  include?: string[]
-  exclude?: string[]
-  /** Audit pages under their real site URL instead of file://. */
-  baseUrl?: string
-  /** Audit in real Chromium. Needs the playwright peer. */
-  browser?: boolean
-  /** Worker threads for the browserless engine. */
-  concurrency?: number
-  /** Accept the violations recorded in this file; fail only on new ones. */
-  baseline?: string
-  /** Write a report as well as printing one. */
-  format?: OutputFormat
-  /** Where to write it. Required for `format` to do anything useful. */
-  output?: string
-}
+/**
+ * The same options every build-time integration takes; see IntegrationOptions
+ * for what each one does. Aliased rather than restated so the Astro and Vite
+ * entries cannot drift apart.
+ */
+export type EaaKitIntegrationOptions = IntegrationOptions
 
 export class AstroAuditError extends Error {
   override readonly name = 'AstroAuditError'
