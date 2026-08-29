@@ -3,6 +3,7 @@ import { escapeAttribute, escapeText } from '../../escape.ts'
 import { TOOL_VERSION } from '../../version.ts'
 import { countAtOrAbove, type ImpactLevel, isImpactLevel } from '../impact.ts'
 import { groupIssues, isShared } from '../issues.ts'
+import { manualCheckFor, understandingUrl } from '../manual.ts'
 import type { Finding, IncompleteFinding, PageAudit } from '../runners/jsdom.ts'
 
 /**
@@ -31,6 +32,8 @@ const MAX_SNIPPET = 200
 export interface HtmlReportOptions {
   /** Maps an audited page to the source file that produced it, when known. */
   sourceFor?: (pagePath: string) => string | undefined
+  /** Maps a failing element to the source file it was written in. */
+  componentFor?: (html: string) => string | undefined
   /** Build directory the audit ran against. */
   directory: string
   /** Lowest impact that fails the run. */
@@ -330,12 +333,15 @@ function notEvaluated(audits: readonly PageAudit[]): string {
       ([ruleId, entry]) => `  <li>
     <code>${escapeText(ruleId)}</code> on ${count(entry.pages, 'page')}${standards(entry.finding)}
     <span class="reason">${escapeText(entry.detail)}</span>
+${manualBlock(ruleId, entry.finding)}
   </li>`,
     )
     .join('\n')
 
   return `<h2>Not evaluated</h2>
-<p>This engine reached no verdict on these rules. They are never reported as passing.</p>
+<p>This engine reached no verdict on these rules. They are never reported as passing.
+Each one below says what to check by hand, because automated testing finds a minority of
+accessibility barriers and this is where the rest of them are.</p>
 <ul class="not-evaluated">
 ${items}
 </ul>`
@@ -454,6 +460,8 @@ footer { color: #4a4a4a; font-size: 0.9rem; }
 .tile.none { background: #eef7ee; border-color: #216e39; color: #17512a; }
 .tile.unchecked { background: #f4f4f5; border-color: #565656; color: #444444; }
 p.intro { color: #4a4a4a; }
+p.manual { margin: 0.35rem 0; }
+p.manual.browser, p.criteria { margin: 0.35rem 0; font-size: 0.9rem; color: #4a4a4a; }
 ol.issues { list-style: none; padding: 0; }
 li.issue { border: 1px solid #d7d7d7; border-radius: 6px; padding: 0.75rem 1rem;
   margin: 0 0 1rem; }
@@ -463,7 +471,7 @@ li.issue .wcag { color: #4a4a4a; font-size: 0.85rem; font-weight: 400; }
 p.help { margin: 0 0 0.75rem; }
 .element { border-top: 1px solid #e6e6e6; padding-top: 0.75rem; margin-top: 0.75rem; }
 .element:first-of-type { border-top: 0; padding-top: 0; margin-top: 0; }
-p.reach, p.sources, p.selector, p.more { margin: 0.35rem 0; font-size: 0.9rem; color: #4a4a4a; }
+p.reach, p.sources, p.selector, p.more, p.written-in { margin: 0.35rem 0; font-size: 0.9rem; color: #4a4a4a; }
 .element details { font-size: 0.9rem; color: #4a4a4a; }
 .element summary { cursor: pointer; }
 ul.page-list { margin: 0.35rem 0 0; padding-left: 1.25rem; }
@@ -486,7 +494,8 @@ ul.page-list { margin: 0.35rem 0 0; padding-left: 1.25rem; }
   .tile.unclassified { background: #1f1f1f; border-color: #9a9a9a; color: #d0d0d0; }
   .tile.none { background: #10240f; border-color: #7ee2a8; color: #b6f0cd; }
   .tile.unchecked { background: #1e1e1e; border-color: #9a9a9a; color: #d0d0d0; }
-  p.intro, li.issue .wcag, p.reach, p.sources, p.selector, .element details { color: #b6b6b6; }
+  p.intro, li.issue .wcag, p.reach, p.sources, p.selector, .element details,
+  p.manual.browser, p.criteria { color: #b6b6b6; }
   li.issue { border-color: #3a3a3a; }
   .element { border-top-color: #2e2e2e; }
   .badge.critical { background: #2b1111; border-color: #ff9d9d; color: #ffc9c9; }
@@ -621,8 +630,13 @@ function issueElement(
   // about the fix — one component, these files — stays open.
   const list = element.pages.map((page) => `<li>${escapeText(page)}</li>`).join('')
 
+  // Above the pages: the component is where the fix goes, the pages are where
+  // the symptom shows.
+  const component = options.componentFor?.(element.html)
+
   return `<div class="element">
 <pre><code>${escapeText(collapseWhitespace(element.html))}</code></pre>
+${component === undefined ? '' : `<p class="written-in">Written in <code>${escapeText(component)}</code></p>`}
 ${element.selector === '' ? '' : `<p class="selector"><code>${escapeText(element.selector)}</code></p>`}
 <p class="reach">Found on ${count(element.pages.length, 'page')}.${
     isShared(element) ? ' <strong>Identical on each — likely one shared component.</strong>' : ''
@@ -640,4 +654,35 @@ ${
 function collapseWhitespace(html: string): string {
   const flat = html.replace(/\s+/g, ' ').trim()
   return flat.length > 200 ? `${flat.slice(0, 199)}…` : flat
+}
+
+/**
+ * The manual check for a rule, and where to read what the criterion requires.
+ *
+ * Unconditional here, unlike the console report, which hides it behind a flag.
+ * This document is read once by somebody deciding what to do, not printed on
+ * every run by somebody who has read it before.
+ */
+function manualBlock(ruleId: string, finding: IncompleteFinding): string {
+  const manual = manualCheckFor(ruleId)
+  const links = finding.successCriteria
+    .map((criterion) => {
+      const url = understandingUrl(criterion)
+      return url === undefined
+        ? undefined
+        : `<a href="${escapeAttribute(url)}">WCAG ${escapeText(criterion)}</a>`
+    })
+    .filter((link) => link !== undefined)
+
+  if (manual === undefined && links.length === 0) return ''
+
+  return [
+    manual === undefined ? '' : `    <p class="manual">${escapeText(manual.check)}</p>`,
+    manual?.browserAnswers === true
+      ? '    <p class="manual browser">Or run the audit again with <code>--browser</code>.</p>'
+      : '',
+    links.length === 0 ? '' : `    <p class="criteria">${links.join(' · ')}</p>`,
+  ]
+    .filter((line) => line !== '')
+    .join('\n')
 }

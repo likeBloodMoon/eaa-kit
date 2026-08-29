@@ -53,6 +53,8 @@ export interface AuditCommandOptions extends CrawlCommandOptions {
   noBuild?: boolean
   /** List every page and its result under the issues. */
   perPage?: boolean
+  /** Print the manual check for each rule the engine could not evaluate. */
+  manual?: boolean
 }
 
 export interface AuditCommandResult {
@@ -288,9 +290,14 @@ async function renderReport(
     case 'html': {
       const { buildHtmlReport } = await import('../audit/report/html.ts')
       const { buildRouteMap: mapRoutes, sourceFor: lookup } = await import('../audit/routes.ts')
+      const { buildComponentIndex: indexSource, componentFor: findComponent } = await import(
+        '../audit/component.ts'
+      )
       const routeMap = await mapRoutes(options.cwd ?? process.cwd())
+      const sourceIndex = await indexSource(options.cwd ?? process.cwd())
       return buildHtmlReport(audits, {
         sourceFor: (page) => lookup(routeMap, page),
+        componentFor: (html) => findComponent(sourceIndex, html),
         directory: dir,
         failOn,
         ...(options.baseUrl ? { baseUrl: options.baseUrl } : {}),
@@ -300,12 +307,16 @@ async function renderReport(
       // Best-effort: a project using no convention this recognises gets the
       // report it always got, with no source column.
       const { buildRouteMap, sourceFor } = await import('../audit/routes.ts')
+      const { buildComponentIndex, componentFor } = await import('../audit/component.ts')
       const routes = await buildRouteMap(options.cwd ?? process.cwd())
+      const components = await buildComponentIndex(options.cwd ?? process.cwd())
       return `${formatConsoleReport(audits, {
         dir,
         failOn,
         sourceFor: (page) => sourceFor(routes, page),
+        componentFor: (html) => componentFor(components, html),
         ...(options.perPage ? { perPage: true } : {}),
+        ...(options.manual ? { manual: true } : {}),
         ...(toFile ? { color: false } : {}),
       })}\n`
     }

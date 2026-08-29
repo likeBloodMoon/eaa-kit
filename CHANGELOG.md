@@ -9,6 +9,70 @@ move: the JSON report's `schemaVersion` and the baseline file's. Both are bumped
 a field is removed, renamed, or changes meaning — new fields may appear without one, so
 consumers must ignore what they do not recognise.
 
+## Unreleased
+
+### Added
+
+- **A Vite plugin**, `eaa-kit/vite`. One plugin rather than four: SvelteKit, Nuxt, Remix
+  and Astro all build on Vite, so a plugin in the Vite config is a plugin in all of them.
+  It audits in `closeBundle`, after the build has written its files, and fails the build on
+  violations at or above the threshold.
+- **The source file a failing element was written in**, not just the page that renders it.
+  Route mapping names `app/page.tsx`; a header with a missing `alt` is written in none of
+  the pages that show it. A literal from the failing markup — an image path, a link
+  target, an id — is looked for in the project's own source, and the file is named only
+  when exactly one contains it. Frameworks emit source positions only in development
+  builds, and an auditor runs against production output; a literal survives every compiler.
+- **What to check by hand.** Every rule the browserless engine cannot decide now carries
+  the check a person would do, and every success criterion a link to its WCAG Understanding
+  page. `--manual` prints the checks in the console report; the HTML report always
+  includes them. Automated testing finds a minority of barriers, and this turns that
+  disclaimer into the part of the report with the most work in it.
+
+### Changed
+
+- The Astro integration and the Vite plugin share one decision function. Both arrive at a
+  finished build in a directory and have to decide whether it may proceed; only the hook
+  name and the logger differed.
+
+### Fixed
+
+- **A browser that was never downloaded is reported as a step to run, not a crash.**
+  `npm i -D playwright` does not fetch Chromium, so somebody who followed the install
+  line exactly still landed here — and what they got was Playwright's advice boxed in
+  ASCII, wrapped in a stack trace through eaa-kit's bundled internals, which reads as the
+  tool falling over rather than as setup left to do. It is now four lines naming the
+  command and the path the browser was looked for at, so a misdirected
+  `PLAYWRIGHT_BROWSERS_PATH` is visible too. Launch failures that are not this are passed
+  through untouched, because they are real faults and dressing them up as setup advice
+  would send somebody off installing a browser they already have.
+
+### Testing
+
+- **The packaged CLI is now run the way an install runs it**, by `pnpm test:packaged` and
+  on every CI job. Three browser-mode bugs reached users through this path in 0.2.1 and
+  0.2.2, and none of them could have been caught here: the suite imports from `src/` and
+  runs inside this repo, where Playwright sits next to the code. Nothing about that
+  resembles the arrangement that broke. So the harness rebuilds the arrangement instead of
+  describing it — a real `npm pack`, extracted somewhere that is not the project, with
+  Playwright installed only in the project, which is what npx creates. It asserts the run
+  finds a contrast violation, a rule the browserless engine cannot evaluate at all, so a
+  silent fallback to jsdom fails the check rather than passing it quietly.
+
+  Each of the three fixes was reverted in turn to confirm the harness goes red: the
+  resolution fix reproduces *needs Playwright* against a project that has it, the export
+  fix reproduces *no chromium launcher* against a working install, and removing the launch
+  guard hangs the run until the harness times it out.
+
+### Not done
+
+- **There is no Next.js plugin, deliberately.** Next has no stable hook that runs after a
+  build writes its files: `next.config.js`'s `webpack` function is the usual place, and
+  Next 16 defaults to Turbopack, which does not call it — confirmed by running a build
+  with a config that logs from there, and it never printed. A plugin built that way would
+  look wired up and silently never run, which for an accessibility check is worse than
+  having none. `next build && eaa-kit audit`, or plain `eaa-kit audit`, always work.
+
 ## 0.2.2 — 2026-08-29
 
 ### Added

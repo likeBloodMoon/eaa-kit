@@ -40,6 +40,10 @@
       "types": "./dist/astro/index.d.ts",
       "import": "./dist/astro/index.js"
     },
+    "./vite": {
+      "types": "./dist/vite/index.d.ts",
+      "import": "./dist/vite/index.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -54,7 +58,8 @@
     "lint": "biome check .",
     "format": "biome check --write .",
     "smoke": "pnpm build && node dist/cli/index.js audit tests/fixtures/site --include about/** --format json && node dist/cli/index.js audit tests/fixtures/site --include \"about/**\" \"blog/**\" \"drafts/**\" \"legacy.htm\" --concurrency 2 && node dist/cli/index.js audit tests/fixtures/site --include about/** --format html && node dist/cli/index.js audit tests/fixtures/site --baseline examples/baseline.json && node -e \"import('./dist/astro/index.js').then(m => { const i = m.default(); if (i.name !== 'eaa-kit' || typeof i.hooks['astro:build:done'] !== 'function') { throw new Error('astro entry point is not an integration') } console.log('astro entry ok') })\" && node dist/cli/index.js statement --config examples/eaa.config.json && node dist/cli/index.js statement --config examples/eaa.config.json --audit examples/report.json --format html",
-    "examples": "pnpm build && node scripts/generate-examples.mjs"
+    "examples": "pnpm build && node scripts/generate-examples.mjs",
+    "test:packaged": "pnpm build && node scripts/test-packaged.mjs"
   },
   "peerDependencies": {
     "playwright": ">=1.40.0",

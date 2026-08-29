@@ -1,6 +1,7 @@
 import pc from 'picocolors'
 import { countAtOrAbove, DEFAULT_FAIL_ON, IMPACT_LEVELS, type ImpactLevel } from '../impact.ts'
 import { groupIssues, type IssueElement, isShared } from '../issues.ts'
+import { manualCheckFor, understandingUrl } from '../manual.ts'
 import type { Finding, IncompleteFinding, PageAudit } from '../runners/jsdom.ts'
 
 export interface ConsoleReportOptions {
@@ -17,11 +18,23 @@ export interface ConsoleReportOptions {
   /** Maps an audited page to the source file that produced it, when known. */
   sourceFor?: (pagePath: string) => string | undefined
   /**
+   * Maps a failing element to the source file it was written in. Where route
+   * mapping names the page, this names the component the page only renders.
+   */
+  componentFor?: (html: string) => string | undefined
+  /**
    * List every page and its result, under the issues. Off by default: on a
    * fifty-page site it is a wall, and what somebody needs first is what is
    * broken, not a roll call of pages that are fine.
    */
   perPage?: boolean
+  /**
+   * Print the manual check for each rule this engine could not evaluate, and a
+   * link to what the criterion requires. Off by default: it is several lines
+   * per rule, and somebody re-running an audit they already understand does not
+   * need it every time.
+   */
+  manual?: boolean
 }
 
 const DEFAULT_MAX_NODES = 3
@@ -73,6 +86,8 @@ interface Context {
   maxNodes: number
   failOn: ImpactLevel
   sourceFor: (pagePath: string) => string | undefined
+  componentFor: (html: string) => string | undefined
+  manual: boolean
   c: ReturnType<typeof pc.createColors>
   symbol: (kind: 'violation' | 'review' | 'blind' | 'clean' | 'error') => string
 }
@@ -88,6 +103,8 @@ function context(options: ConsoleReportOptions): Context {
     maxNodes: options.maxNodes ?? DEFAULT_MAX_NODES,
     failOn: options.failOn ?? DEFAULT_FAIL_ON,
     sourceFor: options.sourceFor ?? (() => undefined),
+    componentFor: options.componentFor ?? (() => undefined),
+    manual: options.manual ?? false,
     c,
     symbol: (kind) => {
       switch (kind) {
@@ -405,6 +422,32 @@ function blindSection(audits: readonly PageAudit[], ctx: Context): string[] {
       ]),
     )
     lines.push(render(ctx, [{ text: `      ${finding.reasonDetail}`, paint: ctx.c.dim }]))
+
+    // The check somebody does by hand. Without it "could not be evaluated"
+    // leaves a reader knowing there is a gap and not what to do about it,
+    // which is the half of compliance every tool waves at.
+    const manual = manualCheckFor(ruleId)
+    if (manual !== undefined && ctx.manual) {
+      for (const line of wrap(manual.check, ctx.width - 8)) {
+        lines.push(render(ctx, [{ text: `      ${line}`, paint: ctx.c.dim }]))
+      }
+      if (manual.browserAnswers) {
+        lines.push(render(ctx, [{ text: '      or run again with --browser', paint: ctx.c.dim }]))
+      }
+    }
+
+    for (const criterion of finding.successCriteria) {
+      const url = understandingUrl(criterion)
+      if (url !== undefined) {
+        lines.push(render(ctx, [{ text: `      ${criterion}: ${url}`, paint: ctx.c.dim }]))
+      }
+    }
+  }
+
+  if (!ctx.manual && byRule.size > 0) {
+    lines.push(
+      render(ctx, [{ text: '  Run with --manual for what to check by hand.', paint: ctx.c.dim }]),
+    )
   }
 
   return lines
@@ -516,14 +559,22 @@ function whereLines(element: IssueElement, ctx: Context): string[] {
   const shown = element.pages.slice(0, ctx.maxNodes)
   const rest = element.pages.length - shown.length
 
-  const lines = [
+  // Above the page list, because it is where the fix goes. The pages are where
+  // the symptom shows.
+  const component = ctx.componentFor(element.html)
+  const lines =
+    component === undefined
+      ? []
+      : [render(ctx, [{ text: '        written in ', paint: ctx.c.dim }, { text: component }])]
+
+  lines.push(
     render(ctx, [
       {
         text: `        on ${element.pages.length} ${plural(element.pages.length, 'page')}:`,
         paint: ctx.c.dim,
       },
     ]),
-  ]
+  )
 
   // One per line rather than a comma-separated list: with a source file
   // alongside each, the list runs past any terminal and gets truncated exactly
@@ -554,5 +605,22 @@ function whereLines(element: IssueElement, ctx: Context): string[] {
       ]),
     )
   }
+  return lines
+}
+
+/** Wraps a sentence to the terminal, so a paragraph of advice stays readable. */
+function wrap(text: string, width: number): string[] {
+  const words = text.split(' ')
+  const lines: string[] = []
+  let line = ''
+  for (const word of words) {
+    if (line === '') line = word
+    else if (`${line} ${word}`.length <= width) line = `${line} ${word}`
+    else {
+      lines.push(line)
+      line = word
+    }
+  }
+  if (line !== '') lines.push(line)
   return lines
 }
