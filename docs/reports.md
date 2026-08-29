@@ -224,8 +224,19 @@ eaa-kit audit ./dist --format html --output a11y.html
 ```
 
 A complete generated report is at [examples/report.html](../examples/report.html). It opens
-with the verdict, then what the run was, then the summary, then a section per page, then
-the rules the engine could not evaluate.
+with the verdict and a scoreboard, then **What to fix** — the violations grouped by the
+element that causes them — then what the run was, the summary, a section per page, and the
+rules the engine could not evaluate.
+
+- **It leads with the work, not the inventory.** On a site built from components one broken
+  header is one line in one file; a page-by-page listing reports it as many findings
+  without ever saying they are the same defect. Each entry names the markup, how many
+  pages carry it, and — where a router convention names one — the source file. Identical
+  markup on three or more pages is called out as likely one shared component.
+- **The scoreboard carries what was *not* evaluated beside the severity counts**, at the
+  same size. That placement is deliberate: a row reading "0 critical, 0 serious" is the one
+  place this document could overstate, because the same run may have left whole rule
+  categories unchecked, and a reader who stops at the top would take it for a clean site.
 
 - **One file, no assets, no scripts.** It can be attached to an email and opened. Nothing
   in it fetches anything, which also means it cannot phone home from a client's machine.

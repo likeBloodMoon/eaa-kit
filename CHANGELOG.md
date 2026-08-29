@@ -9,7 +9,15 @@ move: the JSON report's `schemaVersion` and the baseline file's. Both are bumped
 a field is removed, renamed, or changes meaning — new fields may appear without one, so
 consumers must ignore what they do not recognise.
 
-## 0.2.2 — 2026-08-28
+## 0.2.2 — 2026-08-29
+
+### Added
+
+- The GitHub Action takes `url`, `allow-remote` and `max-pages`, so a site that renders on
+  a server can be audited from CI. `--url` shipped in 0.2.0 and the Action had no way to
+  reach it, which left the feature's main audience — anyone auditing in a workflow rather
+  than a terminal — unable to use it. Leaving both `url` and `directory` empty lets
+  eaa-kit work the project out, as it does on the command line.
 
 ### Fixed
 
@@ -35,6 +43,18 @@ consumers must ignore what they do not recognise.
   before anything has decided the project is trustworthy.
 
 ### Changed
+
+- `package.json` no longer describes this as a tool "for static sites". It has audited
+  running ones since 0.2.0, and that string is what npm shows on the package page.
+- The documentation matched the report as it was two versions ago: `docs/reports.md`
+  described an HTML report organised by page, and `docs/audit.md` placed the issues
+  section under a page listing that is now behind `--per-page`. `--per-page` and
+  `eaa-kit init` were undocumented outside the README.
+- `pnpm examples` holds the run timestamp still, so regenerating the checked-in examples
+  produces a diff only when something actually changed. Every run used to rewrite the one
+  field that varies on its own, which is how a real change hides in the noise.
+- The example workflow points at `@v0` rather than `@v0.1.0`, which had been stale for
+  four releases.
 
 - The three lists that used to hold this knowledge — a flat array of output directories,
   a five-name dependency check, and the route conventions — are one registry. They

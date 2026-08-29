@@ -28,7 +28,11 @@ jobs:
           node-version: 22
 
       # In your own repository this becomes:
-      #   uses: likeBloodMoon/eaa-kit@v0.1.0
+      #   uses: likeBloodMoon/eaa-kit@v0
+      #
+      # A major-version tag rather than an exact one, so the example does not
+      # go stale on every release. Pin exactly if you would rather review each
+      # upgrade yourself.
       - uses: ./
         with:
           install-command: npm ci
