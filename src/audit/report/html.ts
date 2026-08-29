@@ -2,6 +2,7 @@ import axe from 'axe-core'
 import { escapeAttribute, escapeText } from '../../escape.ts'
 import { TOOL_VERSION } from '../../version.ts'
 import { countAtOrAbove, type ImpactLevel, isImpactLevel } from '../impact.ts'
+import { groupIssues, isShared } from '../issues.ts'
 import type { Finding, IncompleteFinding, PageAudit } from '../runners/jsdom.ts'
 
 /**
@@ -28,6 +29,8 @@ const MAX_NODES = 5
 const MAX_SNIPPET = 200
 
 export interface HtmlReportOptions {
+  /** Maps an audited page to the source file that produced it, when known. */
+  sourceFor?: (pagePath: string) => string | undefined
   /** Build directory the audit ran against. */
   directory: string
   /** Lowest impact that fails the run. */
@@ -58,6 +61,8 @@ ${STYLES}
 <main>
 <h1>Accessibility audit</h1>
 ${verdict(audits, failing, options)}
+${scoreboard(audits)}
+${issues(audits, options)}
 ${runDetails(audits, engine, generatedAt, options)}
 ${summary(audits, failing, options)}
 ${pages(audits)}
@@ -436,6 +441,32 @@ p.clean { color: #216e39; }
 p.note { font-size: 0.95rem; }
 hr { border: 0; border-top: 1px solid #d4d4d4; margin: 3rem 0 1.5rem; }
 footer { color: #4a4a4a; font-size: 0.9rem; }
+.scoreboard { list-style: none; display: flex; flex-wrap: wrap; gap: 0.75rem;
+  padding: 0; margin: 1.25rem 0 2rem; }
+.tile { flex: 1 1 8rem; padding: 0.75rem 1rem; border: 1px solid; border-radius: 6px; }
+.tile .figure { display: block; font-size: 1.75rem; font-weight: 700; line-height: 1.1; }
+.tile .label { font-size: 0.85rem; }
+.tile.critical { background: #fdeeee; border-color: #a01b1b; color: #7a1414; }
+.tile.serious { background: #fdf1e8; border-color: #a4531b; color: #7d3f14; }
+.tile.moderate { background: #fdf9e3; border-color: #7a6100; color: #5c4900; }
+.tile.minor { background: #eef2f8; border-color: #40556f; color: #33455a; }
+.tile.unclassified { background: #f1f1f1; border-color: #565656; color: #444444; }
+.tile.none { background: #eef7ee; border-color: #216e39; color: #17512a; }
+.tile.unchecked { background: #f4f4f5; border-color: #565656; color: #444444; }
+p.intro { color: #4a4a4a; }
+ol.issues { list-style: none; padding: 0; }
+li.issue { border: 1px solid #d7d7d7; border-radius: 6px; padding: 0.75rem 1rem;
+  margin: 0 0 1rem; }
+li.issue h3 { margin: 0 0 0.25rem; font-size: 1rem; display: flex; flex-wrap: wrap;
+  gap: 0.5rem; align-items: baseline; }
+li.issue .wcag { color: #4a4a4a; font-size: 0.85rem; font-weight: 400; }
+p.help { margin: 0 0 0.75rem; }
+.element { border-top: 1px solid #e6e6e6; padding-top: 0.75rem; margin-top: 0.75rem; }
+.element:first-of-type { border-top: 0; padding-top: 0; margin-top: 0; }
+p.reach, p.sources, p.selector, p.more { margin: 0.35rem 0; font-size: 0.9rem; color: #4a4a4a; }
+.element details { font-size: 0.9rem; color: #4a4a4a; }
+.element summary { cursor: pointer; }
+ul.page-list { margin: 0.35rem 0 0; padding-left: 1.25rem; }
 @media (prefers-color-scheme: dark) {
   body { background: #121212; color: #ededed; }
   a { color: #9ec1ff; }
@@ -448,6 +479,16 @@ footer { color: #4a4a4a; font-size: 0.9rem; }
   .verdict.pass { background: #10240f; border-color: #7ee2a8; }
   .verdict.fail { background: #2b1111; border-color: #ff9d9d; }
   .verdict.broken { background: #2b2310; border-color: #ffd28a; }
+  .tile.critical { background: #2b1111; border-color: #ff9d9d; color: #ffc9c9; }
+  .tile.serious { background: #2b1d11; border-color: #ffb98a; color: #ffd7bd; }
+  .tile.moderate { background: #2b2610; border-color: #f0d264; color: #f5e3a4; }
+  .tile.minor { background: #161c25; border-color: #9db6d6; color: #c6d6ea; }
+  .tile.unclassified { background: #1f1f1f; border-color: #9a9a9a; color: #d0d0d0; }
+  .tile.none { background: #10240f; border-color: #7ee2a8; color: #b6f0cd; }
+  .tile.unchecked { background: #1e1e1e; border-color: #9a9a9a; color: #d0d0d0; }
+  p.intro, li.issue .wcag, p.reach, p.sources, p.selector, .element details { color: #b6b6b6; }
+  li.issue { border-color: #3a3a3a; }
+  .element { border-top-color: #2e2e2e; }
   .badge.critical { background: #2b1111; border-color: #ff9d9d; color: #ffc9c9; }
   .badge.serious { background: #2b1c11; border-color: #ffbb8a; color: #ffd9bd; }
   .badge.moderate { background: #262110; border-color: #ffe08a; color: #ffeec2; }
@@ -459,3 +500,144 @@ footer { color: #4a4a4a; font-size: 0.9rem; }
   main { max-width: none; }
   a { color: #000000; }
 }`
+
+/**
+ * The counts, worst first, with what was never checked beside them.
+ *
+ * A row of severity totals is the first thing anybody reads, and on its own it
+ * is the one place this document could mislead: a client seeing "0 critical, 0
+ * serious" concludes the site is fine, when the honest reading of that same run
+ * may be that six whole rule categories could not be evaluated at all. So the
+ * unevaluated count sits in the same row, in the same type size, rather than in
+ * a section further down that nobody scrolls to.
+ */
+function scoreboard(audits: readonly PageAudit[]): string {
+  const issueList = groupIssues(audits)
+  const counted = new Map<string, number>()
+  for (const issue of issueList) {
+    const key = issue.impact ?? 'unclassified'
+    counted.set(key, (counted.get(key) ?? 0) + issue.occurrences)
+  }
+
+  const blind = new Set<string>()
+  for (const audit of audits) {
+    for (const finding of audit.incomplete) {
+      if (finding.reason === 'engine-limitation') blind.add(finding.ruleId)
+    }
+  }
+
+  // Only the levels that occurred, so a clean run is not a row of zeroes
+  // implying the tool went looking for things it did not find.
+  const order = ['critical', 'serious', 'moderate', 'minor', 'unclassified'] as const
+  const tiles = order
+    .filter((level) => (counted.get(level) ?? 0) > 0)
+    .map(
+      (level) =>
+        `<li class="tile ${level}"><span class="figure">${counted.get(level)}</span> <span class="label">${level}</span></li>`,
+    )
+
+  if (tiles.length === 0) {
+    tiles.push(
+      '<li class="tile none"><span class="figure">0</span> <span class="label">violations</span></li>',
+    )
+  }
+
+  if (blind.size > 0) {
+    tiles.push(
+      `<li class="tile unchecked"><span class="figure">${blind.size}</span> <span class="label">not evaluated</span></li>`,
+    )
+  }
+
+  return `<ul class="scoreboard">\n${tiles.join('\n')}\n</ul>`
+}
+
+/**
+ * What is broken, once per element rather than once per page.
+ *
+ * The page-by-page listing further down is the same information keyed the other
+ * way round. It is the right shape for working through one page and the wrong
+ * shape for deciding what to do: on a site built from components one broken
+ * header is one line in one file, and a per-page listing reports it as many
+ * findings without ever saying they are the same defect.
+ */
+function issues(audits: readonly PageAudit[], options: HtmlReportOptions): string {
+  const found = groupIssues(audits)
+  if (found.length === 0) return ''
+
+  const elements = found.reduce((total, issue) => total + issue.elements.length, 0)
+  const occurrences = found.reduce((total, issue) => total + issue.occurrences, 0)
+
+  const intro =
+    occurrences === elements
+      ? `${count(elements, 'distinct element')} to fix.`
+      : `${count(occurrences, 'violation')} across the site, from ${count(elements, 'distinct element')}.`
+
+  return `<h2 id="issues">What to fix</h2>
+<p class="intro">${escapeText(intro)}</p>
+<ol class="issues">
+${found.map((issue) => issueSection(issue, options)).join('\n')}
+</ol>`
+}
+
+function issueSection(
+  issue: ReturnType<typeof groupIssues>[number],
+  options: HtmlReportOptions,
+): string {
+  const impact = issue.impact ?? 'unclassified'
+  const criteria =
+    issue.successCriteria.length > 0
+      ? `<span class="wcag">WCAG ${escapeText(issue.successCriteria.join(' '))}</span>`
+      : ''
+
+  return `<li class="issue">
+<h3><span class="badge ${impact}">${impact}</span> <code>${escapeText(issue.ruleId)}</code> ${criteria}</h3>
+<p class="help">${escapeText(issue.help)}</p>
+${issue.elements
+  .slice(0, MAX_NODES)
+  .map((element) => issueElement(element, options))
+  .join('\n')}
+${
+  issue.elements.length > MAX_NODES
+    ? `<p class="more">…and ${count(issue.elements.length - MAX_NODES, 'more element')}</p>`
+    : ''
+}
+</li>`
+}
+
+function issueElement(
+  element: ReturnType<typeof groupIssues>[number]['elements'][number],
+  options: HtmlReportOptions,
+): string {
+  const sources = [
+    ...new Set(
+      element.pages
+        .map((page) => options.sourceFor?.(page))
+        .filter((source): source is string => source !== undefined),
+    ),
+  ]
+
+  // The pages fold away because on a large site one element can appear on
+  // hundreds, and the list is reference rather than the point. What it says
+  // about the fix — one component, these files — stays open.
+  const list = element.pages.map((page) => `<li>${escapeText(page)}</li>`).join('')
+
+  return `<div class="element">
+<pre><code>${escapeText(collapseWhitespace(element.html))}</code></pre>
+${element.selector === '' ? '' : `<p class="selector"><code>${escapeText(element.selector)}</code></p>`}
+<p class="reach">Found on ${count(element.pages.length, 'page')}.${
+    isShared(element) ? ' <strong>Identical on each — likely one shared component.</strong>' : ''
+  }</p>
+${
+  sources.length > 0
+    ? `<p class="sources">Source: ${sources.map((source) => `<code>${escapeText(source)}</code>`).join(', ')}</p>`
+    : ''
+}
+<details><summary>${count(element.pages.length, 'page')}</summary><ul class="page-list">${list}</ul></details>
+</div>`
+}
+
+/** Long markup is unreadable in a report; the identifying part is the start. */
+function collapseWhitespace(html: string): string {
+  const flat = html.replace(/\s+/g, ' ').trim()
+  return flat.length > 200 ? `${flat.slice(0, 199)}…` : flat
+}

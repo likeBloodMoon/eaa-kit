@@ -287,7 +287,10 @@ async function renderReport(
     }
     case 'html': {
       const { buildHtmlReport } = await import('../audit/report/html.ts')
+      const { buildRouteMap: mapRoutes, sourceFor: lookup } = await import('../audit/routes.ts')
+      const routeMap = await mapRoutes(options.cwd ?? process.cwd())
       return buildHtmlReport(audits, {
+        sourceFor: (page) => lookup(routeMap, page),
         directory: dir,
         failOn,
         ...(options.baseUrl ? { baseUrl: options.baseUrl } : {}),

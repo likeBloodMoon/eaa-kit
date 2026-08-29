@@ -345,3 +345,76 @@ describe('the report itself', () => {
     expect(audit.violations).toEqual([])
   })
 })
+
+describe('the scoreboard and issues sections', () => {
+  it('leads with the counts by severity', () => {
+    const page = build([blank({ violations: [finding({ impact: 'critical' })] })])
+
+    expect(page).toContain('class="tile critical"')
+    expect(text(page)).toMatch(/1\s+critical/)
+  })
+
+  it('shows what was never evaluated in the same row as the violations', () => {
+    // The one place this document could mislead. "0 critical, 0 serious" reads
+    // as a clean site when the honest reading may be that six whole categories
+    // could not be checked, so the number sits in the same block rather than in
+    // a section nobody scrolls to.
+    const page = build([
+      blank({
+        incomplete: [
+          {
+            ...finding({ ruleId: 'color-contrast' }),
+            reason: 'engine-limitation' as const,
+            reasonDetail: 'needs rendered colours',
+          },
+        ],
+      }),
+    ])
+
+    expect(page).toContain('class="tile unchecked"')
+    expect(text(page)).toMatch(/1\s+not evaluated/)
+  })
+
+  it('folds one element across pages into a single issue', () => {
+    const shared = finding({ nodes: [{ html: '<img src="/logo.png">', target: ['img'] }] })
+    const page = build([
+      blank({ relativePath: 'a.html', violations: [shared] }),
+      blank({ relativePath: 'b.html', violations: [shared] }),
+      blank({ relativePath: 'c.html', violations: [shared] }),
+    ])
+
+    expect(text(page)).toContain('Found on 3 pages')
+    expect(text(page)).toContain('likely one shared component')
+  })
+
+  it('does not call two pages a shared component', () => {
+    const shared = finding({ nodes: [{ html: '<img src="/logo.png">', target: ['img'] }] })
+    const page = build([
+      blank({ relativePath: 'a.html', violations: [shared] }),
+      blank({ relativePath: 'b.html', violations: [shared] }),
+    ])
+
+    expect(text(page)).not.toContain('likely one shared component')
+  })
+
+  it('names the source file when one is known', () => {
+    const page = buildHtmlReport([blank({ relativePath: 'index.html', violations: [finding()] })], {
+      directory: './dist',
+      failOn: 'serious',
+      now: NOW,
+      sourceFor: (path) => (path === 'index.html' ? 'app/page.tsx' : undefined),
+    })
+
+    expect(text(page)).toContain('app/page.tsx')
+  })
+
+  it('caps the elements shown per issue', () => {
+    const nodes = Array.from({ length: 9 }, (_, index) => ({
+      html: `<img src="/x${index}.png">`,
+      target: [`img:nth-child(${index})`],
+    }))
+    const page = build([blank({ violations: [finding({ nodes })] })])
+
+    expect(text(page)).toContain('and 4 more elements')
+  })
+})

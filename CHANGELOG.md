@@ -9,6 +9,23 @@ move: the JSON report's `schemaVersion` and the baseline file's. Both are bumped
 a field is removed, renamed, or changes meaning — new fields may appear without one, so
 consumers must ignore what they do not recognise.
 
+## Unreleased
+
+### Changed
+
+- The HTML report leads with what to fix. A severity scoreboard, then the violations
+  grouped by the element that causes them — with the source file where a router
+  convention names one, and identical markup on three or more pages called out as likely
+  one shared component. The page-by-page listing is still there, below.
+- The scoreboard carries what could **not** be evaluated in the same row as the severity
+  counts, at the same size. A row reading "0 critical, 0 serious" is the one place this
+  document could mislead: on a real run that same result may mean six whole rule
+  categories went unchecked, and a client reading only the top of the page would take it
+  for a clean site.
+- Every colour pair the new sections add was checked against the surface it sits on:
+  seventeen pairs, worst 7.30:1, against the 4.5:1 that AA asks of text. Severity is
+  still carried by the word as well as the colour.
+
 ## 0.2.1 — 2026-08-28
 
 ### Fixed

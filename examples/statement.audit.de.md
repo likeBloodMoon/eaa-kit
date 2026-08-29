@@ -41,7 +41,7 @@ Diese Erklärung wurde am 21. August 2026 erstellt.
 
 Grundlage ist eine Selbstbewertung durch Musterbetrieb GmbH.
 
-Die automatisierte Prüfung vom 28. August 2026 umfasste 5
+Die automatisierte Prüfung vom 29. August 2026 umfasste 5
 Seiten dieser Website.
 Bei einer weiteren Regelprüfung ist eine manuelle Beurteilung erforderlich.
 Bei 21 Regelprüfungen erreichte das verwendete Werkzeug kein
