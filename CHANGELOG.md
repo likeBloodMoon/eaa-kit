@@ -9,9 +9,37 @@ move: the JSON report's `schemaVersion` and the baseline file's. Both are bumped
 a field is removed, renamed, or changes meaning — new fields may appear without one, so
 consumers must ignore what they do not recognise.
 
-## Unreleased
+## 0.2.2 — 2026-08-28
+
+### Fixed
+
+- `--browser` also failed against a perfectly good install with *Playwright is installed
+  but exports no chromium launcher*. Playwright is CommonJS, and whether `await import()`
+  exposes its named exports depends on Node's static analysis of the file succeeding —
+  which is not guaranteed and differs between versions. Where it does not, everything sits
+  on `default`. Both shapes are read now, `@playwright/test` is accepted alongside
+  `playwright` since it is what most projects install, and if something does resolve
+  without a launcher the error names what was found instead of only that the tool is
+  unhappy.
+
+### Added
+
+- Framework detection covers fourteen builders instead of two: Next.js, Nuxt, SvelteKit,
+  React Router/Remix, Astro, Gatsby, Docusaurus, VitePress, Eleventy, Angular, Create
+  React App, Hugo, Jekyll and Vite. Each knows where it writes browsable HTML, whether
+  that takes extra configuration, and whether it can serve pages it never writes to disk
+  — which is what decides whether `--url` is a real answer or a consolation.
+- A custom output directory is read out of the framework's own config, so a Vite project
+  with `outDir: 'www'` or an Astro one with `outDir: './built'` is found without being
+  told. Read with a pattern rather than executed: a config file is code, and this runs
+  before anything has decided the project is trustworthy.
 
 ### Changed
+
+- The three lists that used to hold this knowledge — a flat array of output directories,
+  a five-name dependency check, and the route conventions — are one registry. They
+  disagreed, and none of them knew that `out/` belongs to Next.js and `_site/` to
+  Eleventy.
 
 - The HTML report leads with what to fix. A severity scoreboard, then the violations
   grouped by the element that causes them — with the source file where a router
@@ -35,14 +63,6 @@ consumers must ignore what they do not recognise.
   location, and under npx that is a cache directory with no playwright in it — so somebody
   who had just installed Playwright into their project was told to install Playwright. It
   is now resolved from the audited project first, and only then from here.
-- `--browser` also failed against a perfectly good install with *Playwright is installed
-  but exports no chromium launcher*. Playwright is CommonJS, and whether `await import()`
-  exposes its named exports depends on Node's static analysis of the file succeeding —
-  which is not guaranteed and differs between versions. Where it does not, everything sits
-  on `default`. Both shapes are read now, `@playwright/test` is accepted alongside
-  `playwright` since it is what most projects install, and if something does resolve
-  without a launcher the error names what was found instead of only that the tool is
-  unhappy.
 - A browser that failed to launch left the loopback server listening, so the run hung
   instead of reporting the failure. The commonest way in is Playwright installed but
   `npx playwright install chromium` never run.

@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process'
 import { readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { glob } from 'tinyglobby'
+import { candidateOutputs } from './frameworks.ts'
 
 /**
  * Working out what to audit when nobody said.
@@ -17,16 +18,6 @@ import { glob } from 'tinyglobby'
  * project's server if the build produces nothing browsable. Naming a directory
  * or passing --url skips all of it.
  */
-
-/** Build output directories, in the order worth trying them. */
-export const BUILD_DIRECTORIES = [
-  'dist',
-  'out',
-  'build',
-  '_site',
-  '.output/public',
-  'public',
-] as const
 
 /** Ports the common dev and preview servers use, tried if nothing is announced. */
 const KNOWN_PORTS = [3000, 4321, 5173, 8080, 4173, 3001]
@@ -71,16 +62,6 @@ export async function detectPackageManager(cwd: string): Promise<'pnpm' | 'yarn'
   return 'npm'
 }
 
-/** Frameworks whose output directory is not guessable from the name alone. */
-export async function detectFramework(cwd: string): Promise<string | undefined> {
-  const pkg = await readPackageJson(cwd)
-  const deps = { ...pkg?.dependencies, ...pkg?.devDependencies }
-  for (const name of ['next', 'nuxt', 'astro', '@sveltejs/kit', 'vite']) {
-    if (deps[name] !== undefined) return name
-  }
-  return undefined
-}
-
 /**
  * The first build directory that exists and actually holds HTML.
  *
@@ -89,7 +70,10 @@ export async function detectFramework(cwd: string): Promise<string | undefined> 
  * assets. What makes a directory the build output is that there is HTML in it.
  */
 export async function findBuildOutput(cwd: string): Promise<string | undefined> {
-  for (const candidate of BUILD_DIRECTORIES) {
+  // Framework-aware and ordered: `out/` before `dist/` in a Next.js project,
+  // `_site/` in an Eleventy one, and whatever the config names before either.
+  const candidates = await candidateOutputs(cwd, await readPackageJson(cwd))
+  for (const candidate of candidates) {
     const directory = path.join(cwd, candidate)
     try {
       if (!(await stat(directory)).isDirectory()) continue
