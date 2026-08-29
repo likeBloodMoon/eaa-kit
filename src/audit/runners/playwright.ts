@@ -78,7 +78,7 @@ export async function runBrowserAudit(
     browser = await chromium.launch({ headless: true })
   } catch (cause) {
     await server?.close()
-    throw cause
+    throw launchFailure(cause)
   }
 
   try {
@@ -206,6 +206,32 @@ interface BrowserLike {
 
 interface ChromiumLike {
   launch(options?: { headless?: boolean }): Promise<BrowserLike>
+}
+
+/**
+ * A launch that failed because the browser was never downloaded, told as setup.
+ *
+ * The third setup failure, and the only one that used to arrive as a crash.
+ * `npm i -D playwright` does not fetch Chromium, so somebody who followed the
+ * install line exactly still lands here — and what they saw was Playwright's
+ * message boxed in ASCII, wrapped in a stack trace through this package's
+ * bundled internals. That reads as eaa-kit falling over, not as a step left to
+ * run, and the two want very different things from the reader.
+ *
+ * Anything else is passed through untouched: a launch can fail for reasons
+ * that really are bugs, and dressing those up as setup advice would send
+ * somebody off installing a browser they already have.
+ */
+function launchFailure(cause: unknown): unknown {
+  if (!(cause instanceof Error)) return cause
+  const missing = /Executable doesn't exist at (.+)/.exec(cause.message)
+  if (missing === null) return cause
+
+  return new BrowserUnavailableError(
+    'Playwright is installed, but the Chromium it drives is not.\n' +
+      '  Download it with:  npx playwright install chromium\n' +
+      `  It was looked for at: ${missing[1]?.trim() ?? 'an unreported path'}`,
+  )
 }
 
 /**

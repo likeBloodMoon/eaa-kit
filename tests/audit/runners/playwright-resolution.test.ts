@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import { BrowserUnavailableError, loadChromium } from '../../../src/audit/runners/playwright.ts'
 
@@ -32,18 +33,25 @@ async function project(
   await mkdir(module, { recursive: true })
   await writeFile(
     path.join(module, 'package.json'),
-    JSON.stringify({ name, version: '1.99.0', type: 'module', main: 'index.js' }),
+    JSON.stringify({ name, version: '1.99.0', main: 'index.cjs' }),
   )
+
+  // CommonJS, because Playwright is, and this whole function is about what
+  // `await import()` does to a CommonJS module. An ESM stand-in with a default
+  // export would exercise a shape that never occurs here.
   const launcher = `{ launch: async () => ({ marker: ${JSON.stringify(name)} }) }`
   const body = {
-    named: `export const chromium = ${launcher}\n`,
-    // Playwright is CommonJS, and whether `await import()` exposes its named
-    // exports depends on Node's static analysis succeeding. When it does not,
-    // everything is on `default` — which is the shape that broke in the field.
-    'default-only': `export default { chromium: ${launcher} }\n`,
-    'no-launcher': 'export const devices = {}\n',
+    // Node's lexer reads straight through an object literal, so the named
+    // export hoists and `chromium` sits on the namespace. Playwright on a good
+    // day.
+    named: `module.exports = { chromium: ${launcher} }\n`,
+    // The same module the lexer cannot see into. Nothing hoists, everything
+    // lands on `default`, and reading only the named export reported a working
+    // install as exporting no chromium launcher.
+    'default-only': `module.exports = Object.assign(Object.create(null), { chromium: ${launcher} })\n`,
+    'no-launcher': 'module.exports = { devices: {} }\n',
   }[shape]
-  await writeFile(path.join(module, 'index.js'), body)
+  await writeFile(path.join(module, 'index.cjs'), body)
   return dir
 }
 
@@ -56,6 +64,17 @@ describe('loadChromium', () => {
     const chromium = await loadChromium(await project('playwright'))
 
     expect(await chromium.launch()).toEqual({ marker: 'playwright' })
+  })
+
+  it('builds a fixture the lexer genuinely cannot see into', async () => {
+    // Without this, a change in Node's static analysis would quietly turn the
+    // test below into one that passes for the wrong reason.
+    const dir = await project('playwright', 'default-only')
+    const loaded = await import(
+      pathToFileURL(path.join(dir, 'node_modules', 'playwright', 'index.cjs')).href
+    )
+
+    expect(Object.keys(loaded)).toEqual(['default'])
   })
 
   it('reads the launcher off default when the named export is not hoisted', async () => {

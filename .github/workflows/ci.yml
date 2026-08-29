@@ -57,3 +57,10 @@ jobs:
       # Runs the bundled CLI. The test suite imports from src, so a path that
       # only breaks after bundling is invisible to it.
       - run: pnpm smoke
+
+      # Runs the packed tarball from outside the project it audits, which is
+      # the arrangement npx creates and the one three shipped browser-mode bugs
+      # needed. Every other job here runs inside this repo, where Playwright
+      # sits next to the code and none of them could reproduce.
+      - name: Run the packaged CLI the way an install does
+        run: node scripts/test-packaged.mjs
