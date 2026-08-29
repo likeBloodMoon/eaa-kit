@@ -66,7 +66,8 @@ eaa-kit audit ./dist --baseline eaa-baseline.json
 SARIF for GitHub code scanning, and a self-contained HTML page for the client whose site
 it is.
 
-**Runs in your build**, as an [Astro integration](docs/integrations.md#astro-integration)
+**Runs in your build**, as a [Vite plugin](docs/integrations.md#vite-plugin) — covering
+SvelteKit, Nuxt and Remix too — an [Astro integration](docs/integrations.md#astro-integration),
 or the bundled [GitHub Action](docs/integrations.md#github-actions).
 
 ## Documentation

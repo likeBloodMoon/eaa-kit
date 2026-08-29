@@ -64,6 +64,8 @@ footer { color: #4a4a4a; font-size: 0.9rem; }
 .tile.none { background: #eef7ee; border-color: #216e39; color: #17512a; }
 .tile.unchecked { background: #f4f4f5; border-color: #565656; color: #444444; }
 p.intro { color: #4a4a4a; }
+p.manual { margin: 0.35rem 0; }
+p.manual.browser, p.criteria { margin: 0.35rem 0; font-size: 0.9rem; color: #4a4a4a; }
 ol.issues { list-style: none; padding: 0; }
 li.issue { border: 1px solid #d7d7d7; border-radius: 6px; padding: 0.75rem 1rem;
   margin: 0 0 1rem; }
@@ -73,7 +75,7 @@ li.issue .wcag { color: #4a4a4a; font-size: 0.85rem; font-weight: 400; }
 p.help { margin: 0 0 0.75rem; }
 .element { border-top: 1px solid #e6e6e6; padding-top: 0.75rem; margin-top: 0.75rem; }
 .element:first-of-type { border-top: 0; padding-top: 0; margin-top: 0; }
-p.reach, p.sources, p.selector, p.more { margin: 0.35rem 0; font-size: 0.9rem; color: #4a4a4a; }
+p.reach, p.sources, p.selector, p.more, p.written-in { margin: 0.35rem 0; font-size: 0.9rem; color: #4a4a4a; }
 .element details { font-size: 0.9rem; color: #4a4a4a; }
 .element summary { cursor: pointer; }
 ul.page-list { margin: 0.35rem 0 0; padding-left: 1.25rem; }
@@ -96,7 +98,8 @@ ul.page-list { margin: 0.35rem 0 0; padding-left: 1.25rem; }
   .tile.unclassified { background: #1f1f1f; border-color: #9a9a9a; color: #d0d0d0; }
   .tile.none { background: #10240f; border-color: #7ee2a8; color: #b6f0cd; }
   .tile.unchecked { background: #1e1e1e; border-color: #9a9a9a; color: #d0d0d0; }
-  p.intro, li.issue .wcag, p.reach, p.sources, p.selector, .element details { color: #b6b6b6; }
+  p.intro, li.issue .wcag, p.reach, p.sources, p.selector, .element details,
+  p.manual.browser, p.criteria { color: #b6b6b6; }
   li.issue { border-color: #3a3a3a; }
   .element { border-top-color: #2e2e2e; }
   .badge.critical { background: #2b1111; border-color: #ff9d9d; color: #ffc9c9; }
@@ -129,6 +132,7 @@ ul.page-list { margin: 0.35rem 0 0; padding-left: 1.25rem; }
 <p class="help">Images must have alternative text</p>
 <div class="element">
 <pre><code>&lt;img src="/assets/logo.svg"&gt;</code></pre>
+
 <p class="selector"><code>img</code></p>
 <p class="reach">Found on 1 page.</p>
 
@@ -141,6 +145,7 @@ ul.page-list { margin: 0.35rem 0 0; padding-left: 1.25rem; }
 <p class="help">&lt;html&gt; element must have a lang attribute</p>
 <div class="element">
 <pre><code>&lt;html&gt;&lt;head&gt; &lt;title&gt;Startseite&lt;/title&gt; &lt;/head&gt; &lt;body&gt; &lt;img src="/assets/logo.svg"&gt; &lt;a href="/about/"&gt;&lt;/a&gt; &lt;p&gt;Willkommen.&lt;/p&gt; &lt;/body&gt;&lt;/html&gt;</code></pre>
+
 <p class="selector"><code>html</code></p>
 <p class="reach">Found on 1 page.</p>
 
@@ -153,6 +158,7 @@ ul.page-list { margin: 0.35rem 0 0; padding-left: 1.25rem; }
 <p class="help">Links must have discernible text</p>
 <div class="element">
 <pre><code>&lt;a href="/about/"&gt;&lt;/a&gt;</code></pre>
+
 <p class="selector"><code>a</code></p>
 <p class="reach">Found on 1 page.</p>
 
@@ -252,27 +258,43 @@ ul.page-list { margin: 0.35rem 0 0; padding-left: 1.25rem; }
 <p class="clean">No violations.</p>
 <p class="coverage">4 passed · 55 not applicable · 4 not evaluated</p>
 <h2>Not evaluated</h2>
-<p>This engine reached no verdict on these rules. They are never reported as passing.</p>
+<p>This engine reached no verdict on these rules. They are never reported as passing.
+Each one below says what to check by hand, because automated testing finds a minority of
+accessibility barriers and this is where the rest of them are.</p>
 <ul class="not-evaluated">
   <li>
     <code>color-contrast</code> on 5 pages — WCAG 1.4.3, EN 301 549 9.1.4.3
     <span class="reason">needs rendered foreground and background colours</span>
+    <p class="manual">Open the page and check text against its background with a contrast checker. Body text needs 4.5:1, and large or bold text 3:1. Check the states too — hover, focus, visited, disabled and placeholder text are the ones usually missed.</p>
+    <p class="manual browser">Or run the audit again with <code>--browser</code>.</p>
+    <p class="criteria"><a href="https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html">WCAG 1.4.3</a></p>
   </li>
   <li>
     <code>link-in-text-block</code> on 5 pages — WCAG 1.4.1, EN 301 549 9.1.4.1
     <span class="reason">needs rendered colours and text decoration</span>
+    <p class="manual">Look at links inside paragraphs. If the only thing distinguishing them from the surrounding text is colour, they need an underline or a 3:1 contrast difference against that text as well.</p>
+    <p class="manual browser">Or run the audit again with <code>--browser</code>.</p>
+    <p class="criteria"><a href="https://www.w3.org/WAI/WCAG22/Understanding/use-of-color.html">WCAG 1.4.1</a></p>
   </li>
   <li>
     <code>no-autoplay-audio</code> on 5 pages — WCAG 1.4.2, EN 301 549 9.1.4.2
     <span class="reason">needs media duration, and media is never loaded</span>
+    <p class="manual">Load the page and listen. Anything that plays for more than three seconds on its own needs a pause or stop control, or a volume control independent of the system volume.</p>
+    <p class="criteria"><a href="https://www.w3.org/WAI/WCAG22/Understanding/audio-control.html">WCAG 1.4.2</a></p>
   </li>
   <li>
     <code>scrollable-region-focusable</code> on 5 pages — WCAG 2.1.1, WCAG 2.1.3, EN 301 549 9.2.1.1, EN 301 549 9.2.1.3
     <span class="reason">needs computed overflow</span>
+    <p class="manual">Find anything that scrolls inside the page — a code block, a wide table, a long list — and try reaching it with the Tab key alone. If it cannot take focus, a keyboard user cannot scroll it.</p>
+    <p class="manual browser">Or run the audit again with <code>--browser</code>.</p>
+    <p class="criteria"><a href="https://www.w3.org/WAI/WCAG22/Understanding/keyboard.html">WCAG 2.1.1</a></p>
   </li>
   <li>
     <code>target-size</code> on 1 page — WCAG 2.5.8
     <span class="reason">needs element geometry; every box is 0x0 without layout</span>
+    <p class="manual">Measure the clickable area of buttons, icon links and form controls: 24×24 CSS pixels at minimum, unless they are inline in a sentence or have that much clear space around them. Icon-only controls in a header or a media player are where this usually fails.</p>
+    <p class="manual browser">Or run the audit again with <code>--browser</code>.</p>
+    <p class="criteria"><a href="https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html">WCAG 2.5.8</a></p>
   </li>
 </ul>
 <hr>

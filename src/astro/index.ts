@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'node:url'
 import type { ImpactLevel } from '../audit/impact.ts'
 import type { OutputFormat } from '../cli/audit.ts'
+import { auditBuild, BuildAuditError } from '../integration/run.ts'
 
 /**
  * An Astro integration that audits the build Astro just produced.
@@ -85,49 +86,15 @@ export default function eaaKit(options: EaaKitIntegrationOptions = {}): AstroInt
     name: 'eaa-kit',
     hooks: {
       'astro:build:done': async ({ dir, logger }: BuildDoneOptions) => {
-        if (options.enabled === false) {
-          logger.info('skipped (enabled: false)')
-          return
+        // The decision itself is shared with the Vite plugin: both arrive at a
+        // finished build in a directory and have to decide whether it may
+        // proceed. Only the hook name and the logger differ.
+        try {
+          await auditBuild(fileURLToPath(dir), options, logger)
+        } catch (cause) {
+          if (cause instanceof BuildAuditError) throw new AstroAuditError(cause.message)
+          throw cause
         }
-
-        // Imported here, not at the top: this module is loaded while Astro
-        // reads its config, and pulling jsdom and axe-core in at that point
-        // would add most of a second to every `astro dev` start too.
-        const { runAuditCommand } = await import('../cli/audit.ts')
-
-        const { exitCode } = await runAuditCommand(fileURLToPath(dir), {
-          ...(options.failOn ? { failOn: options.failOn } : {}),
-          ...(options.include ? { include: options.include } : {}),
-          ...(options.exclude ? { exclude: options.exclude } : {}),
-          ...(options.baseUrl ? { baseUrl: options.baseUrl } : {}),
-          ...(options.browser ? { browser: true } : {}),
-          ...(options.concurrency === undefined ? {} : { concurrency: options.concurrency }),
-          ...(options.baseline ? { baseline: options.baseline } : {}),
-          ...(options.format ? { format: options.format } : {}),
-          ...(options.output ? { output: options.output } : {}),
-        })
-
-        if (exitCode === 0) {
-          logger.info('no violations at or above the threshold')
-          return
-        }
-
-        // Exit 2 is not a failing audit, it is a run that reached no verdict —
-        // a missing build directory, a page nothing could read, a baseline that
-        // is not there. Passing that off as "violations found" would send
-        // somebody looking for defects that were never measured.
-        const message =
-          exitCode === 2
-            ? 'the audit could not be completed, so this build was not checked'
-            : 'accessibility violations at or above the threshold'
-
-        if (options.failBuild === false) {
-          logger.warn(`${message} (failBuild: false, so the build continues)`)
-          return
-        }
-
-        logger.error(message)
-        throw new AstroAuditError(`eaa-kit: ${message}`)
       },
     },
   }

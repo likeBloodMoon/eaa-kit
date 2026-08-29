@@ -9,6 +9,41 @@ move: the JSON report's `schemaVersion` and the baseline file's. Both are bumped
 a field is removed, renamed, or changes meaning — new fields may appear without one, so
 consumers must ignore what they do not recognise.
 
+## Unreleased
+
+### Added
+
+- **A Vite plugin**, `eaa-kit/vite`. One plugin rather than four: SvelteKit, Nuxt, Remix
+  and Astro all build on Vite, so a plugin in the Vite config is a plugin in all of them.
+  It audits in `closeBundle`, after the build has written its files, and fails the build on
+  violations at or above the threshold.
+- **The source file a failing element was written in**, not just the page that renders it.
+  Route mapping names `app/page.tsx`; a header with a missing `alt` is written in none of
+  the pages that show it. A literal from the failing markup — an image path, a link
+  target, an id — is looked for in the project's own source, and the file is named only
+  when exactly one contains it. Frameworks emit source positions only in development
+  builds, and an auditor runs against production output; a literal survives every compiler.
+- **What to check by hand.** Every rule the browserless engine cannot decide now carries
+  the check a person would do, and every success criterion a link to its WCAG Understanding
+  page. `--manual` prints the checks in the console report; the HTML report always
+  includes them. Automated testing finds a minority of barriers, and this turns that
+  disclaimer into the part of the report with the most work in it.
+
+### Changed
+
+- The Astro integration and the Vite plugin share one decision function. Both arrive at a
+  finished build in a directory and have to decide whether it may proceed; only the hook
+  name and the logger differed.
+
+### Not done
+
+- **There is no Next.js plugin, deliberately.** Next has no stable hook that runs after a
+  build writes its files: `next.config.js`'s `webpack` function is the usual place, and
+  Next 16 defaults to Turbopack, which does not call it — confirmed by running a build
+  with a config that logs from there, and it never printed. A plugin built that way would
+  look wired up and silently never run, which for an accessibility check is worse than
+  having none. `next build && eaa-kit audit`, or plain `eaa-kit audit`, always work.
+
 ## 0.2.2 — 2026-08-29
 
 ### Added

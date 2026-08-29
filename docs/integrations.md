@@ -54,6 +54,64 @@ baseline that is not there — fails the build too, but says so in those words. 
 failing audit; it is a build that was never checked, and reporting it as violations would
 send somebody looking for defects that were never measured.
 
+## Vite plugin
+
+Covers Vite itself and everything built on it — SvelteKit, Nuxt, Remix, and Astro if you
+would rather configure it there than through the Astro integration.
+
+```bash
+pnpm add -D eaa-kit
+```
+
+```js
+// vite.config.js
+import eaaKit from 'eaa-kit/vite'
+
+export default {
+  plugins: [eaaKit()],
+}
+```
+
+The audit runs in `closeBundle`, after the build has written its files, and fails the build
+on violations at or above the threshold. It is `apply: 'build'`, so a dev server never
+waits on it, and `enforce: 'post'`, so a plugin still emitting pages is not audited by its
+absence.
+
+| Option | |
+| --- | --- |
+| `failOn` | lowest impact that fails the build (default `serious`) |
+| `failBuild: false` | report without failing — for the week it takes to adopt this on a site that already exists |
+| `enabled: false` | skip entirely, for turning it off per environment without unwiring it |
+| `directory` | audit somewhere other than the build's `outDir` |
+| `browser`, `baseline`, `include`, `exclude`, `format`, `output` | as the CLI |
+
+`outDir` is read from the resolved Vite config, so a project that moved its output needs no
+second place to say so.
+
+## Next.js
+
+**There is no Next.js plugin, deliberately.** Next has no stable hook that runs after a
+build writes its files: `next.config.js`'s `webpack` function is the usual place, and Next
+16 defaults to Turbopack, which does not call it. A plugin built that way would look wired
+up in the config and silently never run — which for an accessibility check is worse than
+having none.
+
+Two commands instead, both of which always work:
+
+```bash
+next build && eaa-kit audit
+```
+
+or simply
+
+```bash
+eaa-kit audit
+```
+
+which finds the build, runs it if there is none, and — for a site with API routes or
+middleware, which cannot be exported statically — starts the server and audits what it
+serves. See [Which directory to point it at](audit.md#which-directory-to-point-it-at).
+
 ## GitHub Actions
 
 A composite action is included. It builds the site, audits it, uploads the SARIF log to

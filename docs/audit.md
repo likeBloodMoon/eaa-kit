@@ -227,6 +227,32 @@ Prints every page and its result under the issues. Off by default — see [The I
 section](#the-issues-section). The other three formats are unaffected: JSON, SARIF and
 HTML have always carried every page.
 
+### `--manual`
+
+Prints, for each rule this engine could not evaluate, the check somebody does by hand and
+a link to what the criterion actually requires.
+
+```
+· color-contrast 7 pages, WCAG 1.4.3
+    needs rendered foreground and background colours
+    Open the page and check text against its background with a contrast
+    checker. Body text needs 4.5:1, and large or bold text 3:1. Check the
+    states too — hover, focus, visited, disabled and placeholder text are
+    the ones usually missed.
+    or run again with --browser
+    1.4.3: https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html
+```
+
+Automated testing finds a minority of accessibility barriers, and this tool says so
+everywhere. Saying so is not much use on its own: a reader told six rules "could not be
+evaluated" is left knowing there is a gap and not what to do about it. This is the rest of
+the work, written as something to do rather than a restatement of the criterion.
+
+The links to the WCAG Understanding pages print either way — they are one line. The checks
+are behind the flag because they are a paragraph each, and somebody re-running an audit
+they already understand does not need them every time. **The HTML report always includes
+them**, since that one is read once by whoever is deciding what to do.
+
 ### `--format` and `--output`
 
 `--format` selects what is produced; `--output` decides where it goes. Colour is dropped

@@ -42,6 +42,7 @@ program
   .option('--url <url>', 'audit a running site instead of a build directory')
   .option('--no-build', 'never run the project build or start its server')
   .option('--per-page', 'also list every page and its result')
+  .option('--manual', 'what to check by hand for the rules this engine cannot evaluate')
   .option('--allow-remote', 'allow --url to crawl a host that is not localhost')
   .option('--ignore-robots', 'crawl paths robots.txt disallows')
   .option('--max-pages <n>', 'stop the crawl after this many pages', parsePositive)
@@ -70,6 +71,7 @@ program
     const { exitCode } = await runAuditCommand(dir, {
       ...(options['build'] === false ? { noBuild: true } : {}),
       ...(options['perPage'] === true ? { perPage: true } : {}),
+      ...(options['manual'] === true ? { manual: true } : {}),
       ...(Array.isArray(options['include']) ? { include: options['include'] as string[] } : {}),
       ...(Array.isArray(options['exclude']) ? { exclude: options['exclude'] as string[] } : {}),
       ...(typeof options['baseUrl'] === 'string' ? { baseUrl: options['baseUrl'] } : {}),
