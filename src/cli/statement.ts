@@ -1,12 +1,11 @@
 import path from 'node:path'
-import pc from 'picocolors'
 import { ConfigError, type Country, type StatementLocale } from '../config/define.ts'
 import { loadConfig } from '../config/load.ts'
 import { StatementError } from '../statement/error.ts'
 import { type AuditSummary, readAuditReport } from '../statement/findings.ts'
 import { renderStatement } from '../statement/render.ts'
 import { count } from '../text.ts'
-import { emitDocument, fail, note } from './report.ts'
+import { advise, emitDocument, fail, note } from './command.ts'
 
 /** Markdown for a content directory, HTML for dropping straight onto a site. */
 export const STATEMENT_FORMATS = ['markdown', 'html'] as const
@@ -75,9 +74,7 @@ export async function runStatementCommand(
       // legal document full of English rule text that nobody was warned about
       // is not.
       if (audit.findings.length > 0) {
-        process.stderr.write(
-          pc.yellow('Rewrite those descriptions in your own words before publishing.\n'),
-        )
+        advise('Rewrite those descriptions in your own words before publishing.')
       }
     }
 
@@ -89,9 +86,7 @@ export async function runStatementCommand(
     // The generated text says this too, but someone piping it into a file may
     // never read it, and a legal document is the wrong place to be quiet about
     // what produced it.
-    process.stderr.write(
-      pc.yellow('Review before publishing. This is a draft, not legal advice.\n'),
-    )
+    advise('Review before publishing. This is a draft, not legal advice.')
 
     return { document, format, exitCode: 0 }
   } catch (cause) {

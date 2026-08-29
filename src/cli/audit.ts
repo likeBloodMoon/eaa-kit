@@ -1,4 +1,3 @@
-import pc from 'picocolors'
 import { countAtOrAbove, DEFAULT_FAIL_ON, type ImpactLevel } from '../audit/impact.ts'
 import { formatConsoleReport } from '../audit/report/console.ts'
 import type { PageAudit } from '../audit/runners/jsdom.ts'
@@ -15,8 +14,8 @@ import { count } from '../text.ts'
  */
 
 import type { CollectedPage } from '../audit/collect.ts'
+import { advise, emitDocument, fail, note, runEngine } from './command.ts'
 import { type CrawlCommandOptions, resolvePages } from './pages.ts'
-import { emitDocument, fail, note, runEngine } from './report.ts'
 
 export const OUTPUT_FORMATS = ['console', 'json', 'sarif', 'html'] as const
 
@@ -84,13 +83,13 @@ export async function runAuditCommand(
       `Auditing ${count(pages.length, 'page')} in ${label}${await describeEngine(pages, options)}…`,
     )
 
+    // An explicit --base-url still wins; the crawl's own origin is the default
+    // so that a fetched page is audited under the URL it was fetched from.
+    const baseUrl = options.baseUrl ?? origin
+
     let audits = await runEngine(pages, {
       cwd: options.cwd ?? process.cwd(),
-      // An explicit --base-url still wins; the crawl's own origin is the default
-      // so that a fetched page is audited under the URL it was fetched from.
-      ...((options.baseUrl ?? origin) === undefined
-        ? {}
-        : { baseUrl: (options.baseUrl ?? origin) as string }),
+      ...(baseUrl === undefined ? {} : { baseUrl }),
       ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
       ...(options.browser ? { browser: true } : {}),
       ...(options.concurrency === undefined ? {} : { concurrency: options.concurrency }),
@@ -159,10 +158,8 @@ async function acceptBaseline(
       note(`${stale} baseline ${verb} and can be removed`)
     }
     if (outcome.expired.length > 0) {
-      process.stderr.write(
-        pc.yellow(
-          `${outcome.expired.length} baseline entries have expired and no longer suppress anything\n`,
-        ),
+      advise(
+        `${outcome.expired.length} baseline entries have expired and no longer suppress anything`,
       )
     }
 

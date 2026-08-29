@@ -6,7 +6,7 @@ import {
   emptyDirectoryHint,
 } from '../audit/collect.ts'
 import { count } from '../text.ts'
-import { fail, note, warn } from './report.ts'
+import { fail, note, warn } from './command.ts'
 
 /**
  * Where the pages a command audits come from.

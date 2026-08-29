@@ -1,5 +1,4 @@
 import path from 'node:path'
-import pc from 'picocolors'
 import {
   BaselineError,
   buildBaseline,
@@ -7,8 +6,8 @@ import {
   writeBaseline,
 } from '../audit/baseline.ts'
 import { count } from '../text.ts'
+import { advise, fail, note, runEngine } from './command.ts'
 import { type CrawlCommandOptions, resolvePages } from './pages.ts'
-import { fail, note, runEngine } from './report.ts'
 
 export interface BaselineCommandOptions extends CrawlCommandOptions {
   include?: string[]
@@ -100,9 +99,7 @@ export async function runBaselineCommand(
     // The file is a list of things that are wrong with the site. Saying so
     // where somebody will read it is the difference between a baseline and a
     // way of turning the tool off.
-    process.stderr.write(
-      pc.yellow('These are barriers, not exceptions. Commit the file, then work the list down.\n'),
-    )
+    advise('These are barriers, not exceptions. Commit the file, then work the list down.')
   }
 
   return { entries, exitCode: 0 }

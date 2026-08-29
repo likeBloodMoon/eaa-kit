@@ -27,6 +27,14 @@ export function fail(message: string): void {
   process.stderr.write(`${pc.red('error')} ${message}\n`)
 }
 
+/**
+ * Advice the reader should not miss, without the `warning` prefix: nothing has
+ * gone wrong, but what happens next is theirs to get right.
+ */
+export function advise(message: string): void {
+  process.stderr.write(pc.yellow(`${message}\n`))
+}
+
 export interface EngineOptions {
   cwd: string
   baseUrl?: string
