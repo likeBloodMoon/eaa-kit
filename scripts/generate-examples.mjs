@@ -6,7 +6,7 @@
 // between the shells npm uses on Windows and POSIX.
 
 import { spawnSync } from 'node:child_process'
-import { mkdir } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 
 const CLI = 'dist/cli/index.js'
 const FIXTURES = 'tests/fixtures/site'
@@ -73,4 +73,27 @@ for (const { args, file } of statements) {
     process.exit(1)
   }
   console.log(`wrote ${file}`)
+}
+
+/**
+ * Hold the run timestamp still.
+ *
+ * These files are checked in so the output formats can be reviewed as whole
+ * documents. Every regeneration otherwise rewrites the one field that changes
+ * on its own, so `git diff examples/` says something changed when nothing did —
+ * and a real change hides among the noise the next time somebody looks.
+ *
+ * Done here rather than through a CLI flag: a way to fix the clock is a
+ * testing seam, and the shipped tool should not carry one for the sake of its
+ * own documentation.
+ */
+const FIXED = '2026-01-01T00:00:00.000Z'
+
+for (const file of ['examples/report.json', 'examples/report.sarif', 'examples/report.html']) {
+  const before = await readFile(file, 'utf8')
+  const after = before.replace(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z/g, FIXED)
+  if (after !== before) {
+    await writeFile(file, after, 'utf8')
+    console.log(`normalised the timestamp in ${file}`)
+  }
 }

@@ -221,6 +221,12 @@ Without it, pages are audited under a `file://` URL derived from their path. Wit
 `https://example.com/about/index.html`, which is how relative links resolve in the report
 and in the JSON document's `url` field.
 
+### `--per-page`
+
+Prints every page and its result under the issues. Off by default — see [The Issues
+section](#the-issues-section). The other three formats are unaffected: JSON, SARIF and
+HTML have always carried every page.
+
 ### `--format` and `--output`
 
 `--format` selects what is produced; `--output` decides where it goes. Colour is dropped
@@ -279,8 +285,7 @@ then split the run with `--include`.
 
 ## The Issues section
 
-Under the page-by-page listing, the report groups violations by the element that causes
-them:
+The console report leads with the violations grouped by the element that causes them:
 
 ```
 Issues
@@ -295,6 +300,11 @@ Issues
           team.html  app/team/page.jsx
         identical on each — likely one shared component
 ```
+
+The page-by-page listing is the same information keyed the other way round. It is the
+right shape for working through one page and the wrong shape for deciding what to do, so
+it is printed only under `--per-page`; on a fifty-page site it buries what somebody needs.
+On a seven-page fixture the default report is 49 lines against 107.
 
 The page-by-page listing is the truth; on a site built from components it is not the
 work. One header with a missing `alt` reappears on every page that renders it, and

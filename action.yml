@@ -10,9 +10,31 @@ branding:
 
 inputs:
   directory:
-    description: Directory holding the built site, relative to working-directory.
+    description: >-
+      Directory holding the built site, relative to working-directory. Leave
+      empty to let eaa-kit work it out from the project, which is what it does
+      on the command line.
     required: false
     default: ./dist
+  url:
+    description: >-
+      Audit a running site instead of a directory, for example
+      http://localhost:3000. Start the server in an earlier step. This is the
+      only way to audit a site that renders on a server and never writes HTML —
+      a Next.js app with API routes or middleware, Nuxt, SvelteKit. Takes
+      precedence over "directory".
+    required: false
+    default: ''
+  allow-remote:
+    description: >-
+      Allow "url" to point at a host that is not localhost. Off by default: a
+      workflow should not be one input away from crawling production.
+    required: false
+    default: 'false'
+  max-pages:
+    description: Stop the crawl after this many pages.
+    required: false
+    default: ''
   build-command:
     description: >-
       Command that produces the build, for example "npm run build". Leave empty
@@ -90,6 +112,9 @@ runs:
       working-directory: ${{ inputs.working-directory }}
       env:
         EAA_DIRECTORY: ${{ inputs.directory }}
+        EAA_URL: ${{ inputs.url }}
+        EAA_ALLOW_REMOTE: ${{ inputs.allow-remote }}
+        EAA_MAX_PAGES: ${{ inputs.max-pages }}
         EAA_FAIL_ON: ${{ inputs.fail-on }}
         EAA_SARIF: ${{ inputs.sarif-file }}
         EAA_BASE_URL: ${{ inputs.base-url }}
@@ -98,7 +123,25 @@ runs:
         EAA_BASELINE: ${{ inputs.baseline }}
       run: |
         set -o pipefail
-        args=("$EAA_DIRECTORY" --format sarif --output "$EAA_SARIF" --fail-on "$EAA_FAIL_ON")
+        # A URL replaces the directory rather than joining it: they are two
+        # sources for the same run, and passing both would leave the tool to
+        # guess which the workflow meant.
+        if [ -n "$EAA_URL" ]; then
+          args=(--url "$EAA_URL")
+          if [ "$EAA_ALLOW_REMOTE" = "true" ]; then
+            args+=(--allow-remote)
+          fi
+          if [ -n "$EAA_MAX_PAGES" ]; then
+            args+=(--max-pages "$EAA_MAX_PAGES")
+          fi
+        elif [ -n "$EAA_DIRECTORY" ]; then
+          args=("$EAA_DIRECTORY")
+        else
+          # Neither given: let eaa-kit work the project out, as it does on the
+          # command line.
+          args=()
+        fi
+        args+=(--format sarif --output "$EAA_SARIF" --fail-on "$EAA_FAIL_ON")
         if [ -n "$EAA_BASE_URL" ]; then
           args+=(--base-url "$EAA_BASE_URL")
         fi

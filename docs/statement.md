@@ -29,6 +29,23 @@ Every statement carries the five sections the EU model requires: conformance sta
 non-accessible content with a reason for each barrier, how to send feedback, the
 enforcement procedure, and when the statement was prepared.
 
+## Writing the config
+
+```bash
+eaa-kit init
+```
+
+Asks for the few things it cannot work out — who is answerable for the site, where
+feedback goes, whose law applies — takes the site name and URL from `package.json` where
+they are stated, and writes an `eaa.config.json` the loader accepts. It refuses to
+overwrite a config that is already there without `--force`, and `--yes` takes every
+default without asking.
+
+What it writes is `partially-compliant`, never `compliant`. The file is written before any
+audit has run, and a statement claiming full conformance for a site nobody has assessed is
+worse than no statement at all.
+
+
 ## Markdown or HTML
 
 `--format` decides what is produced and `--output` where it goes. With no `--format`, an
