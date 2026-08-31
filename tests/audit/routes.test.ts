@@ -10,14 +10,22 @@ afterEach(async () => {
   await Promise.all(dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })))
 })
 
-async function project(files: string[]): Promise<string> {
+async function project(files: string[], pkg?: Record<string, unknown>): Promise<string> {
   const dir = await mkdtemp(path.join(tmpdir(), 'eaa-kit-routes-'))
   dirs.push(dir)
   for (const name of files) {
     await mkdir(path.join(dir, path.dirname(name)), { recursive: true })
     await writeFile(path.join(dir, name), '')
   }
+  if (pkg !== undefined) {
+    await writeFile(path.join(dir, 'package.json'), JSON.stringify(pkg))
+  }
   return dir
+}
+
+/** A package.json naming one dependency, which is how the registry identifies most builders. */
+function dependsOn(name: string): Record<string, unknown> {
+  return { name: 'fixture', dependencies: { [name]: '1.0.0' } }
 }
 
 describe('routePathFor', () => {
@@ -120,5 +128,127 @@ describe('buildRouteMap', () => {
 
     expect(sourceFor(map, '404.html')).toBeUndefined()
     expect(sourceFor(undefined, 'index.html')).toBeUndefined()
+  })
+})
+
+describe('remix flat routes', () => {
+  it.each([
+    ['_index.tsx', ''],
+    ['about.tsx', 'about'],
+    ['blog.post.tsx', 'blog/post'],
+    ['blog._index.tsx', 'blog'],
+    ['blog.post/route.tsx', 'blog/post'],
+  ])('%s -> %s', (file, expected) => {
+    expect(routePathFor(file, 'remix')).toBe(expected)
+  })
+
+  it('treats a trailing underscore as a layout escape, not part of the URL', () => {
+    // blog_.post.tsx opts out of the blog layout and still serves /blog/post.
+    expect(routePathFor('blog_.post.tsx', 'remix')).toBe('blog/post')
+  })
+
+  it.each(['blog.$slug.tsx', '$.tsx', 'files.$.tsx'])('refuses the dynamic route %s', (file) => {
+    expect(routePathFor(file, 'remix')).toBeUndefined()
+  })
+})
+
+describe('documentation trees', () => {
+  it.each([
+    ['index.md', ''],
+    ['guide/intro.md', 'guide/intro'],
+    ['guide/index.md', 'guide'],
+  ])('vitepress %s -> %s', (file, expected) => {
+    expect(routePathFor(file, 'vitepress')).toBe(expected)
+  })
+
+  it('serves docusaurus docs under /docs by default', () => {
+    expect(routePathFor('intro.md', 'docusaurus')).toBe('docs/intro')
+    expect(routePathFor('index.md', 'docusaurus')).toBe('docs')
+  })
+
+  it.each([
+    ['index.md', ''],
+    ['reference/cli.mdx', 'reference/cli'],
+  ])('starlight %s -> %s', (file, expected) => {
+    expect(routePathFor(file, 'starlight')).toBe(expected)
+  })
+})
+
+describe('hugo content', () => {
+  it.each([
+    ['_index.md', ''],
+    ['posts/hello.md', 'posts/hello'],
+    ['posts/_index.md', 'posts'],
+  ])('%s -> %s', (file, expected) => {
+    expect(routePathFor(file, 'hugo')).toBe(expected)
+  })
+})
+
+describe('choosing between conventions that claim the same directory', () => {
+  it('calls a Gatsby project gatsby, not next-pages', async () => {
+    // src/pages belongs to Next, Astro, Gatsby and Vue alike. Probing for it in
+    // declaration order labelled every one of them next-pages: the mapping was
+    // right and the name was wrong.
+    const dir = await project(['src/pages/index.tsx'], dependsOn('gatsby'))
+
+    const map = await buildRouteMap(dir)
+
+    expect(map?.framework).toBe('gatsby')
+    expect(sourceFor(map, 'index.html')).toBe('src/pages/index.tsx')
+  })
+
+  it('still calls a Next project next-pages for the same directory', async () => {
+    const dir = await project(['src/pages/index.tsx'], dependsOn('next'))
+
+    expect((await buildRouteMap(dir))?.framework).toBe('next-pages')
+  })
+
+  it('prefers the Starlight content tree over src/pages in an Astro project', async () => {
+    const dir = await project(['src/content/docs/index.md'], dependsOn('astro'))
+
+    const map = await buildRouteMap(dir)
+
+    expect(map?.framework).toBe('starlight')
+    expect(sourceFor(map, 'index.html')).toBe('src/content/docs/index.md')
+  })
+
+  it('falls back to probing when the registry knows nothing about the project', async () => {
+    // Most builds are not framework projects, and a map is better than no map.
+    const dir = await project(['app/page.tsx'])
+
+    expect((await buildRouteMap(dir))?.framework).toBe('next-app')
+  })
+})
+
+describe('the new conventions end to end', () => {
+  it('maps a Remix project', async () => {
+    const dir = await project(
+      ['app/routes/_index.tsx', 'app/routes/blog.post.tsx'],
+      dependsOn('@remix-run/react'),
+    )
+
+    const map = await buildRouteMap(dir)
+
+    expect(map?.framework).toBe('remix')
+    expect(sourceFor(map, 'index.html')).toBe('app/routes/_index.tsx')
+    expect(sourceFor(map, 'blog/post.html')).toBe('app/routes/blog.post.tsx')
+  })
+
+  it('maps a Docusaurus project under its default base path', async () => {
+    const dir = await project(['docs/intro.md'], dependsOn('@docusaurus/core'))
+
+    const map = await buildRouteMap(dir)
+
+    expect(map?.framework).toBe('docusaurus')
+    expect(sourceFor(map, 'docs/intro/index.html')).toBe('docs/intro.md')
+  })
+
+  it('maps a Hugo content tree', async () => {
+    const dir = await project(['content/posts/hello.md', 'hugo.toml'])
+
+    const map = await buildRouteMap(dir)
+
+    expect(map?.framework).toBe('hugo')
+    expect(sourceFor(map, 'posts/hello/index.html')).toBe('content/posts/hello.md')
   })
 })

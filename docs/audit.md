@@ -344,10 +344,34 @@ is what buys the most. An unclassified impact sorts with the most severe, on the
 reasoning as `--fail-on`.
 
 **Source files.** Where the project uses a router convention, each page is named with the
-file that produced it. Next.js (both routers), Nuxt, Astro and SvelteKit are recognised,
-read from the conventions themselves rather than from a build manifest, so this does not
-break when a framework changes its internals. A dynamic route like `app/blog/[slug]` serves
-many paths and is left unmapped rather than guessed at — a wrong file is worse than none.
+file that produced it, read from the conventions themselves rather than from a build
+manifest, so this does not break when a framework changes its internals.
+
+| Recognised | Read from |
+| --- | --- |
+| Next.js, both routers | `app/`, `src/app/`, `pages/`, `src/pages/` |
+| Remix / React Router | `app/routes/`, including flat routes (`blog.post.tsx`) |
+| Nuxt | `pages/` |
+| Astro | `src/pages/` |
+| Starlight | `src/content/docs/` |
+| SvelteKit | `src/routes/` |
+| Gatsby | `src/pages/` |
+| Docusaurus | `docs/`, under its default `/docs` base path |
+| VitePress | `docs/` |
+| Hugo | `content/`, including `_index.md` section pages |
+
+Which convention applies is decided by what the project actually is, not by which directory
+happens to exist: `src/pages` belongs to Next.js, Astro and Gatsby alike, so the dependency
+in `package.json` picks between them.
+
+A dynamic route like `app/blog/[slug]`, `blog.$slug.tsx` or `pages/[id].vue` serves many
+paths and is left unmapped rather than guessed at — a wrong file is worse than none.
+
+Two are deliberately not mapped. **Angular** keeps its routes in a TypeScript configuration
+object rather than in the filesystem, and reading it would mean parsing or running project
+code. **Eleventy and Jekyll** let a page set its own URL in front matter, so the file layout
+is not the route; mapping their default convention alone would be right until somebody used
+the feature, and quietly wrong after that.
 
 ## Exit codes
 

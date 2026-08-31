@@ -29,7 +29,25 @@ consumers must ignore what they do not recognise.
   is not a violation, and failing builds on it would break every pipeline already running
   this tool.
 
+- **Six more routers can name the source file behind a page.** Remix and React Router
+  (including flat routes, where `blog.post.tsx` serves `/blog/post`), Gatsby, Docusaurus,
+  VitePress, Starlight and Hugo join Next.js, Nuxt, Astro and SvelteKit. The registry
+  already recognised fourteen builders; the report could name a source file for five of
+  them, so everyone else got `leistungen.html` — which the route mapper's own comment calls
+  "accurate and unhelpful".
+
+  Angular, Eleventy and Jekyll are deliberately still unmapped, and the docs now say why:
+  Angular's routes live in a TypeScript object rather than the filesystem, and Eleventy and
+  Jekyll let a page set its own URL in front matter, so their file layout is not the route.
+  Mapping the default convention alone would be right until somebody used the feature.
+
 ### Fixed
+
+- **A Gatsby project is no longer reported as Next.js.** Route conventions were matched by
+  probing directories in declaration order, and `src/pages` belongs to Next.js, Astro,
+  Gatsby and Vue alike, so whichever was declared first claimed it. The mapping was right
+  and the name beside it was wrong. Which convention applies is now decided by what the
+  registry says the project is, falling back to probing only where it recognises nothing.
 
 - **One unreadable file no longer fails the whole collection.** A single bad permission bit
   in a build directory rejected every page with it, so the run reported as a crash rather
