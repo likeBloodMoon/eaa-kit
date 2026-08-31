@@ -698,7 +698,8 @@
               "target": [
                 "h1"
               ],
-              "failureSummary": "Fix all of the following:\n  Axe encountered an error; test the page for this type of problem manually"
+              "failureSummary": "Fix all of the following:\n  Axe encountered an error; test the page for this type of problem manually",
+              "fingerprint": "b0b4dd68d2510979"
             }
           ],
           "reason": "engine-limitation",
@@ -805,7 +806,8 @@
               "target": [
                 "h1"
               ],
-              "failureSummary": "Fix all of the following:\n  Axe encountered an error; test the page for this type of problem manually"
+              "failureSummary": "Fix all of the following:\n  Axe encountered an error; test the page for this type of problem manually",
+              "fingerprint": "4113902b5dad38cd"
             }
           ],
           "reason": "engine-limitation",
@@ -912,7 +914,8 @@
               "target": [
                 "p"
               ],
-              "failureSummary": "Fix all of the following:\n  Axe encountered an error; test the page for this type of problem manually"
+              "failureSummary": "Fix all of the following:\n  Axe encountered an error; test the page for this type of problem manually",
+              "fingerprint": "3c34e40dd1b3284f"
             }
           ],
           "reason": "engine-limitation",
@@ -1018,7 +1021,8 @@
               "target": [
                 "html"
               ],
-              "failureSummary": "Fix any of the following:\n  The <html> element does not have a lang attribute"
+              "failureSummary": "Fix any of the following:\n  The <html> element does not have a lang attribute",
+              "fingerprint": "4c2a13ab4c8c0365"
             }
           ]
         },
@@ -1031,7 +1035,8 @@
               "target": [
                 "img"
               ],
-              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\""
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "fingerprint": "f0e17d2582e9a5b3"
             }
           ]
         },
@@ -1044,7 +1049,8 @@
               "target": [
                 "a"
               ],
-              "failureSummary": "Fix all of the following:\n  Element is in tab order and does not have accessible text\n\nFix any of the following:\n  Element does not have text that is visible to screen readers\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute"
+              "failureSummary": "Fix all of the following:\n  Element is in tab order and does not have accessible text\n\nFix any of the following:\n  Element does not have text that is visible to screen readers\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute",
+              "fingerprint": "e444708c0ffb67e0"
             }
           ]
         }
@@ -1059,7 +1065,8 @@
               "target": [
                 "html"
               ],
-              "failureSummary": "Fix any of the following:\n  No valid skip link found\n  Page does not have a heading\n  Page does not have a landmark region"
+              "failureSummary": "Fix any of the following:\n  No valid skip link found\n  Page does not have a heading\n  Page does not have a landmark region",
+              "fingerprint": "f65f3f04548c6741"
             }
           ],
           "reason": "needs-review",
@@ -1074,7 +1081,8 @@
               "target": [
                 "p"
               ],
-              "failureSummary": "Fix all of the following:\n  Axe encountered an error; test the page for this type of problem manually"
+              "failureSummary": "Fix all of the following:\n  Axe encountered an error; test the page for this type of problem manually",
+              "fingerprint": "e2edcc8d05a5ddea"
             }
           ],
           "reason": "engine-limitation",
@@ -1110,7 +1118,8 @@
               "target": [
                 "a"
               ],
-              "failureSummary": null
+              "failureSummary": null,
+              "fingerprint": "861d5c841eb71dae"
             }
           ],
           "reason": "engine-limitation",
@@ -1191,7 +1200,8 @@
               "target": [
                 "p"
               ],
-              "failureSummary": "Fix all of the following:\n  Axe encountered an error; test the page for this type of problem manually"
+              "failureSummary": "Fix all of the following:\n  Axe encountered an error; test the page for this type of problem manually",
+              "fingerprint": "e300b0a374169cf7"
             }
           ],
           "reason": "engine-limitation",

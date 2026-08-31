@@ -1,6 +1,7 @@
 import axe from 'axe-core'
 import { TOOL_VERSION } from '../../version.ts'
 import type { RunCompleteness } from '../completeness.ts'
+import { elementFingerprint } from '../fingerprint.ts'
 import { countAtOrAbove, type ImpactLevel, impactLabel, isImpactLevel } from '../impact.ts'
 import { ruleOutcomes } from '../result.ts'
 import type { Finding, IncompleteFinding, PageAudit } from '../runners/jsdom.ts'
@@ -33,6 +34,15 @@ export interface JsonNode {
   /** CSS selector path to the element. */
   target: string[]
   failureSummary: string | null
+  /**
+   * Stable identity of this element: rule, selector and markup, never the page.
+   *
+   * The same value the baseline file records and SARIF sends as a partial
+   * fingerprint, so all three agree on what one defect is. Emitted so a
+   * consumer comparing two reports need not reimplement the hash and risk
+   * disagreeing with the tools that already use it.
+   */
+  fingerprint: string
 }
 
 export interface JsonFinding {
@@ -272,6 +282,7 @@ function toJsonFinding(finding: Finding): JsonFinding {
       html: node.html,
       target: node.target,
       failureSummary: node.failureSummary ?? null,
+      fingerprint: elementFingerprint(finding.ruleId, node.target.join(' '), node.html),
     })),
   }
 }

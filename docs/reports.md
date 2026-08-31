@@ -104,7 +104,8 @@ A complete generated document is checked in at
             {
               "html": "<img src=\"/logo.svg\">",
               "target": ["img"],                // CSS selector path
-              "failureSummary": "Fix any of the following: …"   // or null
+              "failureSummary": "Fix any of the following: …",  // or null
+              "fingerprint": "9f2a1c4e8b7d0356"   // stable identity of this element
             }
           ]
         }
@@ -163,6 +164,60 @@ failures with different fixes, and summing them would name neither.
 appear without a bump, and consumers must ignore what they do not recognise. A consumer
 written against version 1 that has never seen this field should treat its absence as
 unknown rather than as a complete run.
+
+### `fingerprint`
+
+Each node carries the same identity the baseline file records and SARIF sends as a partial
+fingerprint: a hash of the rule, the selector and the element's own markup, and deliberately
+not of the page it was found on. Two consumers already depended on it agreeing — SARIF, so
+that moving a page does not close one code-scanning alert and open an identical one, and
+the baseline, so an accepted violation stays accepted when the surrounding page changes.
+
+It is emitted so a third does not have to reimplement the hash and risk disagreeing with
+them. `eaa-kit diff` matches on it.
+
+## Comparing two runs
+
+```bash
+eaa-kit diff before.json after.json
+```
+
+Neither report answers the question a review asks. Running the auditor on a branch prints
+everything wrong with the site; almost all of it was already there, and the two or three
+findings somebody introduced are somewhere in the middle of it.
+
+`diff` reads two JSON reports and sorts every violating element into four:
+
+| | |
+| --- | --- |
+| **new** | In the later run and not the earlier one |
+| **fixed** | In the earlier run, gone from the later one, on a page the later run audited |
+| **unchanged** | In both |
+| **not compared** | In the earlier run, on a page the later run never audited |
+
+That last one is the reason to trust the other three. A violation missing from the second
+run has two possible explanations — somebody fixed it, or nothing looked at that page — and
+they are not interchangeable. Reporting the second as *fixed* would turn a crawl that
+stopped early into a changelog of work nobody did. So a violation is called fixed only when
+the later run actually reached a verdict on the page it was on, and the rest are listed
+apart, with the pages named.
+
+Markup that changed counts as a different violation rather than the same one, which is the
+conservative reading: it avoids calling something fixed because its surroundings moved.
+
+`--fail-on` judges **new** violations only. A diff that failed on what was already there
+would be an audit with extra steps, and would go red on every branch of a site carrying any
+debt.
+
+| Code | Meaning |
+| --- | --- |
+| `0` | No new violations at or above `--fail-on` |
+| `1` | At least one |
+| `2` | A report could not be read |
+
+This is not a [baseline](baseline.md), and does not replace one. A baseline is a file
+somebody commits and maintains, and it answers *what have we agreed to live with*. A diff
+is stateless, needs no decision from anybody, and answers *what did this change do*.
 
 ## SARIF output
 

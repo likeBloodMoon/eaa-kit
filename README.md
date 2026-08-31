@@ -9,6 +9,7 @@ in Austria.
 
 ```bash
 npx eaa-kit audit                 # WCAG 2.2 AA report; finds your build itself
+npx eaa-kit diff a.json b.json    # what a change made worse, and what it fixed
 npx eaa-kit init                  # write an eaa.config.json
 npx eaa-kit statement             # Barrierefreiheitserklärung from that config
 ```
@@ -62,6 +63,14 @@ eaa-kit baseline ./dist
 eaa-kit audit ./dist --baseline eaa-baseline.json
 ```
 
+**Says what a change did.** Two reports, and the difference between them: what is new, what
+was fixed, and what the later run never looked at — which is kept apart, because a
+violation missing from a run that stopped early was not fixed by anybody.
+
+```bash
+eaa-kit diff before.json after.json
+```
+
 **Reports in four shapes**: a console report for whoever ran it, JSON for other tools,
 SARIF for GitHub code scanning, and a self-contained HTML page for the client whose site
 it is.
@@ -77,6 +86,7 @@ or the bundled [GitHub Action](docs/integrations.md#github-actions).
 | [Auditing a build](docs/audit.md) | The `audit` command, both engines, exit codes, and what an automated run can and cannot tell you |
 | [The statement command](docs/statement.md) | The config file, the three countries, and filling a statement from audit results |
 | [Baselines](docs/baseline.md) | Adopting the tool on a site that already has violations |
+| [Comparing two runs](docs/reports.md#comparing-two-runs) | The `diff` command, and what it refuses to call fixed |
 | [Report formats](docs/reports.md) | The JSON contract, SARIF, and the HTML report |
 | [Integrations](docs/integrations.md) | Astro and GitHub Actions |
 

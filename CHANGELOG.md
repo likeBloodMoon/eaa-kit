@@ -55,6 +55,27 @@ consumers must ignore what they do not recognise.
   one means spawning a stateful, usually container-backed stack that may touch a database,
   which is more than an accessibility audit was asked to do.
 
+- **`eaa-kit diff <before.json> <after.json>`**, for the question a review actually asks and
+  which neither report answers on its own: running the auditor on a branch prints everything
+  wrong with the site, and the two or three findings somebody introduced are somewhere in
+  the middle of it. Every violating element is sorted into new, fixed, unchanged, or *not
+  compared*.
+
+  That last bucket is the reason to trust the other three. A violation missing from the
+  second run has two explanations — somebody fixed it, or nothing looked at that page — and
+  reporting the second as fixed would turn a crawl that stopped early into a changelog of
+  work nobody did. So a violation is called fixed only where the later run actually reached a
+  verdict on its page. `--fail-on` judges new violations only; failing on what was already
+  there would be an audit with extra steps.
+
+  It is not a baseline and does not replace one. A baseline is a file somebody commits and
+  maintains, answering *what have we agreed to live with*; a diff is stateless and answers
+  *what did this change do*.
+
+- **Every node in the JSON report carries its `fingerprint`** — the same identity the
+  baseline records and SARIF sends, so a consumer comparing two reports need not reimplement
+  the hash and risk disagreeing with the two tools that already depend on it agreeing.
+
 - **`--sitemap`**, for the site's page list when it is not at `/sitemap.xml`. WordPress with
   Yoast serves `/sitemap_index.xml`; TYPO3 and Craft put it behind a route of their own, and
   link following alone then finds only what the navigation links to. A named sitemap is used
@@ -62,6 +83,11 @@ consumers must ignore what they do not recognise.
   rather than a silent fall back to a crawl that covers less.
 
 ### Fixed
+
+- **The bundled GitHub Action example pinned a version three releases old**, and the runnable
+  copy of the workflow told readers to use a moving `@v0` tag that `docs/integrations.md`
+  says on the same page does not and will not exist. The example and the documentation now
+  agree.
 
 - **A Gatsby project is no longer reported as Next.js.** Route conventions were matched by
   probing directories in declaration order, and `src/pages` belongs to Next.js, Astro,

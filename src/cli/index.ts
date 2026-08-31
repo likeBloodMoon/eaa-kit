@@ -11,6 +11,7 @@ import {
 import { TOOL_VERSION } from '../version.ts'
 import { type AuditCommandOptions, OUTPUT_FORMATS, runAuditCommand } from './audit.ts'
 import { type BaselineCommandOptions, runBaselineCommand } from './baseline.ts'
+import { DIFF_FORMATS, type DiffCommandOptions, runDiffCommand } from './diff.ts'
 import {
   runStatementCommand,
   STATEMENT_FORMATS,
@@ -27,6 +28,7 @@ import {
  */
 type AuditFlags = Omit<AuditCommandOptions, 'noBuild' | 'cwd' | 'timeoutMs'> & { build: boolean }
 type BaselineFlags = Omit<BaselineCommandOptions, 'cwd' | 'timeoutMs'>
+type DiffFlags = Omit<DiffCommandOptions, 'cwd'>
 type StatementFlags = Omit<StatementCommandOptions, 'locale' | 'cwd'> & { lang?: StatementLocale }
 
 /**
@@ -154,6 +156,24 @@ program
   .option('--concurrency <n>', 'worker threads to audit with, or 1 for none', parseConcurrency)
   .action(async (dir: string, flags: BaselineFlags) => {
     const { exitCode } = await runBaselineCommand(dir, flags)
+    process.exitCode = exitCode
+  })
+
+program
+  .command('diff')
+  .description('Compare two JSON reports: what a change made worse, and what it fixed')
+  .argument('<before>', 'JSON report from before the change')
+  .argument('<after>', 'JSON report from after it')
+  .option('--format <format>', `output format (${DIFF_FORMATS.join('|')})`, oneOf(DIFF_FORMATS))
+  .option('--output <path>', 'write the diff here instead of stdout')
+  .option(
+    '--fail-on <impact>',
+    `exit 1 on NEW violations at or above this impact (${IMPACT_LEVELS.join('|')})`,
+    parseImpact,
+    DEFAULT_FAIL_ON,
+  )
+  .action(async (before: string, after: string, flags: DiffFlags) => {
+    const { exitCode } = await runDiffCommand(before, after, flags)
     process.exitCode = exitCode
   })
 

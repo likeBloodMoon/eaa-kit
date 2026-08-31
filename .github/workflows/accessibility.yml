@@ -28,11 +28,13 @@ jobs:
           node-version: 22
 
       # In your own repository this becomes:
-      #   uses: likeBloodMoon/eaa-kit@v0
+      #   uses: likeBloodMoon/eaa-kit@v0.3.0
       #
-      # A major-version tag rather than an exact one, so the example does not
-      # go stale on every release. Pin exactly if you would rather review each
-      # upgrade yourself.
+      # An exact release tag. There is deliberately no moving v0 tag to follow:
+      # this is a 0.x package, the flags and the JSON contract can still move
+      # between releases, and an action that silently updates itself under a
+      # build you are not watching is the wrong default for something whose job
+      # is to fail that build.
       - uses: ./
         with:
           install-command: npm ci

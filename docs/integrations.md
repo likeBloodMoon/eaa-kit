@@ -137,7 +137,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - uses: likeBloodMoon/eaa-kit@v0.1.0
+      - uses: likeBloodMoon/eaa-kit@v0.3.0
         with:
           install-command: npm ci
           build-command: npm run build
