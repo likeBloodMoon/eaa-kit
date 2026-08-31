@@ -102,6 +102,7 @@ program
   .option('--manual', 'what to check by hand for the rules this engine cannot evaluate')
   .option('--allow-remote', 'allow --url to crawl a host that is not localhost')
   .option('--ignore-robots', 'crawl paths robots.txt disallows')
+  .option('--sitemap <path>', 'where the site lists its pages, if not /sitemap.xml')
   .option('--max-pages <n>', 'stop the crawl after this many pages', parsePositive)
   .option('--max-depth <n>', 'how far from the entry URL to follow links', parseDepth)
   .option(
@@ -143,6 +144,7 @@ program
   .option('--url <url>', 'record a baseline from a running site instead of a directory')
   .option('--allow-remote', 'allow --url to crawl a host that is not localhost')
   .option('--ignore-robots', 'crawl paths robots.txt disallows')
+  .option('--sitemap <path>', 'where the site lists its pages, if not /sitemap.xml')
   .option('--max-pages <n>', 'stop the crawl after this many pages', parsePositive)
   .option('--max-depth <n>', 'how far from the entry URL to follow links', parseDepth)
   .option('--output <path>', `where to write it (default: ${DEFAULT_BASELINE_FILE})`)

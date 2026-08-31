@@ -298,3 +298,33 @@ describe.skipIf(asRoot)('a file that cannot be read', () => {
     await expect(collectPages(dir)).rejects.toThrow()
   })
 })
+
+describe('advice for a project that writes no HTML at all', () => {
+  it('names the serve command instead of a build directory', async () => {
+    // "No HTML found in ./dist" describes a directory that was never going to
+    // hold any, so there is no path to correct and nothing to build.
+    const dir = await makeTempSite({ artisan: '' })
+
+    const hint = await emptyDirectoryHint('./dist', dir)
+
+    expect(hint).toContain('Laravel')
+    expect(hint).toContain('writes no HTML to disk')
+    expect(hint).toContain('php artisan serve')
+    expect(hint).toContain('eaa-kit audit --url')
+    // The thing it must never say: a directory to try that cannot exist.
+    expect(hint).not.toContain('./undefined')
+    expect(hint).not.toContain('Run your build')
+  })
+
+  it('says the same for a WordPress site whose theme is built with Vite', async () => {
+    const dir = await makeTempSite({
+      'wp-config.php': '',
+      'package.json': JSON.stringify({ devDependencies: { vite: '5.0.0' } }),
+    })
+
+    const hint = await emptyDirectoryHint('./dist', dir)
+
+    expect(hint).toContain('WordPress')
+    expect(hint).toContain('eaa-kit audit --url')
+  })
+})

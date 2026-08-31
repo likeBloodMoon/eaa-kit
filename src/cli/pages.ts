@@ -25,6 +25,8 @@ export interface CrawlCommandOptions {
   allowRemote?: boolean
   /** Ignore robots.txt while crawling. */
   ignoreRobots?: boolean
+  /** Where the site lists its pages, when that is not /sitemap.xml. */
+  sitemap?: string
   /** Stop the crawl after this many pages. */
   maxPages?: number
   /** How far from the entry point to follow links. */
@@ -182,6 +184,7 @@ async function crawlPages(
   const result = await crawlSite(entry, {
     ...(options.allowRemote ? { allowRemote: true } : {}),
     ...(options.ignoreRobots ? { ignoreRobots: true } : {}),
+    ...(options.sitemap === undefined ? {} : { sitemap: options.sitemap }),
     ...(options.maxPages === undefined ? {} : { maxPages: options.maxPages }),
     ...(options.maxDepth === undefined ? {} : { maxDepth: options.maxDepth }),
     ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),

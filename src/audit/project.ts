@@ -269,6 +269,22 @@ export async function autoDetectSource(
   }
 
   const pkg = await readPackageJson(cwd)
+
+  // A CMS is detected and then left alone. Everything below either runs the
+  // project's build or starts its server, and for WordPress, TYPO3, Rails or
+  // Django that means spawning a stateful, usually container-backed stack that
+  // may touch a database — which is a great deal more than an accessibility
+  // audit was asked to do, and not something to do to somebody's machine
+  // uninvited. A package.json here belongs to a theme's asset build, so
+  // `npm run build` would produce stylesheets and no pages, and `npm start`
+  // could hand back a dev server for the wrong thing entirely.
+  const { detectFramework } = await import('./frameworks.ts')
+  const detected = await detectFramework(cwd, pkg)
+  if (detected !== undefined && detected.framework.outputs.length === 0) {
+    step(`${detected.framework.name} renders on a server and writes no HTML to disk`)
+    return { steps }
+  }
+
   if (pkg === undefined) return undefined
 
   const scripts = pkg.scripts ?? {}

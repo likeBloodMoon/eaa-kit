@@ -41,6 +41,26 @@ consumers must ignore what they do not recognise.
   Jekyll let a page set its own URL in front matter, so their file layout is not the route.
   Mapping the default convention alone would be right until somebody used the feature.
 
+- **WordPress, TYPO3, Craft, Laravel, Symfony, Rails and Django are recognised.** They
+  write no browsable HTML to disk, so an empty `./dist` is not a path to correct — there
+  was never going to be anything in it. Rather than the generic "point me at your build
+  directory", the tool now names the project, the command that gets it serving, and the
+  `--url` line to run next. They are identified by a file rather than a dependency, because
+  a `package.json` in one of these belongs to a theme's asset build and says nothing about
+  the CMS around it — which is also why a WordPress theme bundled with Vite is reported as
+  WordPress rather than as Vite.
+
+  Detected and then left alone: `eaa-kit audit` with no arguments will run a static
+  builder's own build and start its preview server, and for these it does neither. Starting
+  one means spawning a stateful, usually container-backed stack that may touch a database,
+  which is more than an accessibility audit was asked to do.
+
+- **`--sitemap`**, for the site's page list when it is not at `/sitemap.xml`. WordPress with
+  Yoast serves `/sitemap_index.xml`; TYPO3 and Craft put it behind a route of their own, and
+  link following alone then finds only what the navigation links to. A named sitemap is used
+  instead of the default rather than as well as it, so a wrong path is a visible mistake
+  rather than a silent fall back to a crawl that covers less.
+
 ### Fixed
 
 - **A Gatsby project is no longer reported as Next.js.** Route conventions were matched by

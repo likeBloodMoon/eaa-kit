@@ -175,6 +175,21 @@ async function frameworkAdvice(
 
   const lines = [`${head} This is ${article(framework.name)} ${framework.name} project.`]
 
+  // A CMS has no build directory, so there is no path to correct and nothing to
+  // build: "no HTML found in ./dist" describes a directory that was never going
+  // to hold any. The only honest next step is to get the site serving, so that
+  // is the whole of the advice rather than a footnote under advice that cannot
+  // apply.
+  if (outputs.length === 0) {
+    lines.push(
+      `  It renders every page on a server and writes no HTML to disk, so there is`,
+      `  no build directory to audit. Start it, then audit what it serves:`,
+      ...(framework.serveCommand === undefined ? [] : [`    ${framework.serveCommand}`]),
+      '    eaa-kit audit --url http://localhost:8000',
+    )
+    return lines.join('\n')
+  }
+
   if (framework.staticOutput !== undefined) {
     lines.push(
       `  Static output takes ${framework.staticOutput.needs} — ${framework.staticOutput.how},`,

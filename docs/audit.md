@@ -373,6 +373,43 @@ code. **Eleventy and Jekyll** let a page set its own URL in front matter, so the
 is not the route; mapping their default convention alone would be right until somebody used
 the feature, and quietly wrong after that.
 
+## Sites that render on a server
+
+A CMS writes no browsable HTML to disk: every page is rendered per request, so there is no
+build directory to point at and never was one. `eaa-kit audit` recognises WordPress, TYPO3,
+Craft, Laravel, Symfony, Rails and Django, and rather than reporting an empty `./dist` it
+says what the project is and how to audit it:
+
+```
+./dist does not exist. This is a Laravel project.
+  It renders every page on a server and writes no HTML to disk, so there is
+  no build directory to audit. Start it, then audit what it serves:
+    php artisan serve
+    eaa-kit audit --url http://localhost:8000
+```
+
+It stops there deliberately. For a static builder, `eaa-kit audit` with no arguments will
+run the project's own build and even start its preview server; for a CMS it will do
+neither. Starting one of these means spawning a stateful, usually container-backed stack
+that may touch a database, which is a great deal more than an accessibility audit was asked
+to do — and a `package.json` in a WordPress or Laravel project belongs to a theme's asset
+build, so `npm run build` would produce stylesheets and no pages.
+
+**Finding the pages.** Crawling from the front page finds only what the navigation links
+to, which on a site with a thousand articles is a menu. A sitemap is the site's own list of
+its pages, and `/sitemap.xml` is tried automatically — but a CMS rarely puts it there.
+WordPress with Yoast serves `/sitemap_index.xml`, and TYPO3 and Craft put it behind a route
+of their own:
+
+```bash
+eaa-kit audit --url http://localhost:8000 --sitemap /sitemap_index.xml
+```
+
+A named sitemap is used instead of the default rather than as well as it, so a wrong path
+is a visible mistake rather than a silent fall back to a crawl that covers less. Whatever
+the crawl could not reach is [reported with the run](reports.md#completeness) rather than
+counted away.
+
 ## Exit codes
 
 | Code | Meaning |
