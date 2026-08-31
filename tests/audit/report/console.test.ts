@@ -312,3 +312,31 @@ describe('the completeness lines', () => {
     expect(report.match(/could not be audited/g)).toHaveLength(1)
   })
 })
+
+describe('the coverage lines', () => {
+  /** The summary is wrapped to the terminal, so match it as words. */
+  const flat = (printed: string): string => printed.replace(/\s+/g, ' ')
+
+  it('prints the one-line summary by default', () => {
+    const printed = formatDefault(audits)
+
+    expect(flat(printed)).toContain('WCAG 2.2 A and AA success criteria')
+    expect(flat(printed)).toContain('cannot be checked by any automated engine')
+    expect(printed).toContain('Run with --coverage')
+  })
+
+  it('lists every criterion with --coverage', () => {
+    const printed = formatConsoleReport(audits, { color: false, width: 100, coverage: true })
+
+    expect(printed).toContain('Coverage')
+    expect(printed).toContain('1.1.1 Non-text Content')
+    expect(printed).toContain('no automated rule exists; a person must check it')
+    expect(printed).not.toContain('Run with --coverage')
+  })
+
+  it('never prints a percentage', () => {
+    expect(formatConsoleReport(audits, { color: false, width: 100, coverage: true })).not.toMatch(
+      /\d+\s*%/,
+    )
+  })
+})

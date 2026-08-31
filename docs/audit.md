@@ -373,6 +373,39 @@ code. **Eleventy and Jekyll** let a page set its own URL in front matter, so the
 is not the route; mapping their default convention alone would be right until somebody used
 the feature, and quietly wrong after that.
 
+## How much of WCAG a run reaches
+
+WCAG 2.2 has **55 success criteria** at Levels A and AA. axe-core has rules touching **23**
+of them. Every run says so:
+
+```
+Of the 55 WCAG 2.2 A and AA success criteria, 34 cannot be checked by any
+automated engine and need a person. This run reached a verdict on 6.
+--browser would answer 4 more criteria.
+```
+
+`--coverage` lists all 55 and what this run reached on each. The HTML report always
+includes the table.
+
+Each criterion lands in exactly one of four outcomes, and they are never summed or divided
+into a score:
+
+| | |
+| --- | --- |
+| **evaluated here** | A rule for it reached a pass or a violation on this run |
+| **this engine could not evaluate it** | A rule exists and this engine is blind to it — `--browser` may answer it |
+| **rules ran and found nothing to check** | The rules applied to nothing on this site |
+| **no automated rule exists** | Nothing can check it; a person must |
+
+The last is the majority, and it is the point. A tool that reported "23 of 55" as a
+percentage would be presenting a limit of automated testing as though it were a measurement
+of your site. The denominator here is the standard, not your markup — which is why it is
+worth stating at all, and why it never becomes a grade.
+
+`rules ran and found nothing to check` is kept apart from `evaluated` for the same reason
+`inapplicable` is kept apart from `passes`: a page with no images proves nothing about
+image alternatives.
+
 ## Sites that render on a server
 
 A CMS writes no browsable HTML to disk: every page is rendered per request, so there is no

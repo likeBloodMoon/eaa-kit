@@ -1,6 +1,7 @@
 import axe from 'axe-core'
 import { TOOL_VERSION } from '../../version.ts'
 import type { RunCompleteness } from '../completeness.ts'
+import { buildCoverage, type Coverage } from '../coverage.ts'
 import { elementFingerprint } from '../fingerprint.ts'
 import { countAtOrAbove, type ImpactLevel, impactLabel, isImpactLevel } from '../impact.ts'
 import { ruleOutcomes } from '../result.ts'
@@ -135,6 +136,16 @@ export interface JsonReport {
    * `completeness.complete` before drawing any conclusion from the counts.
    */
   completeness: RunCompleteness
+  /**
+   * How much of WCAG this run could reach, with the standard as the
+   * denominator rather than the DOM.
+   *
+   * Never a score. The four counts partition the 55 WCAG 2.2 A/AA criteria
+   * exactly once and must not be summed into a ratio: `noAutomatedRule` is the
+   * majority of them, and dividing anything by 55 would present a limit of
+   * automated testing as a property of the site.
+   */
+  coverage: Coverage
   /** Every rule id appearing anywhere in the document, sorted by id. */
   rules: Record<string, JsonRule>
   pages: JsonPage[]
@@ -182,6 +193,7 @@ export function buildJsonReport(
     },
     summary: buildSummary(audits, options.failOn),
     completeness: options.completeness,
+    coverage: buildCoverage(audits),
     rules: buildRuleIndex(audits),
     pages: audits.map(toJsonPage),
   }

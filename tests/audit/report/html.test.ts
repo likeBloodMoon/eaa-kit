@@ -491,3 +491,38 @@ describe('what the run did not measure', () => {
     expect(html).not.toContain('class="verdict partial"')
   })
 })
+
+describe('the coverage section', () => {
+  it('leads with what cannot be automated rather than with what passed', () => {
+    const readable = text(report)
+
+    expect(readable).toContain('Coverage of WCAG 2.2 AA')
+    expect(readable).toContain('cannot be checked by any automated engine')
+  })
+
+  it('never turns the four counts into a score', () => {
+    // A percentage here would present a limit of automated testing as though it
+    // were a measurement of this site.
+    const section = report.slice(report.indexOf('Coverage of WCAG 2.2 AA'))
+
+    expect(section).not.toMatch(/\d+\s*%/)
+    expect(section).toContain('never added together or divided into a score')
+  })
+
+  it('lists all 55 criteria with somewhere to read what each requires', () => {
+    const section = report.slice(report.indexOf('Coverage of WCAG 2.2 AA'))
+    const rows = section.match(/<tr class="/g) ?? []
+
+    expect(rows).toHaveLength(55)
+    expect(section).toContain('https://www.w3.org/WAI/WCAG22/Understanding/')
+  })
+
+  it('says which criteria a real browser would answer', () => {
+    expect(text(report)).toContain('a real browser would answer')
+  })
+
+  it('keeps the wide table inside its own scroll container', () => {
+    // The page body must never scroll sideways on a narrow screen.
+    expect(report).toContain('<div class="scroll">')
+  })
+})

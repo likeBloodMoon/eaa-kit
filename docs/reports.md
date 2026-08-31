@@ -81,6 +81,28 @@ A complete generated document is checked in at
     ]
   },
 
+  // How much of WCAG this run could reach. The four counts partition the 55
+  // WCAG 2.2 A/AA criteria exactly once and must NEVER be summed into a ratio.
+  "coverage": {
+    "total": 55,                                // WCAG 2.2 criteria at A and AA
+    "evaluated": 6,                             // a rule reached a verdict here
+    "notEvaluated": 5,                          // a rule exists; this engine is blind
+    "nothingToCheck": 10,                       // rules ran, nothing on the site matched
+    "noAutomatedRule": 34,                      // nothing can check it; a person must
+    "browserWouldAnswer": 4,                    // of notEvaluated, how many --browser answers
+    "criteria": [
+      {
+        "number": "1.1.1",
+        "title": "Non-text Content",
+        "level": "A",                           // "A" | "AA"
+        "status": "evaluated",                  // evaluated | not-evaluated
+                                                // | nothing-to-check | no-automated-rule
+        "rules": ["image-alt"],                 // keys into "rules"
+        "browserWouldAnswer": false
+      }
+    ]
+  },
+
   // Rule metadata is held once here and referenced by id everywhere else.
   // Sorted by rule id.
   "rules": {
@@ -175,6 +197,23 @@ the baseline, so an accepted violation stays accepted when the surrounding page 
 
 It is emitted so a third does not have to reimplement the hash and risk disagreeing with
 them. `eaa-kit diff` matches on it.
+
+### `coverage`
+
+The denominator is the standard, not your markup. WCAG 2.2 has 55 success criteria at
+Levels A and AA; axe-core has rules touching 23 of them, and the rest cannot be checked by
+any automated engine at all.
+
+Do not divide these. `noAutomatedRule` is the majority of WCAG, so any ratio built from
+these counts would present a limit of automated testing as though it were a measurement of
+the site — which is the same mistake as adding `inapplicable` to `passes`, and the reason
+`nothingToCheck` is a bucket of its own rather than part of `evaluated`.
+
+`browserWouldAnswer` is the cost of the browserless engine as a number: how many of the
+`notEvaluated` criteria a `--browser` run would decide. The remainder need a person
+whatever engine runs.
+
+Added after `schemaVersion` 1 and does not move it.
 
 ## Comparing two runs
 

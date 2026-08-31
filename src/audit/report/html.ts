@@ -2,6 +2,7 @@ import axe from 'axe-core'
 import { collapse, count, escapeAttribute, escapeText, standardsReference } from '../../text.ts'
 import { TOOL_VERSION } from '../../version.ts'
 import { discoveryLabel, missedParts, type RunCompleteness } from '../completeness.ts'
+import { buildCoverage, type CriterionCoverage } from '../coverage.ts'
 import { countAtOrAbove, type ImpactLevel, impactLabel, impactRank } from '../impact.ts'
 import { blindRules, coverageParts, groupIssues, isShared } from '../issues.ts'
 import { manualCheckFor, understandingUrl } from '../manual.ts'
@@ -88,6 +89,7 @@ ${notMeasured(options)}
 ${summary(audits, failing, options)}
 ${pages(audits)}
 ${notEvaluated(audits)}
+${coverageSection(audits)}
 ${footer()}
 </main>
 </body>
@@ -397,6 +399,74 @@ ${items}
 </ul>`
 }
 
+/**
+ * How much of the standard this run could reach.
+ *
+ * Always included, and placed last, where a reader who has been through the
+ * findings arrives at the limits of what produced them. The counts are shown as
+ * four separate figures and never as a ratio: `no automated rule` is the
+ * majority of WCAG, and a percentage would present a limit of automated testing
+ * as a property of this site.
+ */
+function coverageSection(audits: readonly PageAudit[]): string {
+  const coverage = buildCoverage(audits)
+
+  const rows = coverage.criteria
+    .map((criterion) => {
+      const url = understandingUrl(criterion.number)
+      const name = escapeText(`${criterion.number} ${criterion.title}`)
+      const linked = url === undefined ? name : `<a href="${escapeAttribute(url)}">${name}</a>`
+      return `  <tr class="${escapeAttribute(criterion.status)}">
+    <td>${linked}</td>
+    <td>${escapeText(criterion.level)}</td>
+    <td>${statusText(criterion)}</td>
+  </tr>`
+    })
+    .join('\n')
+
+  return `<h2>Coverage of WCAG 2.2 AA</h2>
+<p>Of the ${coverage.total} success criteria at Levels A and AA,
+  <strong>${coverage.noAutomatedRule}</strong> cannot be checked by any automated engine and
+  need a person. This run reached a verdict on <strong>${coverage.evaluated}</strong>.</p>
+<ul class="counts">
+  <li><strong>${coverage.evaluated}</strong> evaluated here</li>
+  <li><strong>${coverage.notEvaluated}</strong> not evaluated by this engine${
+    coverage.browserWouldAnswer > 0
+      ? ` — a run with a real browser would answer ${coverage.browserWouldAnswer} of them`
+      : ''
+  }</li>
+  <li><strong>${coverage.nothingToCheck}</strong> had rules that ran and found nothing on this site to check</li>
+  <li><strong>${coverage.noAutomatedRule}</strong> have no automated rule at all</li>
+</ul>
+<p class="note">
+  These four are counted separately and never added together or divided into a score. Most
+  of WCAG cannot be automated, and a percentage here would present that limit of automated
+  testing as though it were a measurement of this site.
+</p>
+<div class="scroll">
+<table class="coverage">
+<thead><tr><th>Success criterion</th><th>Level</th><th>This run</th></tr></thead>
+<tbody>
+${rows}
+</tbody>
+</table>
+</div>`
+}
+
+function statusText(criterion: CriterionCoverage): string {
+  const browser = criterion.browserWouldAnswer ? ' <em>(a real browser would answer this)</em>' : ''
+  switch (criterion.status) {
+    case 'evaluated':
+      return `Evaluated${browser}`
+    case 'not-evaluated':
+      return `This engine could not evaluate it${browser}`
+    case 'nothing-to-check':
+      return 'Rules ran and found nothing on this site to check'
+    case 'no-automated-rule':
+      return 'No automated rule exists; a person must check it'
+  }
+}
+
 function footer(): string {
   return `<hr>
 <footer>
@@ -472,6 +542,11 @@ p.standards, p.coverage, .reason, li.more, p.accepted-heading, ul.accepted { col
 p.coverage { margin-top: 0.5rem; }
 ul.nodes { list-style: none; padding-left: 0; }
 ul.unreachable { padding-left: 1.25rem; }
+.scroll { overflow-x: auto; }
+table.coverage { border-collapse: collapse; width: 100%; font-size: 0.95em; }
+table.coverage th, table.coverage td { text-align: left; padding: 0.3rem 0.6rem; border-bottom: 1px solid #e3e3e3; vertical-align: top; }
+table.coverage tr.evaluated td:last-child { color: #216e39; }
+table.coverage em { font-style: normal; opacity: 0.75; }
 ul.unreachable li { margin-bottom: 0.2rem; overflow-wrap: anywhere; }
 code.selector { color: #4a4a4a; }
 p.clean { color: #216e39; }
@@ -519,6 +594,8 @@ ul.page-list { margin: 0.35rem 0 0; padding-left: 1.25rem; }
   .verdict.fail { background: #2b1111; border-color: #ff9d9d; }
   .verdict.broken { background: #2b2310; border-color: #ffd28a; }
   .verdict.partial { background: #2b2310; border-color: #ffd28a; }
+  table.coverage th, table.coverage td { border-bottom-color: #333; }
+  table.coverage tr.evaluated td:last-child { color: #7ee2a8; }
   .tile.critical { background: #2b1111; border-color: #ff9d9d; color: #ffc9c9; }
   .tile.serious { background: #2b1d11; border-color: #ffb98a; color: #ffd7bd; }
   .tile.moderate { background: #2b2610; border-color: #f0d264; color: #f5e3a4; }

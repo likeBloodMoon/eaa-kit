@@ -1,6 +1,7 @@
 import pc from 'picocolors'
 import { collapse, count, plural } from '../../text.ts'
 import { discoveryLabel, missedParts, type RunCompleteness } from '../completeness.ts'
+import { buildCoverage, type Coverage, coverageSummary } from '../coverage.ts'
 import {
   countAtOrAbove,
   DEFAULT_FAIL_ON,
@@ -52,6 +53,12 @@ export interface ConsoleReportOptions {
    * complete.
    */
   completeness?: RunCompleteness
+  /**
+   * List every WCAG 2.2 A/AA criterion and what this run reached on it. Off by
+   * default: it is fifty-five lines, and the one-line summary above it carries
+   * the part that changes how the report reads.
+   */
+  coverage?: boolean
 }
 
 const DEFAULT_MAX_NODES = 3
@@ -105,6 +112,7 @@ interface Context {
   sourceFor: (pagePath: string) => string | undefined
   componentFor: (html: string) => string | undefined
   manual: boolean
+  coverage: boolean
   c: ReturnType<typeof pc.createColors>
   symbol: (kind: 'violation' | 'review' | 'blind' | 'clean' | 'error') => string
   completeness: RunCompleteness | undefined
@@ -123,6 +131,7 @@ function context(options: ConsoleReportOptions): Context {
     sourceFor: options.sourceFor ?? (() => undefined),
     componentFor: options.componentFor ?? (() => undefined),
     manual: options.manual ?? false,
+    coverage: options.coverage ?? false,
     completeness: options.completeness,
     c,
     symbol: (kind) => {
@@ -346,7 +355,62 @@ function summary(audits: readonly PageAudit[], ctx: Context): string[] {
   }
 
   lines.push(...blindSection(audits, ctx))
+  lines.push(...coverageSection(audits, ctx))
   return lines
+}
+
+/**
+ * How much of the standard this run could reach.
+ *
+ * One line by default. It is the sentence that stops a clean report reading as
+ * a clean site: most of WCAG cannot be checked by any automated engine, and
+ * until this was printed the report said so only in prose, in the footer, where
+ * it could be read as boilerplate.
+ */
+function coverageSection(audits: readonly PageAudit[], ctx: Context): string[] {
+  const coverage = buildCoverage(audits)
+  const lines = [
+    '',
+    ...wrap(coverageSummary(coverage), ctx.width - 2).map((text) =>
+      line(ctx, `  ${text}`, ctx.c.dim),
+    ),
+  ]
+
+  if (coverage.browserWouldAnswer > 0) {
+    const verb = coverage.browserWouldAnswer === 1 ? 'criterion' : 'criteria'
+    lines.push(
+      line(ctx, `  --browser would answer ${coverage.browserWouldAnswer} more ${verb}.`, ctx.c.dim),
+    )
+  }
+
+  if (!ctx.coverage) {
+    lines.push(
+      line(ctx, '  Run with --coverage for the criterion-by-criterion breakdown.', ctx.c.dim),
+    )
+    return lines
+  }
+
+  lines.push('', line(ctx, 'Coverage', ctx.c.bold))
+  for (const criterion of coverage.criteria) {
+    const paint = criterion.status === 'evaluated' ? ctx.c.green : ctx.c.dim
+    const note = criterion.browserWouldAnswer ? ' (--browser would answer this)' : ''
+    lines.push(
+      render(ctx, [
+        { text: `  ${criterion.number} `, paint: ctx.c.bold },
+        { text: `${criterion.title} (${criterion.level}) — ` },
+        { text: `${STATUS_WORDS[criterion.status]}${note}`, paint },
+      ]),
+    )
+  }
+  return lines
+}
+
+/** What each outcome is called, in words rather than a symbol. */
+const STATUS_WORDS: Record<Coverage['criteria'][number]['status'], string> = {
+  evaluated: 'evaluated here',
+  'not-evaluated': 'this engine could not evaluate it',
+  'nothing-to-check': 'rules ran and found nothing on this site to check',
+  'no-automated-rule': 'no automated rule exists; a person must check it',
 }
 
 /**

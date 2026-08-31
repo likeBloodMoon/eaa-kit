@@ -25,6 +25,88 @@ export interface BlindRule {
 
 export type IncompleteReason = 'needs-review' | 'engine-limitation'
 
+/**
+ * Rules this engine structurally cannot decide.
+ *
+ * jsdom has no layout: every element reports a 0x0 box, computed style is
+ * limited to the inline cascade, and nothing is ever fetched. axe-core does not
+ * know that, so it happily returns `pass` for some of these — `target-size`
+ * passes on any page because a 0x0 target gets measured against nothing, and
+ * `color-contrast` passes on pages whose colours were never computed. Both were
+ * observed on real sites. Reporting either as a pass would be a false clean
+ * bill of health, so every rule listed here is force-reported as incomplete no
+ * matter which bucket axe-core put it in.
+ *
+ * The browser runner passes an empty map instead: with real layout these rules
+ * are exactly the ones it exists to answer.
+ *
+ * Rules tagged `experimental` are listed for completeness but filtered out at
+ * scope time: axe-core does not run them by default, so a browser run would not
+ * evaluate them either and telling the user to re-run with --browser would be
+ * misleading.
+ */
+export const ENGINE_BLIND_RULES: Readonly<Record<string, BlindRule>> = {
+  'color-contrast': {
+    detail: 'needs rendered foreground and background colours',
+    applicabilityUnreliable: false,
+  },
+  'color-contrast-enhanced': {
+    detail: 'needs rendered foreground and background colours',
+    applicabilityUnreliable: false,
+  },
+  'target-size': {
+    detail: 'needs element geometry; every box is 0x0 without layout',
+    applicabilityUnreliable: false,
+  },
+  'scrollable-region-focusable': {
+    detail: 'needs computed overflow',
+    applicabilityUnreliable: true,
+  },
+  'link-in-text-block': {
+    detail: 'needs rendered colours and text decoration',
+    applicabilityUnreliable: true,
+  },
+  'no-autoplay-audio': {
+    detail: 'needs media duration, and media is never loaded',
+    applicabilityUnreliable: true,
+  },
+  'avoid-inline-spacing': {
+    detail: 'needs computed spacing after the full cascade',
+    applicabilityUnreliable: false,
+  },
+  // Experimental in axe-core, so never actually run; see the note above.
+  'p-as-heading': {
+    detail: 'needs computed font size and weight',
+    applicabilityUnreliable: false,
+  },
+  'css-orientation-lock': {
+    detail: 'needs CSS media query evaluation',
+    applicabilityUnreliable: true,
+  },
+}
+
+const blindScopeCache = new Map<string, Map<string, BlindRule>>()
+
+/**
+ * Blind rules the requested tag filter would actually have run. Experimental
+ * rules are excluded: axe-core leaves them off by default, so a browser run
+ * would not have evaluated them either.
+ */
+export function blindRulesInScope(tags: readonly string[]): Map<string, BlindRule> {
+  const key = [...tags].sort().join(',')
+  const cached = blindScopeCache.get(key)
+  if (cached) return cached
+
+  const inScope = new Map<string, BlindRule>()
+  for (const rule of axe.getRules([...tags])) {
+    if (rule.tags.includes('experimental')) continue
+    const blind = ENGINE_BLIND_RULES[rule.ruleId]
+    if (blind) inScope.set(rule.ruleId, blind)
+  }
+  blindScopeCache.set(key, inScope)
+  return inScope
+}
+
 export interface FindingNode {
   /** Outer HTML of the offending element, as axe-core captured it. */
   html: string

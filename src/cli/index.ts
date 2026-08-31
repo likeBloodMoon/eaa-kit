@@ -102,6 +102,7 @@ program
   .option('--no-build', 'never run the project build or start its server')
   .option('--per-page', 'also list every page and its result')
   .option('--manual', 'what to check by hand for the rules this engine cannot evaluate')
+  .option('--coverage', 'list every WCAG 2.2 A/AA criterion and what this run reached on it')
   .option('--allow-remote', 'allow --url to crawl a host that is not localhost')
   .option('--ignore-robots', 'crawl paths robots.txt disallows')
   .option('--sitemap <path>', 'where the site lists its pages, if not /sitemap.xml')

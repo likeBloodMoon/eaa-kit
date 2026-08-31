@@ -51,6 +51,8 @@ export interface AuditCommandOptions extends CrawlCommandOptions {
   perPage?: boolean
   /** Print the manual check for each rule the engine could not evaluate. */
   manual?: boolean
+  /** List every WCAG 2.2 A/AA criterion and what this run reached on it. */
+  coverage?: boolean
 }
 
 export interface AuditCommandResult {
@@ -261,6 +263,7 @@ async function renderReport(
         completeness,
         ...(options.perPage ? { perPage: true } : {}),
         ...(options.manual ? { manual: true } : {}),
+        ...(options.coverage ? { coverage: true } : {}),
         ...(toFile ? { color: false } : {}),
       })}\n`
     }

@@ -29,6 +29,25 @@ consumers must ignore what they do not recognise.
   is not a violation, and failing builds on it would break every pipeline already running
   this tool.
 
+- **How much of WCAG a run actually reaches, with the standard as the denominator.** The
+  tool refuses to divide passes by failures and is right to — only `passes` is evidence,
+  and the two summed would make an empty page look compliant — but refusing that number
+  left nothing in its place, so "automated testing finds a minority of barriers" stayed a
+  sentence in the footer rather than a figure.
+
+  WCAG 2.2 has 55 success criteria at Levels A and AA. axe-core has rules touching 23 of
+  them. Every run now says so in a line, `--coverage` lists all 55 and what the run reached
+  on each, and the HTML report always includes the table. Each criterion lands in exactly
+  one of four outcomes — evaluated here, not evaluable by this engine, rules ran and found
+  nothing to check, or no automated rule exists at all — which are never summed or divided
+  into a score. The last is the majority, and it is the point: a percentage would present a
+  limit of automated testing as though it were a measurement of the site.
+
+  Falling out of the same table: the cost of the browserless engine, said as a number
+  rather than as general advice. `MANUAL_CHECKS` already recorded per rule whether a real
+  browser resolves it, and nothing read that field; the report now names how many more
+  criteria `--browser` would answer.
+
 - **Six more routers can name the source file behind a page.** Remix and React Router
   (including flat routes, where `blog.post.tsx` serves `/blog/post`), Gatsby, Docusaurus,
   VitePress, Starlight and Hugo join Next.js, Nuxt, Astro and SvelteKit. The registry
@@ -102,6 +121,12 @@ consumers must ignore what they do not recognise.
   report it, so nothing goes missing silently.
 
 ### Changed
+
+- The engine-blindness table moved from the jsdom runner to `result.ts`, beside the
+  `BlindRule` type it instantiates. It is data about what an engine can see, not about the
+  jsdom library, and a module reachable from the CLI's startup path could not read it where
+  it was without pulling 630 ms of jsdom into `eaa-kit --help`. Both names are still
+  exported from the runner, so nothing that imported them had to change.
 
 - **Duplicated code folded into shared helpers**, with no change to any report, exit code
   or public export. Six modules had their own `try`/`stat`/`catch` for whether a path
