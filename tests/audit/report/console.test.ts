@@ -1,6 +1,11 @@
 import { fileURLToPath } from 'node:url'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { collectPages } from '../../../src/audit/collect.ts'
+import {
+  type Collection,
+  completeCollection,
+  runCompleteness,
+} from '../../../src/audit/completeness.ts'
 import { formatConsoleReport } from '../../../src/audit/report/console.ts'
 import { type PageAudit, runJsdomAudit } from '../../../src/audit/runners/jsdom.ts'
 
@@ -232,3 +237,78 @@ function lineContaining(text: string, needle: string): string {
 function occurrences(text: string, needle: string): number {
   return text.split(needle).length - 1
 }
+
+describe('the completeness lines', () => {
+  /** A clean page, so completeness is the only thing shaping the summary. */
+  function clean(): PageAudit {
+    return {
+      relativePath: 'index.html',
+      absolutePath: '/dist/index.html',
+      url: 'file:///dist/index.html',
+      engine: 'jsdom',
+      violations: [],
+      incomplete: [],
+      passes: [],
+      inapplicable: [],
+      durationMs: 1,
+    }
+  }
+
+  function summaryOf(overrides: Partial<Collection>): string {
+    const pages = [clean()]
+    return formatConsoleReport(pages, {
+      color: false,
+      width: 80,
+      completeness: runCompleteness(pages, {
+        discovery: 'links',
+        collected: 1,
+        unreachable: [],
+        truncated: false,
+        ...overrides,
+      }),
+    })
+  }
+
+  it('says nothing extra when the run reached everything', () => {
+    const pages = [clean()]
+    const report = formatConsoleReport(pages, {
+      color: false,
+      width: 80,
+      completeness: runCompleteness(pages, completeCollection('directory', 1)),
+    })
+
+    expect(report).toContain('No violations across 1 page.')
+    expect(report).not.toContain('not the whole site')
+  })
+
+  it('qualifies a clean result when the run stopped at its page limit', () => {
+    const report = summaryOf({ truncated: true })
+
+    expect(report).toContain('stopped at its page limit')
+    expect(report).toContain('No violations across the 1 page that were audited.')
+    expect(report).toContain('not the whole site')
+  })
+
+  it('counts the pages it could not reach', () => {
+    const report = summaryOf({
+      unreachable: [
+        { location: '/a', reason: '404' },
+        { location: '/b', reason: '404' },
+      ],
+    })
+
+    expect(report).toContain('2 pages could not be reached')
+  })
+
+  it('leaves the errored count to the summary rather than double-reporting it', () => {
+    const pages = [clean(), { ...clean(), relativePath: 'broken.html', error: 'boom' }]
+    const report = formatConsoleReport(pages, {
+      color: false,
+      width: 80,
+      completeness: runCompleteness(pages, completeCollection('directory', 2)),
+    })
+
+    // Once, from the summary's own line — not again from the completeness block.
+    expect(report.match(/could not be audited/g)).toHaveLength(1)
+  })
+})

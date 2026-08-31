@@ -1174,7 +1174,13 @@
           "no-autoplay-audio",
           "scrollable-region-focusable",
           "target-size"
-        ]
+        ],
+        "complete": true,
+        "discovery": "directory",
+        "pagesAudited": 5,
+        "pagesErrored": 0,
+        "pagesUnreachable": 0,
+        "truncated": false
       }
     }
   ]

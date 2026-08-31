@@ -66,6 +66,21 @@ A complete generated document is checked in at
     "accepted": 0                               // violating elements a --baseline accepted
   },
 
+  // What the run measured, and what it never reached. "summary" counts the
+  // pages that were audited; this says whether those were all the pages there
+  // are. Read "complete" before drawing any conclusion from the counts above.
+  "completeness": {
+    "complete": true,                           // false when anything went unmeasured
+    "discovery": "directory",                   // "directory" | "sitemap" | "links"
+    "collected": 5,                             // pages handed to the engine
+    "audited": 5,                               // pages that reached a verdict
+    "errored": 0,                               // collected, then could not be audited
+    "truncated": false,                         // stopped at --max-pages
+    "unreachable": [                            // known pages never collected
+      // { "location": "https://example.com/pricing", "reason": "HTTP 404" }
+    ]
+  },
+
   // Rule metadata is held once here and referenced by id everywhere else.
   // Sorted by rule id.
   "rules": {
@@ -128,6 +143,26 @@ under version 1, so no report shape that version could already produce has chang
 the version has not moved.
 
 Read `source` in new code. `directory` is kept for consumers written against version 1.
+
+### `completeness`
+
+Every other number in the document describes the pages that were audited. None of them
+describes the pages that were not, and that is the one thing a consumer cannot work out
+for itself: a crawl that fetched twelve pages of a two-hundred-page site and a complete
+run over twelve pages produce identical summaries.
+
+So `completeness` carries what the collection stage knew. `complete` is true only when
+nothing was left unmeasured — no page unreachable, none errored, and the run did not stop
+at its limit. A tool deciding whether a clean report means anything should read it first.
+
+`errored` and `unreachable` are counted apart on purpose. An unreachable page was never
+fetched; an errored one was fetched and then could not be audited. They are different
+failures with different fixes, and summing them would name neither.
+
+`completeness` was added after `schemaVersion` 1 and does not move it: new fields may
+appear without a bump, and consumers must ignore what they do not recognise. A consumer
+written against version 1 that has never seen this field should treat its absence as
+unknown rather than as a complete run.
 
 ## SARIF output
 

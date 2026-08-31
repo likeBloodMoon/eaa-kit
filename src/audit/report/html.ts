@@ -1,6 +1,7 @@
 import axe from 'axe-core'
 import { collapse, count, escapeAttribute, escapeText, standardsReference } from '../../text.ts'
 import { TOOL_VERSION } from '../../version.ts'
+import { discoveryLabel, missedParts, type RunCompleteness } from '../completeness.ts'
 import { countAtOrAbove, type ImpactLevel, impactLabel, impactRank } from '../impact.ts'
 import { blindRules, coverageParts, groupIssues, isShared } from '../issues.ts'
 import { manualCheckFor, understandingUrl } from '../manual.ts'
@@ -42,6 +43,18 @@ export interface HtmlReportOptions {
   directory: string
   /** Lowest impact that fails the run. */
   failOn: ImpactLevel
+  /**
+   * What the run measured and what it never reached.
+   *
+   * This document is the one that leaves the building — it is emailed to the
+   * client whose site it is, who did not watch the run and never saw the
+   * warnings it wrote to the terminal. If a crawl reached a fraction of the
+   * site, this is the only place they will find that out.
+   *
+   * Optional only so a caller rendering a report by hand need not synthesise
+   * one; the CLI always supplies it.
+   */
+  completeness?: RunCompleteness
   baseUrl?: string
   /** Injectable so tests and snapshots are not time-dependent. */
   now?: Date
@@ -71,6 +84,7 @@ ${verdict(audits, failing, options)}
 ${scoreboard(audits)}
 ${issues(audits, options)}
 ${runDetails(audits, engine, generatedAt, options)}
+${notMeasured(options)}
 ${summary(audits, failing, options)}
 ${pages(audits)}
 ${notEvaluated(audits)}
@@ -118,6 +132,20 @@ function verdict(
       `${count(below, 'violation')} below ${escapeText(options.failOn)}, which do not fail the run.`,
     )
   }
+
+  // A clean result over part of a site is not the clean result it looks like,
+  // and this is the document read by somebody who was not there to see the run
+  // stop early. It gets its own banner rather than a footnote further down,
+  // because the banner is the part that will be quoted.
+  const completeness = options.completeness
+  if (completeness && !completeness.complete) {
+    return banner(
+      'partial',
+      'No violations found, but the whole site was not measured',
+      `${escapeText(missedParts(completeness).join(', '))}. This report describes ${count(completeness.audited, 'page')}, not the site.`,
+    )
+  }
+
   return banner('pass', 'No violations found', 'Automated testing found nothing to report.')
 }
 
@@ -142,6 +170,11 @@ function runDetails(
     ['eaa-kit', `${TOOL_VERSION} · axe-core ${axe.version}`],
   ]
   if (options.baseUrl) rows.splice(1, 0, ['Base URL', options.baseUrl])
+  // How the pages were found belongs next to how many there were: "12 pages"
+  // means something different when the site listed 200 in its sitemap.
+  if (options.completeness) {
+    rows.splice(2, 0, ['Pages found via', discoveryLabel(options.completeness.discovery)])
+  }
 
   const body = rows
     .map(
@@ -150,6 +183,60 @@ function runDetails(
     .join('\n')
 
   return `<h2>The run</h2>\n<dl class="run">\n${body}\n</dl>`
+}
+
+/** Pages named individually before the rest are counted. */
+const MAX_UNREACHABLE = 20
+
+/**
+ * The pages this run never reached, named rather than counted away.
+ *
+ * Named, because a count is not actionable: forty URLs that failed are a broken
+ * link check, a server that fell over halfway, or a section behind a login, and
+ * which of the three it was is only visible from the addresses. The reasons come
+ * straight from the crawler, so a reader can tell a 404 from a timeout.
+ */
+function notMeasured(options: HtmlReportOptions): string {
+  const completeness = options.completeness
+  if (completeness === undefined || completeness.complete) return ''
+
+  const parts: string[] = [
+    '<h2>What this run did not measure</h2>',
+    `<p>This report covers ${count(completeness.audited, 'page')}. It is not a description of
+  the whole site, and a clean result here does not extend to anything listed below.</p>`,
+  ]
+
+  if (completeness.truncated) {
+    parts.push(
+      `<p class="note">The run stopped at its page limit, so pages beyond ${count(completeness.collected, 'page')}
+  were never fetched. Raise <code>--max-pages</code> to go further.</p>`,
+    )
+  }
+
+  if (completeness.errored > 0) {
+    parts.push(
+      `<p class="note">${count(completeness.errored, 'page')} could not be audited after being
+  fetched, and ${completeness.errored === 1 ? 'is' : 'are'} not counted anywhere in this report.</p>`,
+    )
+  }
+
+  if (completeness.unreachable.length > 0) {
+    const shown = completeness.unreachable
+      .slice(0, MAX_UNREACHABLE)
+      .map(
+        (item) =>
+          `  <li><code>${escapeText(item.location)}</code> — ${escapeText(item.reason)}</li>`,
+      )
+      .join('\n')
+    const rest = completeness.unreachable.length - MAX_UNREACHABLE
+    parts.push(
+      `<p>${count(completeness.unreachable.length, 'page')} could not be reached:</p>`,
+      `<ul class="unreachable">\n${shown}\n</ul>`,
+    )
+    if (rest > 0) parts.push(`<p class="note">…and ${count(rest, 'more page')}.</p>`)
+  }
+
+  return parts.join('\n')
 }
 
 /**
@@ -364,6 +451,7 @@ li + li { margin-top: 0.5rem; }
 .verdict.pass { background: #eef7ee; border-color: #216e39; }
 .verdict.fail { background: #fdeeee; border-color: #a01b1b; }
 .verdict.broken { background: #fdf4e3; border-color: #8a5a00; }
+.verdict.partial { background: #fdf4e3; border-color: #8a5a00; }
 .badge { display: inline-block; padding: 0 0.45rem; border-radius: 3px; font-size: 0.8rem;
   font-weight: 600; border: 1px solid; }
 .badge.critical { background: #fdeeee; border-color: #a01b1b; color: #7a1414; }
@@ -383,6 +471,8 @@ p.rule { margin-bottom: 0.25rem; }
 p.standards, p.coverage, .reason, li.more, p.accepted-heading, ul.accepted { color: #4a4a4a; font-size: 0.9rem; }
 p.coverage { margin-top: 0.5rem; }
 ul.nodes { list-style: none; padding-left: 0; }
+ul.unreachable { padding-left: 1.25rem; }
+ul.unreachable li { margin-bottom: 0.2rem; overflow-wrap: anywhere; }
 code.selector { color: #4a4a4a; }
 p.clean { color: #216e39; }
 p.note { font-size: 0.95rem; }
@@ -428,6 +518,7 @@ ul.page-list { margin: 0.35rem 0 0; padding-left: 1.25rem; }
   .verdict.pass { background: #10240f; border-color: #7ee2a8; }
   .verdict.fail { background: #2b1111; border-color: #ff9d9d; }
   .verdict.broken { background: #2b2310; border-color: #ffd28a; }
+  .verdict.partial { background: #2b2310; border-color: #ffd28a; }
   .tile.critical { background: #2b1111; border-color: #ff9d9d; color: #ffc9c9; }
   .tile.serious { background: #2b1d11; border-color: #ffb98a; color: #ffd7bd; }
   .tile.moderate { background: #2b2610; border-color: #f0d264; color: #f5e3a4; }

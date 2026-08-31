@@ -1,5 +1,6 @@
 import axe from 'axe-core'
 import { TOOL_VERSION } from '../../version.ts'
+import type { RunCompleteness } from '../completeness.ts'
 import { countAtOrAbove, type ImpactLevel, impactLabel, isImpactLevel } from '../impact.ts'
 import { ruleOutcomes } from '../result.ts'
 import type { Finding, IncompleteFinding, PageAudit } from '../runners/jsdom.ts'
@@ -115,6 +116,15 @@ export interface JsonReport {
     baseUrl: string | null
   }
   summary: JsonSummary
+  /**
+   * What this run measured, and what it did not reach.
+   *
+   * `summary` counts the pages that were audited. This says whether those were
+   * all the pages there are, which no other field can answer: a crawl stopped
+   * at its limit and a complete one produce identical summaries. Read
+   * `completeness.complete` before drawing any conclusion from the counts.
+   */
+  completeness: RunCompleteness
   /** Every rule id appearing anywhere in the document, sorted by id. */
   rules: Record<string, JsonRule>
   pages: JsonPage[]
@@ -126,6 +136,8 @@ export interface JsonReportOptions {
   /** Which of the two `directory` holds. Defaults to a directory. */
   sourceKind?: 'directory' | 'url'
   failOn: ImpactLevel
+  /** What the run did and did not manage to measure. */
+  completeness: RunCompleteness
   baseUrl?: string
   /** Injectable so tests and snapshots are not time-dependent. */
   now?: Date
@@ -159,6 +171,7 @@ export function buildJsonReport(
       baseUrl: options.baseUrl ?? null,
     },
     summary: buildSummary(audits, options.failOn),
+    completeness: options.completeness,
     rules: buildRuleIndex(audits),
     pages: audits.map(toJsonPage),
   }

@@ -34,6 +34,15 @@
     "failing": 3,
     "accepted": 0
   },
+  "completeness": {
+    "discovery": "directory",
+    "collected": 5,
+    "unreachable": [],
+    "truncated": false,
+    "audited": 5,
+    "errored": 0,
+    "complete": true
+  },
   "rules": {
     "area-alt": {
       "help": "Active <area> elements must have alternative text",

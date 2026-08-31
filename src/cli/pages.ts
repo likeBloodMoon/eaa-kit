@@ -5,6 +5,7 @@ import {
   collectPages,
   emptyDirectoryHint,
 } from '../audit/collect.ts'
+import type { Collection, Unmeasured } from '../audit/completeness.ts'
 import { count } from '../text.ts'
 import { fail, note, warn } from './command.ts'
 
@@ -60,6 +61,12 @@ export interface ResolvedPages {
   origin?: string
   /** What to call the source in progress output: the directory or the URL. */
   label: string
+  /**
+   * What this stage found and what it could not reach, for the report to say.
+   * Warning about it on stderr is not enough: the person who reads the report
+   * is usually not the person who watched it run.
+   */
+  completeness: Collection
 }
 
 /**
@@ -87,16 +94,26 @@ export async function resolvePages(
       warn(`No pages could be fetched from ${options.url}`)
       return undefined
     }
-    return { pages: crawled.pages, origin: crawled.origin, label: options.url }
+    return {
+      pages: crawled.pages,
+      origin: crawled.origin,
+      label: options.url,
+      completeness: crawled.completeness,
+    }
   }
 
   const cwd = options.cwd ?? process.cwd()
   const shown = options.label ?? (directory as string)
+  // Files that matched the globs and could not be opened. One of these used to
+  // reject the whole collection; it is now the build minus that page, said out
+  // loud rather than silently.
+  const unreachable: Unmeasured[] = []
   let pages: CollectedPage[]
   try {
     pages = await collectPages(directory as string, {
       ...(options.include ? { include: options.include } : {}),
       ...(options.exclude ? { exclude: options.exclude } : {}),
+      onUnreadable: (relativePath, reason) => unreachable.push({ location: relativePath, reason }),
     })
   } catch (cause) {
     if (!(cause instanceof BuildDirectoryError)) throw cause
@@ -114,7 +131,27 @@ export async function resolvePages(
     return undefined
   }
 
-  return { pages, label: shown }
+  if (unreachable.length > 0) {
+    const verb = unreachable.length === 1 ? 'file was' : 'files were'
+    warn(`${unreachable.length} ${verb} not readable, and so not audited:`)
+    for (const file of unreachable.slice(0, 10)) {
+      note(`  ${file.location} — ${file.reason}`)
+    }
+    if (unreachable.length > 10) note(`  …and ${unreachable.length - 10} more`)
+  }
+
+  return {
+    pages,
+    label: shown,
+    completeness: {
+      discovery: 'directory',
+      collected: pages.length,
+      unreachable,
+      // A directory audit reads every file it globbed; there is no limit for it
+      // to stop at.
+      truncated: false,
+    },
+  }
 }
 
 /**
@@ -126,7 +163,7 @@ export async function resolvePages(
 async function crawlPages(
   url: string,
   options: CrawlCommandOptions,
-): Promise<{ pages: CollectedPage[]; origin: string } | undefined> {
+): Promise<{ pages: CollectedPage[]; origin: string; completeness: Collection } | undefined> {
   const { crawlSite, CrawlError, parseEntryUrl } = await import('../audit/crawl.ts')
 
   let entry: URL
@@ -181,7 +218,19 @@ async function crawlPages(
     )
   }
 
-  return { pages: result.pages, origin: result.origin }
+  return {
+    pages: result.pages,
+    origin: result.origin,
+    completeness: {
+      discovery: result.discovery,
+      collected: result.pages.length,
+      unreachable: result.failures.map((failure) => ({
+        location: failure.url,
+        reason: failure.reason,
+      })),
+      truncated: result.truncated,
+    },
+  }
 }
 
 /**

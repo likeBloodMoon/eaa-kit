@@ -1,6 +1,11 @@
 import { fileURLToPath } from 'node:url'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { collectPages } from '../../../src/audit/collect.ts'
+import {
+  type Collection,
+  completeCollection,
+  runCompleteness,
+} from '../../../src/audit/completeness.ts'
 import { buildHtmlReport } from '../../../src/audit/report/html.ts'
 import { auditPage, type PageAudit, runJsdomAudit } from '../../../src/audit/runners/jsdom.ts'
 
@@ -416,5 +421,73 @@ describe('the scoreboard and issues sections', () => {
     const page = build([blank({ violations: [finding({ nodes })] })])
 
     expect(text(page)).toContain('and 4 more elements')
+  })
+})
+
+describe('what the run did not measure', () => {
+  /** A clean page, so the only thing deciding the verdict is completeness. */
+  const clean = [blank()]
+
+  function partial(overrides: Partial<Collection>): string {
+    return build(clean, {
+      completeness: runCompleteness(clean, {
+        discovery: 'links',
+        collected: 1,
+        unreachable: [],
+        truncated: false,
+        ...overrides,
+      }),
+    })
+  }
+
+  it('gives a clean, complete run the plain pass banner', () => {
+    const html = build(clean, {
+      completeness: runCompleteness(clean, completeCollection('directory', 1)),
+    })
+
+    expect(html).toContain('class="verdict pass"')
+    expect(text(html)).toContain('No violations found')
+    expect(html).not.toContain('class="verdict partial"')
+    expect(html).not.toContain('What this run did not measure')
+  })
+
+  it('refuses the plain pass banner when the whole site was not measured', () => {
+    // The bug this exists to prevent: a crawl that reached a fraction of a site
+    // and found nothing used to render exactly like a complete clean run.
+    const html = partial({ truncated: true })
+
+    expect(html).toContain('class="verdict partial"')
+    expect(html).not.toContain('class="verdict pass"')
+    expect(text(html)).toContain('the whole site was not measured')
+  })
+
+  it('names the pages it could not reach, with the reason for each', () => {
+    const html = partial({
+      unreachable: [
+        { location: 'https://example.com/pricing', reason: 'HTTP 404' },
+        { location: 'https://example.com/team', reason: 'timed out' },
+      ],
+    })
+
+    const readable = text(html)
+    expect(readable).toContain('https://example.com/pricing')
+    expect(readable).toContain('HTTP 404')
+    expect(readable).toContain('https://example.com/team')
+    expect(readable).toContain('timed out')
+  })
+
+  it('says how the pages were found', () => {
+    expect(text(partial({ discovery: 'sitemap', truncated: true }))).toContain(
+      'sitemap.xml and links',
+    )
+  })
+
+  it('says nothing about completeness when it was not given any', () => {
+    // A caller rendering a report by hand gets the document it always got,
+    // rather than a claim that the run was complete.
+    const html = build(clean)
+
+    expect(html).not.toContain('What this run did not measure')
+    expect(html).not.toContain('class="verdict partial"')
   })
 })

@@ -1,5 +1,6 @@
 import pc from 'picocolors'
 import { collapse, count, plural } from '../../text.ts'
+import { discoveryLabel, missedParts, type RunCompleteness } from '../completeness.ts'
 import {
   countAtOrAbove,
   DEFAULT_FAIL_ON,
@@ -42,6 +43,15 @@ export interface ConsoleReportOptions {
    * need it every time.
    */
   manual?: boolean
+  /**
+   * What the run measured and what it never reached.
+   *
+   * Optional rather than required only so a caller rendering a report by hand
+   * need not synthesise one; the CLI always supplies it. A report built without
+   * it says nothing about coverage of the site rather than claiming it was
+   * complete.
+   */
+  completeness?: RunCompleteness
 }
 
 const DEFAULT_MAX_NODES = 3
@@ -97,6 +107,7 @@ interface Context {
   manual: boolean
   c: ReturnType<typeof pc.createColors>
   symbol: (kind: 'violation' | 'review' | 'blind' | 'clean' | 'error') => string
+  completeness: RunCompleteness | undefined
 }
 
 function context(options: ConsoleReportOptions): Context {
@@ -112,6 +123,7 @@ function context(options: ConsoleReportOptions): Context {
     sourceFor: options.sourceFor ?? (() => undefined),
     componentFor: options.componentFor ?? (() => undefined),
     manual: options.manual ?? false,
+    completeness: options.completeness,
     c,
     symbol: (kind) => {
       switch (kind) {
@@ -283,10 +295,17 @@ function summary(audits: readonly PageAudit[], ctx: Context): string[] {
   const reviewCount = countRules(audits, 'needs-review')
   const pages = count(audits.length, 'page')
 
-  const lines = [line(ctx, 'Summary', ctx.c.bold)]
+  const lines = [line(ctx, 'Summary', ctx.c.bold), ...completenessLines(ctx)]
 
   if (ruleCount === 0) {
-    lines.push(line(ctx, `  No violations across ${pages}.`, ctx.c.green))
+    // Qualified rather than plain when the run did not see the whole site: "no
+    // violations" over a fraction of the pages is not the sentence it looks
+    // like, and the completeness lines above have just said which fraction.
+    const clean =
+      ctx.completeness && !ctx.completeness.complete
+        ? `  No violations across the ${pages} that were audited.`
+        : `  No violations across ${pages}.`
+    lines.push(line(ctx, clean, ctx.c.green))
   } else {
     lines.push(
       render(ctx, [
@@ -327,6 +346,46 @@ function summary(audits: readonly PageAudit[], ctx: Context): string[] {
   }
 
   lines.push(...blindSection(audits, ctx))
+  return lines
+}
+
+/**
+ * What the run never looked at.
+ *
+ * Printed before the counts rather than after them, because it changes how they
+ * read: "no violations" means one thing over a whole site and another over the
+ * twelve pages of it a crawl managed to fetch before it hit its limit.
+ *
+ * Pages that errored are left to the summary's own line, which already names
+ * them; repeating the number here would read as twice as many.
+ */
+function completenessLines(ctx: Context): string[] {
+  const completeness = ctx.completeness
+  if (completeness === undefined || completeness.complete) return []
+
+  const lines: string[] = []
+
+  if (completeness.unreachable.length > 0) {
+    const noun = plural(completeness.unreachable.length, 'page')
+    lines.push(
+      line(
+        ctx,
+        `  ${completeness.unreachable.length} ${noun} could not be reached, and were not audited`,
+        ctx.c.yellow,
+      ),
+    )
+  }
+
+  if (completeness.truncated) {
+    lines.push(line(ctx, '  The run stopped at its page limit; the site has more', ctx.c.yellow))
+  }
+
+  if (lines.length > 0) {
+    lines.push(
+      line(ctx, '  This report describes what was audited, not the whole site.', ctx.c.dim),
+    )
+  }
+
   return lines
 }
 

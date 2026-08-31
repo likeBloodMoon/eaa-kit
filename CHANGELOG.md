@@ -11,6 +11,32 @@ consumers must ignore what they do not recognise.
 
 ## Unreleased
 
+### Added
+
+- **What a run did not measure is now in the report.** A crawl that fetched twelve pages of
+  a two-hundred-page site, or that failed forty URLs on the way, produced a report
+  byte-identical to a complete one: the crawler had already counted the failures, the
+  truncation and how the pages were found, and every one of those numbers was written to
+  stderr and then dropped. The person who reads the report is usually not the person who
+  watched it run, so the facts now reach all four formats — a `completeness` object in
+  JSON, a section in the HTML report naming each page it could not reach and why, lines in
+  the console summary, and `run.properties` in SARIF.
+
+  The HTML report grows a fourth verdict for it. A clean result over part of a site is not
+  the clean result it looks like, so it no longer gets the plain pass banner: it says that
+  no violations were found *and* that the whole site was not measured, because the banner
+  is the part that gets quoted. Exit codes are deliberately unchanged — an incomplete run
+  is not a violation, and failing builds on it would break every pipeline already running
+  this tool.
+
+### Fixed
+
+- **One unreadable file no longer fails the whole collection.** A single bad permission bit
+  in a build directory rejected every page with it, so the run reported as a crash rather
+  than as the one page nobody could look at. The rest of the build is audited and the file
+  is named in the report. The failure is only swallowed where a caller has undertaken to
+  report it, so nothing goes missing silently.
+
 ### Changed
 
 - **Duplicated code folded into shared helpers**, with no change to any report, exit code

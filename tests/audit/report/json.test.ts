@@ -2,6 +2,11 @@ import { fileURLToPath } from 'node:url'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { collectPages } from '../../../src/audit/collect.ts'
 import {
+  completeCollection,
+  type RunCompleteness,
+  runCompleteness,
+} from '../../../src/audit/completeness.ts'
+import {
   buildJsonReport,
   type JsonReport,
   SCHEMA_VERSION,
@@ -15,8 +20,18 @@ const NOW = new Date('2026-08-20T18:00:00.000Z')
 let audits: PageAudit[]
 let report: JsonReport
 
+/** The fixture site is read off disk, so every run over it reaches everything. */
+function complete(pages: readonly PageAudit[] = audits): RunCompleteness {
+  return runCompleteness(pages, completeCollection('directory', pages.length))
+}
+
 function build(pages: readonly PageAudit[] = audits): JsonReport {
-  return buildJsonReport(pages, { directory: './dist', failOn: 'serious', now: NOW })
+  return buildJsonReport(pages, {
+    directory: './dist',
+    failOn: 'serious',
+    completeness: complete(pages),
+    now: NOW,
+  })
 }
 
 function page(doc: JsonReport, path: string) {
@@ -59,6 +74,7 @@ describe('document envelope', () => {
     const doc = buildJsonReport(audits, {
       directory: './dist',
       failOn: 'serious',
+      completeness: complete(),
       baseUrl: 'https://example.com',
       now: NOW,
     })
@@ -195,6 +211,7 @@ describe('summary', () => {
     const lenient = buildJsonReport(audits, {
       directory: './dist',
       failOn: 'critical',
+      completeness: complete(),
       now: NOW,
     })
     expect(lenient.summary.failing).toBe(1)
@@ -257,7 +274,12 @@ describe('stability of the contract', () => {
 
 describe('the target block', () => {
   it('says what was audited and which kind it is', () => {
-    const report = buildJsonReport(audits, { directory: './dist', failOn: 'serious', now: NOW })
+    const report = buildJsonReport(audits, {
+      directory: './dist',
+      failOn: 'serious',
+      completeness: complete(),
+      now: NOW,
+    })
 
     expect(report.target).toMatchObject({
       source: './dist',
@@ -275,6 +297,7 @@ describe('the target block', () => {
       directory: 'http://localhost:3000',
       sourceKind: 'url',
       failOn: 'serious',
+      completeness: complete(),
       now: NOW,
     })
 
@@ -290,9 +313,54 @@ describe('the target block', () => {
       directory: 'http://localhost:3000',
       sourceKind: 'url',
       failOn: 'serious',
+      completeness: complete(),
       now: NOW,
     })
 
     expect(report.schemaVersion).toBe(1)
+  })
+})
+
+describe('the completeness block', () => {
+  it('is always present, so a consumer can rely on it', () => {
+    expect(report.completeness).toMatchObject({
+      discovery: 'directory',
+      complete: true,
+      errored: 0,
+      truncated: false,
+    })
+    expect(report.completeness.unreachable).toEqual([])
+  })
+
+  it('says the run was incomplete without touching the violation counts', () => {
+    // summary counts what was audited; completeness says whether that was all
+    // there was. A consumer that reads only summary sees the same numbers.
+    const doc = buildJsonReport(audits, {
+      directory: 'http://localhost:3000',
+      sourceKind: 'url',
+      failOn: 'serious',
+      completeness: runCompleteness(audits, {
+        discovery: 'sitemap',
+        collected: audits.length,
+        unreachable: [{ location: 'http://localhost:3000/gone', reason: 'HTTP 404' }],
+        truncated: true,
+      }),
+      now: NOW,
+    })
+
+    expect(doc.completeness).toMatchObject({
+      complete: false,
+      discovery: 'sitemap',
+      truncated: true,
+    })
+    expect(doc.completeness.unreachable).toEqual([
+      { location: 'http://localhost:3000/gone', reason: 'HTTP 404' },
+    ])
+    expect(doc.summary).toEqual(report.summary)
+  })
+
+  it('does not move the schema version, being an added field', () => {
+    expect(report.schemaVersion).toBe(SCHEMA_VERSION)
+    expect(SCHEMA_VERSION).toBe(1)
   })
 })

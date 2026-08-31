@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -254,5 +254,47 @@ describe('emptyDirectoryHint', () => {
     const hint = await emptyDirectoryHint('./build', await project({ 'build/x.txt': '' }))
 
     expect(hint).toMatch(/^\.\/build holds no HTML files\./)
+  })
+})
+
+/**
+ * Root bypasses the mode bits entirely, so a file chmodded to 000 is still
+ * readable and there is no way to provoke the failure. CI runs as an ordinary
+ * user, where these do exercise; skipping is honest about that rather than
+ * asserting something the run never checked.
+ */
+const asRoot = process.getuid?.() === 0
+
+describe.skipIf(asRoot)('a file that cannot be read', () => {
+  async function siteWithUnreadableFile(): Promise<string> {
+    const dir = await mkdtemp(path.join(tmpdir(), 'eaa-collect-'))
+    tempDirs.push(dir)
+    await writeFile(path.join(dir, 'good.html'), '<!doctype html><title>ok</title>')
+    await writeFile(path.join(dir, 'bad.html'), '<!doctype html><title>no</title>')
+    await chmod(path.join(dir, 'bad.html'), 0o000)
+    return dir
+  }
+
+  it('is reported and skipped rather than failing the whole collection', async () => {
+    // One bad permission bit in a build directory used to reject everything, so
+    // the run reported as a crash rather than as the one page nobody could
+    // look at.
+    const dir = await siteWithUnreadableFile()
+
+    const unreadable: Array<{ file: string; reason: string }> = []
+    const pages = await collectPages(dir, {
+      onUnreadable: (file, reason) => unreadable.push({ file, reason }),
+    })
+
+    expect(pages.map((page) => page.relativePath)).toEqual(['good.html'])
+    expect(unreadable).toHaveLength(1)
+    expect(unreadable[0]?.file).toBe('bad.html')
+  })
+
+  it('still throws when nobody said they would report it', async () => {
+    // The failure is only swallowed where a caller has undertaken to name it.
+    const dir = await siteWithUnreadableFile()
+
+    await expect(collectPages(dir)).rejects.toThrow()
   })
 })
