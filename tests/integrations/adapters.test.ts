@@ -81,6 +81,39 @@ describe('the Eleventy plugin', () => {
       eleventyConfig.handlers.get('eleventy.after')?.({ dir: { input: '.', output } }),
     ).rejects.toThrow(BuildAuditError)
   }, 60_000)
+
+  it('leaves watch and serve rebuilds alone', async () => {
+    // The same reasoning as the webpack plugin: this fires on every save under
+    // --watch, and auditing a whole site each time would make a dev server
+    // unusable.
+    const output = await built(false)
+    const eleventyConfig = config()
+    eaaKitEleventy(eleventyConfig, { failOn: 'critical' })
+
+    for (const runMode of ['watch', 'serve']) {
+      await expect(
+        eleventyConfig.handlers.get('eleventy.after')?.({
+          dir: { input: '.', output },
+          runMode,
+        }),
+      ).resolves.toBeUndefined()
+    }
+  }, 60_000)
+
+  it('does nothing when the run wrote no files to look at', async () => {
+    // --to=json and the other non-filesystem output modes produce no build.
+    const output = await built(false)
+    const eleventyConfig = config()
+    eaaKitEleventy(eleventyConfig, { failOn: 'critical' })
+
+    await expect(
+      eleventyConfig.handlers.get('eleventy.after')?.({
+        dir: { input: '.', output },
+        runMode: 'build',
+        outputMode: 'json',
+      }),
+    ).resolves.toBeUndefined()
+  }, 60_000)
 })
 
 describe('the Docusaurus plugin', () => {

@@ -29,9 +29,13 @@ import {
 
 export { BuildAuditError }
 
-/** What `eleventy.after` is given. Only `dir.output` is read. */
+/** What `eleventy.after` is given. Only two of its fields are read. */
 export interface EleventyAfterEvent {
   dir: { input: string; output: string }
+  /** `build`, `watch` or `serve`. Only a one-shot build is audited. */
+  runMode?: string
+  /** `fs`, `json`, `ndjson` or `text`. Only `fs` writes files to audit. */
+  outputMode?: string
 }
 
 /** The part of Eleventy's config object this plugin touches. */
@@ -52,7 +56,17 @@ export default function eaaKit(
   eleventyConfig: EleventyConfigLike,
   options: EaaKitEleventyOptions = {},
 ): void {
-  eleventyConfig.on('eleventy.after', async ({ dir }: EleventyAfterEvent) => {
-    await auditBuild(path.resolve(dir.output), options, stderrLogger())
+  eleventyConfig.on('eleventy.after', async (event: EleventyAfterEvent) => {
+    // The same reasoning as the webpack plugin: `eleventy.after` fires on every
+    // rebuild under --watch and --serve, and auditing a whole site on each save
+    // would make a dev server unusable. A failing audit there cannot stop
+    // anything being shipped either.
+    if (event.runMode !== undefined && event.runMode !== 'build') return
+
+    // `--to=json` and the other non-filesystem output modes write nothing to
+    // disk, so there is no build directory to look at.
+    if (event.outputMode !== undefined && event.outputMode !== 'fs') return
+
+    await auditBuild(path.resolve(event.dir.output), options, stderrLogger())
   })
 }

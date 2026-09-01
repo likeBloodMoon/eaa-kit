@@ -156,6 +156,13 @@ consumers must ignore what they do not recognise.
   lives. The timing claim the module rests on survived that check: at `build:done` the
   public directory does not exist, and by `close` it holds every prerendered page.
 
+- **The Eleventy plugin audited on every watch rebuild.** `eleventy.after` fires on each
+  save under `--watch` and `--serve`, so a dev server would have run a full site audit
+  between keystrokes — the webpack plugin already guarded against exactly this and Eleventy
+  did not. It now audits one-shot builds only, and skips the non-filesystem output modes
+  (`--to=json` and friends), which write nothing to look at. A real `eleventy` build drives
+  it in the tests; unlike the Nuxt module, its reading of the hook was correct to begin with.
+
 - **A criterion with one unevaluable rule among several read as "nothing to check".** WCAG
   2.1.1 Keyboard is the only criterion whose rules are mixed: `scrollable-region-focusable`
   needs computed overflow, while `frame-focusable-content` and `server-side-image-map` are
