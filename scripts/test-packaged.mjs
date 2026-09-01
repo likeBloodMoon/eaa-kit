@@ -187,14 +187,14 @@ try {
   // of, and a broken one fails inside somebody's build rather than here —
   // which is exactly how the browser-mode bugs of 0.2.x reached users.
   // Every integration is loadable both ways. The hosts differ: a Nuxt or Astro
-  // config is ESM, while webpack, Docusaurus and Eleventy configs are very often
+  // config is ESM, while webpack and Eleventy configs are very often
   // CommonJS, and `require` of a subpath with no `require` condition fails
   // outright with ERR_PACKAGE_PATH_NOT_EXPORTED — which is what the documented
   // webpack usage did before this was checked. Node's require(esm) covers it on
   // every version in `engines`, but only for a module graph with no top-level
   // await; adding one later would break CommonJS consumers silently, so it is
   // asserted here rather than discovered in somebody's build.
-  for (const subpath of ['astro', 'vite', 'eleventy', 'docusaurus', 'webpack', 'nuxt']) {
+  for (const subpath of ['astro', 'vite', 'eleventy', 'webpack', 'nuxt']) {
     const required = spawnSync(
       process.execPath,
       [
@@ -212,7 +212,7 @@ try {
     )
   }
 
-  for (const subpath of ['astro', 'vite', 'eleventy', 'docusaurus', 'webpack', 'nuxt']) {
+  for (const subpath of ['astro', 'vite', 'eleventy', 'webpack', 'nuxt']) {
     const file = path.join(installed, 'dist', subpath, 'index.js')
     const loaded = spawnSync(
       process.execPath,

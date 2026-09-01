@@ -29,11 +29,12 @@ consumers must ignore what they do not recognise.
   is not a violation, and failing builds on it would break every pipeline already running
   this tool.
 
-- **Four more build-time integrations**: `eaa-kit/eleventy`, `eaa-kit/docusaurus`,
-  `eaa-kit/webpack` and `eaa-kit/nuxt`. Each is a thin adapter over the decision function the
-  Astro integration and the Vite plugin already share, and each describes its host
-  structurally, so none of them adds a dependency and installing eaa-kit in a project with no
-  webpack still typechecks.
+- **Three more build-time integrations**: `eaa-kit/eleventy`, `eaa-kit/webpack` and
+  `eaa-kit/nuxt`. Each is a thin adapter over the decision function the Astro integration
+  and the Vite plugin already share, and each describes its host structurally, so none of
+  them adds a dependency and installing eaa-kit in a project with no webpack still
+  typechecks. Every one of the five is now driven by a real build of its host in the test
+  suite, which is what caught the Nuxt module below.
 
   Two earn their place by knowing something the Vite plugin cannot. The **Nuxt** module
   audits in `close` rather than when Vite finishes, because Nitro prerenders afterwards — a
@@ -44,9 +45,17 @@ consumers must ignore what they do not recognise.
   already failed, since reporting its missing pages as accessibility findings would send
   somebody after defects nothing measured.
 
-  There is deliberately no Next.js plugin, and the docs now say why: Next has no hook that
-  fires after `output: 'export'` writes `out/`, so a config wrapper would audit stale output
-  or none. `next build && eaa-kit audit ./out` is the honest answer.
+  Two builders deliberately get a documented command rather than a plugin, and the docs say
+  why. Next has no hook that fires after `output: 'export'` writes `out/`, so a config
+  wrapper would audit stale output or none. Docusaurus has the cleanest hook of any builder
+  here — `postBuild` hands over `outDir` — but loads its plugins through jiti, which
+  intercepts dynamic `import()`; axe-core is then evaluated without the globals it expects
+  and the audit dies at the end of an otherwise successful build. A plugin was written,
+  driven against a real Docusaurus build, and withdrawn on the strength of it.
+  `next build && eaa-kit audit` and `docusaurus build && eaa-kit audit` are the honest
+  answers — both projects are recognised, so neither has to be told where its output went.
+  Their pages are still mapped back to source too; it is only the build-time hook that is
+  missing.
 
 - **What to do about a finding, not just what is wrong with it.** axe-core says "images must
   have alternative text" and links to a page about the rule; neither is the fix, and the gap
@@ -147,8 +156,8 @@ consumers must ignore what they do not recognise.
 ### Fixed
 
 - **The integrations could not be loaded from a CommonJS config**, which is the shape most
-  of their hosts use. `webpack.config.js`, `docusaurus.config.js` and `.eleventy.js` are
-  ordinarily CommonJS, and every subpath export named only an `import` condition — so the
+  of their hosts use. `webpack.config.js` and `.eleventy.js` are ordinarily CommonJS, and
+  every subpath export named only an `import` condition — so the
   `require('eaa-kit/webpack')` line printed in the docs failed outright with
   `ERR_PACKAGE_PATH_NOT_EXPORTED`. A documented integration that cannot be loaded as
   documented.
@@ -157,7 +166,7 @@ consumers must ignore what they do not recognise.
   file: Node's `require(esm)` loads it on every version this package supports, so nothing
   is compiled twice and the package stays ESM-only. The one thing that would break it again
   is a top-level `await` anywhere in a module graph an integration pulls in, so the packaged
-  harness now loads all six entries with `require` as well as `import` — a future one fails
+  harness now loads all five entries with `require` as well as `import` — a future one fails
   there instead of in somebody's build.
 
 - **The Nuxt module read a value that is undefined in every build.** It took the output

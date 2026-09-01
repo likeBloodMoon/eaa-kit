@@ -2,7 +2,6 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import eaaKitDocusaurus, { type PostBuildProps } from '../../src/docusaurus/index.ts'
 import eaaKitEleventy, { type EleventyAfterEvent } from '../../src/eleventy/index.ts'
 import { BuildAuditError } from '../../src/integration/run.ts'
 import eaaKitNuxt, { type NitroLike, type NuxtLike } from '../../src/nuxt/index.ts'
@@ -113,31 +112,6 @@ describe('the Eleventy plugin', () => {
         outputMode: 'json',
       }),
     ).resolves.toBeUndefined()
-  }, 60_000)
-})
-
-describe('the Docusaurus plugin', () => {
-  it('is a plugin with the postBuild lifecycle Docusaurus calls', () => {
-    const plugin = eaaKitDocusaurus({})
-
-    expect(plugin.name).toBe('eaa-kit')
-    expect(typeof plugin.postBuild).toBe('function')
-  })
-
-  it('audits outDir, which Docusaurus hands over rather than leaving to a guess', async () => {
-    const outDir = await built(true)
-
-    await expect(
-      eaaKitDocusaurus({}).postBuild({ outDir } as PostBuildProps),
-    ).resolves.toBeUndefined()
-  }, 60_000)
-
-  it('fails the build on a violation at or above the threshold', async () => {
-    const outDir = await built(false)
-
-    await expect(
-      eaaKitDocusaurus({}, { failOn: 'critical' }).postBuild({ outDir } as PostBuildProps),
-    ).rejects.toThrow(BuildAuditError)
   }, 60_000)
 })
 

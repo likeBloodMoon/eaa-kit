@@ -78,20 +78,6 @@ Audits in `eleventy.after`, which fires once the files are written and hands ove
 directory — worth having here more than for most builders, since Eleventy's is configurable
 and the audit would otherwise be guessing at `_site`.
 
-## Docusaurus plugin
-
-```js
-// docusaurus.config.js
-export default {
-  plugins: [['eaa-kit/docusaurus', { failOn: 'serious' }]],
-}
-```
-
-Audits in `postBuild`, which runs when the whole site is on disk and is given `outDir`. A
-documentation site is an unusually good case for this: docs are where an organisation's own
-accessibility claims usually live, they are generated from Markdown by machinery nobody on
-the team wrote, and nobody opens every page.
-
 ## webpack plugin
 
 ```js
@@ -174,6 +160,42 @@ absence.
 
 `outDir` is read from the resolved Vite config, so a project that moved its output needs no
 second place to say so.
+
+## Docusaurus
+
+**There is no Docusaurus plugin, deliberately.** The hook is perfect — `postBuild` runs
+when the whole site is on disk and hands over `outDir` — and one was written against it and
+then withdrawn before release, because it does not survive the way Docusaurus loads it.
+
+Docusaurus loads plugins through jiti, which intercepts dynamic `import()`. axe-core
+reaches jiti's module evaluator instead of Node's and is evaluated without the globals it
+expects, so the audit dies on `Cannot read properties of undefined (reading 'document')` —
+in `postBuild`, at the end of a build that otherwise succeeded. Nothing in the plugin's own
+code is wrong, which is why it passed its unit tests: those call the plugin directly, and
+jiti is never in the picture.
+
+A command instead, which always works:
+
+```bash
+docusaurus build && eaa-kit audit
+```
+
+`eaa-kit audit` with no argument recognises a Docusaurus project and knows its output goes
+to `build/`, so the directory does not have to be repeated. In `package.json`:
+
+```json
+{
+  "scripts": {
+    "build": "docusaurus build && eaa-kit audit --fail-on serious"
+  }
+}
+```
+
+Docs sites are worth auditing more than most — docs are where an organisation's own
+accessibility claims usually live, they are generated from Markdown by machinery nobody on
+the team wrote, and nobody opens every page. The audit itself is unaffected: a built
+Docusaurus site is detected as one, and its pages are mapped back to `docs/**/*.md` under
+the site's base path.
 
 ## Next.js
 

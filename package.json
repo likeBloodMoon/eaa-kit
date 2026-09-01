@@ -52,11 +52,6 @@
       "import": "./dist/eleventy/index.js",
       "require": "./dist/eleventy/index.js"
     },
-    "./docusaurus": {
-      "types": "./dist/docusaurus/index.d.ts",
-      "import": "./dist/docusaurus/index.js",
-      "require": "./dist/docusaurus/index.js"
-    },
     "./webpack": {
       "types": "./dist/webpack/index.d.ts",
       "import": "./dist/webpack/index.js",
@@ -115,6 +110,7 @@
     "playwright": "^1.62.1",
     "tsdown": "^0.22.14",
     "typescript": "^7.0.2",
+    "vite": "^8.2.2",
     "vitest": "^4.1.11",
     "webpack": "^5.110.2"
   },
