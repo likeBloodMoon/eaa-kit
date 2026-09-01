@@ -100,8 +100,7 @@ it is.
 and Remix too, and integrations for
 [Astro](docs/integrations.md#astro-integration),
 [Nuxt](docs/integrations.md#nuxt-module),
-[Eleventy](docs/integrations.md#eleventy-plugin),
-[Docusaurus](docs/integrations.md#docusaurus-plugin) and
+[Eleventy](docs/integrations.md#eleventy-plugin) and
 [webpack](docs/integrations.md#webpack-plugin) — or the bundled
 [GitHub Action](docs/integrations.md#github-actions).
 
@@ -123,7 +122,7 @@ eaa-kit audit --url http://localhost:8000 --sitemap /sitemap_index.xml
 | [Comparing two runs](docs/reports.md#comparing-two-runs) | The `diff` command, and what it refuses to call fixed |
 | [Coverage of WCAG](docs/audit.md#how-much-of-wcag-a-run-reaches) | What an automated engine can reach at all, and what it cannot |
 | [Report formats](docs/reports.md) | The JSON contract, SARIF, and the HTML report |
-| [Integrations](docs/integrations.md) | Astro and GitHub Actions |
+| [Integrations](docs/integrations.md) | The build plugins, the GitHub Action, and the two builders that get a command instead |
 
 Complete generated output for every format is checked in under [examples/](examples).
 

@@ -9,7 +9,6 @@ export default defineConfig({
     'src/astro/index.ts',
     'src/vite/index.ts',
     'src/eleventy/index.ts',
-    'src/docusaurus/index.ts',
     'src/webpack/index.ts',
     'src/nuxt/index.ts',
     'src/audit/runners/worker.ts',

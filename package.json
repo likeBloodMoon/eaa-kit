@@ -34,31 +34,33 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
     },
     "./astro": {
       "types": "./dist/astro/index.d.ts",
-      "import": "./dist/astro/index.js"
+      "import": "./dist/astro/index.js",
+      "require": "./dist/astro/index.js"
     },
     "./vite": {
       "types": "./dist/vite/index.d.ts",
-      "import": "./dist/vite/index.js"
+      "import": "./dist/vite/index.js",
+      "require": "./dist/vite/index.js"
     },
     "./eleventy": {
       "types": "./dist/eleventy/index.d.ts",
-      "import": "./dist/eleventy/index.js"
-    },
-    "./docusaurus": {
-      "types": "./dist/docusaurus/index.d.ts",
-      "import": "./dist/docusaurus/index.js"
+      "import": "./dist/eleventy/index.js",
+      "require": "./dist/eleventy/index.js"
     },
     "./webpack": {
       "types": "./dist/webpack/index.d.ts",
-      "import": "./dist/webpack/index.js"
+      "import": "./dist/webpack/index.js",
+      "require": "./dist/webpack/index.js"
     },
     "./nuxt": {
       "types": "./dist/nuxt/index.d.ts",
-      "import": "./dist/nuxt/index.js"
+      "import": "./dist/nuxt/index.js",
+      "require": "./dist/nuxt/index.js"
     },
     "./package.json": "./package.json"
   },
@@ -108,7 +110,9 @@
     "playwright": "^1.62.1",
     "tsdown": "^0.22.14",
     "typescript": "^7.0.2",
-    "vitest": "^4.1.11"
+    "vite": "^8.2.2",
+    "vitest": "^4.1.11",
+    "webpack": "^5.110.2"
   },
   "publishConfig": {
     "access": "public",
