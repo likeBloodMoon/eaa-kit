@@ -28,7 +28,7 @@ jobs:
           node-version: 22
 
       # In your own repository this becomes:
-      #   uses: likeBloodMoon/eaa-kit@v0.4.0
+      #   uses: likeBloodMoon/eaa-kit@v0.5.0
       #
       # An exact release tag. There is deliberately no moving v0 tag to follow:
       # this is a 0.x package, the flags and the JSON contract can still move

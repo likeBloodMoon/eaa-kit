@@ -75,11 +75,11 @@ document-level rule such as `html-has-lang` survives an edit elsewhere on the pa
 Entries are sorted, so the file diffs cleanly and two people regenerating it get the same
 result.
 
-A baseline written by an earlier version is refused rather than read: `schemaVersion` 1
-recorded fingerprints under the old rule, and matching them against the new one would
-suppress nothing while looking as though it had. Record it again with `eaa-kit baseline`,
-then read the new file before committing it — it lists what this run found, which is not
-necessarily what the old one accepted.
+A baseline written by an earlier version is refused rather than read: `schemaVersion` 1,
+which is what 0.4.0 and older wrote, recorded fingerprints under the old rule, and matching
+them against the new one would suppress nothing while looking as though it had. Record it
+again with `eaa-kit baseline`, then read the new file before committing it — it lists what
+this run found, which is not necessarily what the old one accepted.
 
 ## In code scanning
 

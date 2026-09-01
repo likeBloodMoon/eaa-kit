@@ -9,7 +9,113 @@ move: the JSON report's `schemaVersion` and the baseline file's. Both are bumped
 a field is removed, renamed, or changes meaning — new fields may appear without one, so
 consumers must ignore what they do not recognise.
 
-## Unreleased
+## 0.5.0 — 2026-09-01
+
+### Added
+
+- **Statements for Spain, France, Italy and the Netherlands**, in each country's own
+  language as well as English. Three countries was the DACH region; the tool is named after
+  a directive that applies across the EU, and these four are the largest markets it applies
+  in.
+
+  Each is a document under its own law rather than a translation of the Austrian one, which
+  is the rule Switzerland already set here. `ES` names Ley 11/2023; `FR` the ordonnance
+  n° 2023-859 and article 47 of loi n° 2005-102; `IT` the d.lgs. 82/2022 that amended the
+  legge Stanca; `NL` the Implementatiewet toegankelijkheidsvoorschriften producten en
+  diensten. Where a national regime prescribes a declaration with a form of its own — the
+  RGAA declaration and multi-year plan in France, the dichiarazione filed on AgID's model in
+  Italy, RD 1112/2018 for the Spanish public sector — the template says so, rather than
+  letting a generated file look as though it discharges the obligation. Where supervision is
+  genuinely split, between the Spanish state and the autonomous communities or across six
+  Dutch authorities, it says that too rather than naming one body and sounding certain.
+
+  The language matrix is sparse on purpose: a country has the language its law is
+  administered in, and English. `--country AT --lang fr` is an error naming the languages
+  Austria does have, not a fall back to another language — a legal document published
+  quietly in a language its readers may not have is worse than a run that stops.
+
+- **Audit defaults in `eaa.config`.** The config file has served the statement alone since
+  0.2, so a project that audits with the same six flags on every run had nowhere to write
+  them down but the build script that repeats them. An `audit` block is that list, said
+  once, and `baseline` reads the keys that mean the same thing to it.
+
+  Everything in it is a default and every typed flag beats it: the file is what a project
+  usually wants, and a flag is what somebody wants on this run. A block nobody could
+  override would make a one-off `--browser` check impossible without editing a committed
+  file. The block is read by a schema of its own, so a project wanting audit defaults does
+  not have to write a whole statement config to get them; `--config <path>` names a file
+  instead of searching for one. No config file at all still runs exactly as before.
+
+- **`--fast`**, which skips the rules the browserless engine cannot decide rather than
+  running them and discarding the answer. Colour contrast is computed against a stylesheet
+  jsdom never fetched and target size against boxes that are all 0x0; both verdicts are
+  thrown away as untrustworthy, and the work to produce them is not cheap — colour contrast
+  is the most expensive rule axe-core has. Skipping the set is 14-19% of a page and 8-10%
+  of a whole run once start-up is counted.
+
+  The verdict does not move. Every skipped rule is still reported as not evaluated with the
+  same reason, no skipped rule ever becomes a pass, and the coverage view is
+  criterion-for-criterion identical — all three asserted. What is given up is the element
+  list: a rule that ran can name the elements it could not decide, which are the ones a
+  person then checks by hand, and a rule that never ran cannot. That is the whole of the
+  trade, which is why it is a flag and not the default. No effect under `--browser`, which
+  can decide those rules for real, and it says so rather than ignoring the flag quietly.
+
+  Available to the build plugins as `fast` and to the GitHub Action as the `fast` input,
+  which is where most runs of this tool happen: a flag the changelog sells and CI cannot
+  reach is not a feature anyone has.
+
+### Changed
+
+- **The baseline file's `schemaVersion` moves to 2** and the JSON report's to 2, because
+  `fingerprint` changed meaning in both. Neither is read across the boundary: a baseline
+  written by 0.4.0 records identities under the old rule, and matching them against the new
+  one would suppress nothing while looking as though it had, so it is refused with the
+  command that rewrites it. `diff` likewise refuses to compare a 0.4.0 report against a
+  newer one — that comparison is precisely the one that reports every document-level
+  barrier as both new and fixed. SARIF's partial fingerprint key moves to `eaaKit/v2` for
+  the same reason, which is what tells code scanning these are a new scheme rather than
+  defects that moved.
+
+  Re-record a baseline with `eaa-kit baseline`, and read the new file before committing it:
+  it lists what this run found, which is not necessarily what the old one accepted.
+
+- **`--browser` audits four pages at once instead of one.** This runner took pages strictly
+  one at a time while the browserless one had a whole measured worker pool, which had it
+  backwards: the browser is the slow engine, and it spends most of a page waiting on the
+  stylesheets and images it fetches rather than on the CPU. Over 24 pages of a styled site,
+  17.9 s became 7.7 s. `--concurrency` now sets this too — threads without `--browser`,
+  open tabs with it — and its help text says so. Four is the default because each open page
+  holds a document tree, its decoded images and its own copy of axe-core, so Chromium's
+  memory is the limit rather than cores. Results are placed by position rather than pushed
+  as they arrive, and a test asserts that runs at 1, 4 and 8 tabs produce the same report
+  page for page.
+
+- **A run with nothing to fix no longer reads the project's source.** The component index
+  exists to answer one question — which file a failing element was written in — and a clean
+  run never asks it, but it was built anyway before either report rendered. Measured on a
+  1500-file project auditing one clean page: ~450 ms and ~20 MB spent on lookups that never
+  happened, scaling with the source tree rather than with anything the run did. It is now
+  built only when there is an element to attribute.
+
+- The per-page timeout constant moved to `result.ts` so the worker pool can read it without
+  pulling 630 ms of jsdom into a module that deliberately avoids it — the same move
+  `ENGINE_BLIND_RULES` already made.
+
+- **Compiled bytecode is reused between runs.** Importing jsdom is ~700 ms and axe-core
+  another ~130 ms to import and compile, and V8 paid to compile both from source on every
+  invocation of a CLI that build scripts run over and over against unchanged code. Node's
+  compile cache is enabled in the CLI entry and again in the audit worker, since the cache
+  is per-thread and each worker compiles its own copy. A one-page audit goes 1397 ms to
+  1256 ms; a fifty-page one is unchanged, which is the expected shape for a fixed cost.
+  Best-effort: a read-only or sandboxed cache directory makes a run slightly slower and
+  nothing else.
+
+- **`--fail-on` and `--format` no longer carry a commander default.** Commander writes a
+  default into the parsed options whether or not the flag was typed, which would have
+  silently overruled the config file on the two flags most worth putting in it. Both still
+  default in the command itself, to the same values the help text names, so nothing about a
+  run changes.
 
 ### Fixed
 
@@ -66,25 +172,6 @@ consumers must ignore what they do not recognise.
 - One unreachable page was counted in the singular and conjugated in the plural: "1 page
   could not be reached, and were not audited".
 
-### Changed
-
-- **The baseline file's `schemaVersion` moves to 2** and the JSON report's to 2, because
-  `fingerprint` changed meaning in both. Neither is read across the boundary: a baseline
-  written by 0.4.0 records identities under the old rule, and matching them against the new
-  one would suppress nothing while looking as though it had, so it is refused with the
-  command that rewrites it. `diff` likewise refuses to compare a 0.4.0 report against a
-  newer one — that comparison is precisely the one that reports every document-level
-  barrier as both new and fixed. SARIF's partial fingerprint key moves to `eaaKit/v2` for
-  the same reason, which is what tells code scanning these are a new scheme rather than
-  defects that moved.
-
-  Re-record a baseline with `eaa-kit baseline`, and read the new file before committing it:
-  it lists what this run found, which is not necessarily what the old one accepted.
-
-## Unreleased
-
-### Fixed
-
 - **The per-page timeout could not stop the thing it was written for.** It is a
   `Promise.race`, and a race cannot interrupt synchronous work: neither jsdom's parse nor
   axe-core's walk of the tree yields, so the timer meant to stop them never gets to run.
@@ -112,60 +199,6 @@ consumers must ignore what they do not recognise.
   connection and never answers left the crawl waiting before it had reported a single page.
   They now share the request timeout, refuse a redirect that leaves the origin as
   `fetchPage` already does, and are capped like any other body.
-
-### Changed
-
-- **`--browser` audits four pages at once instead of one.** This runner took pages strictly
-  one at a time while the browserless one had a whole measured worker pool, which had it
-  backwards: the browser is the slow engine, and it spends most of a page waiting on the
-  stylesheets and images it fetches rather than on the CPU. Over 24 pages of a styled site,
-  17.9 s became 7.7 s. `--concurrency` now sets this too — threads without `--browser`,
-  open tabs with it — and its help text says so. Four is the default because each open page
-  holds a document tree, its decoded images and its own copy of axe-core, so Chromium's
-  memory is the limit rather than cores. Results are placed by position rather than pushed
-  as they arrive, and a test asserts that runs at 1, 4 and 8 tabs produce the same report
-  page for page.
-
-- **A run with nothing to fix no longer reads the project's source.** The component index
-  exists to answer one question — which file a failing element was written in — and a clean
-  run never asks it, but it was built anyway before either report rendered. Measured on a
-  1500-file project auditing one clean page: ~450 ms and ~20 MB spent on lookups that never
-  happened, scaling with the source tree rather than with anything the run did. It is now
-  built only when there is an element to attribute.
-
-- The per-page timeout constant moved to `result.ts` so the worker pool can read it without
-  pulling 630 ms of jsdom into a module that deliberately avoids it — the same move
-  `ENGINE_BLIND_RULES` already made.
-
-## Unreleased
-
-### Added
-
-- **`--fast`**, which skips the rules the browserless engine cannot decide rather than
-  running them and discarding the answer. Colour contrast is computed against a stylesheet
-  jsdom never fetched and target size against boxes that are all 0x0; both verdicts are
-  thrown away as untrustworthy, and the work to produce them is not cheap — colour contrast
-  is the most expensive rule axe-core has. Skipping the set is 14-19% of a page and 8-10%
-  of a whole run once start-up is counted.
-
-  The verdict does not move. Every skipped rule is still reported as not evaluated with the
-  same reason, no skipped rule ever becomes a pass, and the coverage view is
-  criterion-for-criterion identical — all three asserted. What is given up is the element
-  list: a rule that ran can name the elements it could not decide, which are the ones a
-  person then checks by hand, and a rule that never ran cannot. That is the whole of the
-  trade, which is why it is a flag and not the default. No effect under `--browser`, which
-  can decide those rules for real, and it says so rather than ignoring the flag quietly.
-
-### Changed
-
-- **Compiled bytecode is reused between runs.** Importing jsdom is ~700 ms and axe-core
-  another ~130 ms to import and compile, and V8 paid to compile both from source on every
-  invocation of a CLI that build scripts run over and over against unchanged code. Node's
-  compile cache is enabled in the CLI entry and again in the audit worker, since the cache
-  is per-thread and each worker compiles its own copy. A one-page audit goes 1397 ms to
-  1256 ms; a fifty-page one is unchanged, which is the expected shape for a fixed cost.
-  Best-effort: a read-only or sandboxed cache directory makes a run slightly slower and
-  nothing else.
 
 ## 0.4.0 — 2026-09-01
 

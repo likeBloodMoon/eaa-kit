@@ -17,6 +17,23 @@ shareable ones.
 - Rule ids, WCAG success criteria and EN 301 549 clauses come from axe-core and may change
   when its major version changes; `tool.axeCore` records which version produced the report.
 
+#### Coming from 0.4.0
+
+`schemaVersion` moved from `1` to `2` in 0.5.0, because [`fingerprint`](#fingerprint)
+changed meaning: it hashed the failing element's whole outer markup and now hashes its
+opening tag. Three things follow, and none of them is silent.
+
+- **`eaa-kit diff` refuses a 0.4.0 report against a newer one.** That comparison is exactly
+  the one that reports every document-level barrier as both new and fixed. Regenerate the
+  earlier report from the same commit if you need the comparison.
+- **A 0.4.0 baseline is refused** rather than read, with the command that rewrites it. See
+  [baselines](baseline.md).
+- **SARIF's partial fingerprint key is now `eaaKit/v2`.** Code scanning treats the two as
+  different schemes, which is what stops it reading a re-identified alert as a defect that
+  moved.
+
+A consumer that reads the JSON report and does not touch `fingerprint` needs no change.
+
 Deliberately **not** in the document, and not coming later: absolute filesystem paths
 (they leak the build machine into anything you commit), per-page timings (they would make
 two reports of the same build differ), and raw axe-core tags (promising those would tie
