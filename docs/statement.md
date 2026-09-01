@@ -66,6 +66,10 @@ generator emitting an inaccessible statement has failed at the one job it has.
 directory. TypeScript configs are read directly — Node strips the types, so there is no
 build step and no loader dependency.
 
+The same file can carry an [`audit` block](audit.md#defaults-from-eaaconfig) of defaults
+for `eaa-kit audit`. Nothing in it reaches the statement, and nothing here reaches an
+audit; they share a file, not a meaning.
+
 ```ts
 import { defineConfig } from 'eaa-kit'
 

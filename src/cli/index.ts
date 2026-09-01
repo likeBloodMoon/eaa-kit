@@ -2,16 +2,25 @@
 import { enableCompileCache } from 'node:module'
 import { Command, InvalidArgumentError } from 'commander'
 import { DEFAULT_BASELINE_FILE } from '../audit/baseline.ts'
-import { DEFAULT_FAIL_ON, IMPACT_LEVELS, type ImpactLevel } from '../audit/impact.ts'
+import { DEFAULT_FAIL_ON, IMPACT_LEVELS } from '../audit/impact.ts'
 import {
   COUNTRIES,
-  type Country,
+  ConfigError,
   STATEMENT_LOCALES,
   type StatementLocale,
 } from '../config/define.ts'
 import { TOOL_VERSION } from '../version.ts'
-import { type AuditCommandOptions, OUTPUT_FORMATS, runAuditCommand } from './audit.ts'
-import { type BaselineCommandOptions, runBaselineCommand } from './baseline.ts'
+import { OUTPUT_FORMATS, runAuditCommand } from './audit.ts'
+import { runBaselineCommand } from './baseline.ts'
+import {
+  type AuditFlags,
+  auditDefaults,
+  auditInvocation,
+  type BaselineFlags,
+  baselineInvocation,
+  fail,
+  note,
+} from './command.ts'
 import { DIFF_FORMATS, type DiffCommandOptions, runDiffCommand } from './diff.ts'
 import {
   runStatementCommand,
@@ -55,8 +64,6 @@ useCompileCache()
  * they occur: `--no-build`, which commander reports as `build`, and `--lang`,
  * which the statement command calls `locale`.
  */
-type AuditFlags = Omit<AuditCommandOptions, 'noBuild' | 'cwd' | 'timeoutMs'> & { build: boolean }
-type BaselineFlags = Omit<BaselineCommandOptions, 'cwd' | 'timeoutMs'>
 type DiffFlags = Omit<DiffCommandOptions, 'cwd'>
 type StatementFlags = Omit<StatementCommandOptions, 'locale' | 'cwd'> & { lang?: StatementLocale }
 
@@ -137,17 +144,20 @@ program
   .option('--sitemap <path>', 'where the site lists its pages, if not /sitemap.xml')
   .option('--max-pages <n>', 'stop the crawl after this many pages', parsePositive)
   .option('--max-depth <n>', 'how far from the entry URL to follow links', parseDepth)
+  // Neither of these carries a commander default any more. Commander writes a
+  // default into the parsed options whether or not the flag was typed, and the
+  // flags are merged over the config file's `audit` block — so a default here
+  // would silently overrule what a project wrote down. Both still default in
+  // the command itself, to the same values the help text names.
   .option(
     '--fail-on <impact>',
-    `exit 1 on violations at or above this impact (${IMPACT_LEVELS.join('|')})`,
+    `exit 1 on violations at or above this impact (${IMPACT_LEVELS.join('|')}; default: ${DEFAULT_FAIL_ON})`,
     parseImpact,
-    DEFAULT_FAIL_ON,
   )
   .option(
     '--format <format>',
-    `output format (${OUTPUT_FORMATS.join('|')})`,
+    `output format (${OUTPUT_FORMATS.join('|')}; default: console)`,
     parseFormat,
-    'console',
   )
   .option('--output <path>', 'write the report to a file instead of stdout')
   .option('--browser', 'audit in real Chromium, covering the rules jsdom cannot evaluate')
@@ -161,19 +171,18 @@ program
     parseConcurrency,
   )
   .option('--baseline <path>', 'accept the violations recorded in this file; fail only on new ones')
+  .option('--config <path>', 'take defaults from this config file, otherwise it is searched for')
   .action(async (dir: string | undefined, flags: AuditFlags) => {
-    const { build, ...options } = flags
-    const { exitCode } = await runAuditCommand(dir, {
-      ...options,
-      ...(build === false ? { noBuild: true } : {}),
-    })
+    const defaults = await auditDefaults({ ...(flags.config ? { config: flags.config } : {}) })
+    const invocation = auditInvocation(dir, defaults, flags)
+    const { exitCode } = await runAuditCommand(invocation.dir, invocation.options)
     process.exitCode = exitCode
   })
 
 program
   .command('baseline')
   .description('Record the violations a build already has, so later runs fail only on new ones')
-  .argument('[dir]', 'directory holding the built site', './dist')
+  .argument('[dir]', 'directory holding the built site (default: ./dist)')
   .option('--include <globs...>', 'glob patterns to audit, relative to dir')
   .option('--exclude <globs...>', 'glob patterns to skip')
   .option('--base-url <url>', 'audit pages under their real site URL')
@@ -188,8 +197,11 @@ program
   .option('--expires-on <date>', 'ISO date after which the entries stop suppressing', parseDate)
   .option('--browser', 'audit in real Chromium instead of jsdom')
   .option('--concurrency <n>', 'pages to audit at once, or 1 for none', parseConcurrency)
-  .action(async (dir: string, flags: BaselineFlags) => {
-    const { exitCode } = await runBaselineCommand(dir, flags)
+  .option('--config <path>', 'take defaults from this config file, otherwise it is searched for')
+  .action(async (dir: string | undefined, flags: BaselineFlags) => {
+    const defaults = await auditDefaults({ ...(flags.config ? { config: flags.config } : {}) })
+    const invocation = baselineInvocation(dir, defaults, flags)
+    const { exitCode } = await runBaselineCommand(invocation.dir, invocation.options)
     process.exitCode = exitCode
   })
 
@@ -252,6 +264,17 @@ program
 try {
   await program.parseAsync(process.argv)
 } catch (cause) {
+  // A config file that exists and cannot be read: the same report `statement`
+  // gives, since it is the same file and the same mistake.
+  if (cause instanceof ConfigError) {
+    fail(cause.message)
+    for (const issue of cause.issues) note(`  ${issue}`)
+    process.exitCode = 2
+    // Commander's own errors carry an exitCode; this one does not, and the
+    // branch below would print a stack trace for a typo in a config file.
+    process.exit(2)
+  }
+
   // --help and --version land here too, with exitCode 0; everything else is a
   // usage error, which this CLI reports as 2.
   const error = cause as { exitCode?: number; message?: string }

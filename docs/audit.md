@@ -185,9 +185,57 @@ chatter coming along.
 | `--concurrency <n>` | from page and core count | Pages to audit at once — threads without `--browser`, tabs with it; `1` turns both off |
 | `--fast` | off | Skip the rules the browserless engine cannot decide, rather than running them and discarding the answer |
 | `--baseline <path>` | — | Accept the violations recorded in this file; fail only on new ones |
+| `--config <path>` | searched for | Take defaults from this config file rather than the one found by searching |
 
 Dot directories such as build caches are skipped by default. `--include` and `--exclude`
 replace the defaults rather than adding to them.
+
+## Defaults from eaa.config
+
+A project that runs the same six flags on every invocation can write them down once. The
+config file [the statement command already uses](statement.md#the-config-file) takes an
+`audit` block, found by walking up from the working directory, and `baseline` reads it too:
+
+```jsonc
+{
+  "audit": {
+    "dir": "build",
+    "include": ["**/*.html"],
+    "failOn": "critical",
+    "browser": true,
+    "concurrency": 4
+  }
+}
+```
+
+```bash
+eaa-kit audit                       # build/, in Chromium, failing on critical
+eaa-kit audit --fail-on serious     # the same run, at a threshold you asked for now
+```
+
+**A flag typed on the command line wins.** The file is what the project usually wants; a
+flag is what somebody wants on this run, and a config that could not be overridden would
+make a one-off `--browser` check impossible without editing a committed file.
+
+Everything in the block is optional, and the whole block is: `audit` works in a project
+that has no config file, as it always has. A file written for the statement alone is not
+required to grow one, and a file with nothing but an `audit` block is valid — the rest of
+the schema is required by `statement`, which is the command that publishes a document.
+
+| Key | Same as |
+| --- | --- |
+| `dir` | the positional argument, which wins over it |
+| `include`, `exclude`, `baseUrl`, `url`, `sitemap`, `maxPages`, `maxDepth` | the flags of those names |
+| `allowRemote`, `ignoreRobots` | `--allow-remote`, `--ignore-robots` |
+| `failOn`, `format`, `output`, `baseline` | `--fail-on`, `--format`, `--output`, `--baseline` |
+| `browser`, `fast`, `concurrency` | the engine flags |
+| `perPage`, `manual`, `coverage` | the console report's three extra sections |
+| `build` | `false` is `--no-build` |
+
+`baseline` reads the keys that mean the same thing to it — the page selection and the
+engine — and not the ones that do not. `output` is where the report goes for one command
+and where the baseline goes for the other, so it is never carried across; `format`,
+`failOn` and `baseline` describe a verdict `baseline` does not reach.
 
 ### `--fail-on <impact>`
 

@@ -167,6 +167,27 @@ export function number(): Schema<number> {
   }
 }
 
+/**
+ * A whole number, with an optional floor.
+ *
+ * `number` would accept 2.5 pages and a concurrency of 0, both of which the
+ * CLI's own parsers refuse. A config file is the same instruction typed
+ * somewhere else, so it is held to the same rule.
+ */
+export function integer(options: { min?: number } = {}): Schema<number> {
+  return {
+    read: (value, path, issues) => {
+      if (typeof value !== 'number' || !Number.isInteger(value)) {
+        return fail(issues, path, 'expected a whole number')
+      }
+      if (options.min !== undefined && value < options.min) {
+        return fail(issues, path, `must be ${options.min} or more`)
+      }
+      return value
+    },
+  }
+}
+
 /** One of a fixed set. The message lists them, since that is the useful part. */
 export function enumeration<const T extends readonly string[]>(values: T): Schema<T[number]> {
   return {

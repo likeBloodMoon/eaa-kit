@@ -28,5 +28,9 @@
   },
   "enforcement": {
     "country": "AT"
+  },
+  "audit": {
+    "include": ["**/*.html"],
+    "failOn": "serious"
   }
 }

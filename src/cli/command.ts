@@ -3,6 +3,9 @@ import path from 'node:path'
 import pc from 'picocolors'
 import type { CollectedPage } from '../audit/collect.ts'
 import type { PageAudit } from '../audit/runners/jsdom.ts'
+import type { AuditConfig } from '../config/define.ts'
+import type { AuditCommandOptions } from './audit.ts'
+import type { BaselineCommandOptions } from './baseline.ts'
 
 /**
  * What every command does around the audit itself: say what is happening, run
@@ -118,4 +121,130 @@ export async function emitDocument(
   const target = path.resolve(cwd, output)
   await mkdir(path.dirname(target), { recursive: true })
   await writeFile(target, body, 'utf8')
+}
+
+/**
+ * Audit defaults from the project's config file.
+ *
+ * `audit` and `baseline` are run from a build script over and over with the
+ * same six flags, and the flags are the only place to say them: the config file
+ * has existed since 0.2 and served the statement alone. An `audit` block there
+ * is that list written once.
+ *
+ * Everything it returns is a default. The flags are merged over it by the
+ * caller, because the file is the project's usual answer and a flag is somebody
+ * asking for something else on this run.
+ *
+ * No config file at all is not an error, unlike for `statement`: this command
+ * has always run against projects that have never heard of one. A file that
+ * exists and cannot be read is exit 2 — it was written to be used, and running
+ * on different settings than it names would be worse than stopping.
+ */
+export async function auditDefaults(
+  options: {
+    cwd?: string
+    /** Explicit path, skipping the search. */
+    config?: string
+  } = {},
+): Promise<AuditConfig> {
+  // Imported here so that a run with no config file, and `--help`, never load
+  // the module that reads one.
+  const { loadAuditConfig } = await import('../config/load.ts')
+
+  const loaded = await loadAuditConfig({
+    ...(options.cwd ? { cwd: options.cwd } : {}),
+    ...(options.config ? { path: options.config } : {}),
+  })
+
+  if (!loaded?.audit) return {}
+  note(`Defaults from ${path.basename(loaded.path)}`)
+  return loaded.audit
+}
+
+/**
+ * What the audit command was asked to do, from the config file and the flags.
+ *
+ * A function rather than four lines in the action, because the precedence is
+ * the whole feature and the actions are the one part of this CLI a test cannot
+ * call: commander owns them.
+ */
+export type AuditFlags = Omit<AuditCommandOptions, 'noBuild' | 'cwd' | 'timeoutMs'> & {
+  /** commander's form of `--no-build`: true unless somebody typed the flag. */
+  build?: boolean
+  /** Where to read defaults from. Consumed before this point. */
+  config?: string
+}
+
+export function auditInvocation(
+  dir: string | undefined,
+  defaults: AuditConfig,
+  flags: AuditFlags,
+): { dir: string | undefined; options: AuditCommandOptions } {
+  const { build, config: _config, ...typed } = flags
+  const { dir: configDir, build: configBuild, ...fromConfig } = defaults
+
+  return {
+    // The positional argument wins, and neither one given still means "work it
+    // out from the project", as it always has.
+    dir: dir ?? configDir,
+    options: {
+      ...fromConfig,
+      ...typed,
+      // `--no-build` reaches commander as build: true when nobody typed it, so
+      // it cannot be merged like the rest. Either source asking for no build is
+      // asking for no build.
+      ...(build === false || configBuild === false ? { noBuild: true } : {}),
+    },
+  }
+}
+
+export type BaselineFlags = Omit<BaselineCommandOptions, 'cwd' | 'timeoutMs'> & { config?: string }
+
+/**
+ * The same, for `baseline`, which reads the defaults that mean the same thing
+ * to it.
+ *
+ * Deliberately a subset. `output` names where the report goes for one command
+ * and where the baseline goes for the other, so carrying it across would write
+ * a baseline over the path somebody set aside for a report; `format`, `failOn`
+ * and `baseline` all describe a verdict this command does not reach.
+ */
+export function baselineInvocation(
+  dir: string | undefined,
+  defaults: AuditConfig,
+  flags: BaselineFlags,
+): { dir: string; options: BaselineCommandOptions } {
+  const { config: _config, ...typed } = flags
+
+  return {
+    // This command has no auto-detection, so something has to be named: the
+    // argument, then the config file, then the directory most builds write to.
+    dir: dir ?? defaults.dir ?? './dist',
+    options: { ...baselineDefaults(defaults), ...typed },
+  }
+}
+
+function baselineDefaults(config: AuditConfig) {
+  return pick(config, [
+    'include',
+    'exclude',
+    'baseUrl',
+    'url',
+    'allowRemote',
+    'ignoreRobots',
+    'sitemap',
+    'maxPages',
+    'maxDepth',
+    'browser',
+    'concurrency',
+  ])
+}
+
+/** Copies the keys that are actually set, so nothing spreads an undefined over a real value. */
+function pick<T extends object, K extends keyof T>(source: T, keys: readonly K[]): Pick<T, K> {
+  const out: Partial<Pick<T, K>> = {}
+  for (const key of keys) {
+    if (source[key] !== undefined) out[key] = source[key]
+  }
+  return out as Pick<T, K>
 }

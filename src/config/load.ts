@@ -2,7 +2,13 @@ import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { isFile } from '../fs.ts'
-import { ConfigError, type EaaConfig, parseConfig } from './define.ts'
+import {
+  type AuditConfig,
+  ConfigError,
+  type EaaConfig,
+  parseAuditConfig,
+  parseConfig,
+} from './define.ts'
 
 /** Checked in this order, first match wins. */
 export const CONFIG_FILENAMES = [
@@ -50,8 +56,42 @@ export async function loadConfig(options: LoadConfigOptions = {}): Promise<Loade
     throw new ConfigError(`Config file not found: ${file}`)
   }
 
-  const value = file.endsWith('.json') ? await importJson(file) : await importModule(file)
-  return { config: parseConfig(value, path.basename(file)), path: file }
+  return { config: parseConfig(await readConfigFile(file), path.basename(file)), path: file }
+}
+
+/** What an audit found in a config file, when there was one to find. */
+export interface LoadedAuditConfig {
+  /** The `audit` block, or undefined where the file has none. */
+  audit: AuditConfig | undefined
+  /** Absolute path of the file it came from. */
+  path: string
+}
+
+/**
+ * Find the config file and read its `audit` block, for the commands that take
+ * defaults from it.
+ *
+ * Returns undefined when there is no config file at all. That is not an error
+ * here as it is for `statement`: `eaa-kit audit` has always run against a
+ * project that has never heard of a config file, and it must keep doing so. An
+ * explicit path that is not there is still an error, because somebody named it.
+ */
+export async function loadAuditConfig(
+  options: LoadConfigOptions = {},
+): Promise<LoadedAuditConfig | undefined> {
+  const cwd = path.resolve(options.cwd ?? process.cwd())
+  const file = options.path ? path.resolve(cwd, options.path) : await findConfigFile(cwd)
+
+  if (!file) return undefined
+  if (!(await isFile(file))) {
+    throw new ConfigError(`Config file not found: ${file}`)
+  }
+
+  return { audit: parseAuditConfig(await readConfigFile(file), path.basename(file)), path: file }
+}
+
+function readConfigFile(file: string): Promise<unknown> {
+  return file.endsWith('.json') ? importJson(file) : importModule(file)
 }
 
 /** Walks up from `cwd`, so the CLI works from a subdirectory of the project. */
