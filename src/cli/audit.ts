@@ -257,7 +257,7 @@ async function renderReport(
       const { buildHtmlReport } = await import('../audit/report/html.ts')
       const framework = await detectedFramework(options.cwd ?? process.cwd())
       return buildHtmlReport(audits, {
-        ...(await sourceLookups(options.cwd ?? process.cwd())),
+        ...(await sourceLookups(options.cwd ?? process.cwd(), audits)),
         directory: dir,
         failOn,
         completeness,
@@ -268,7 +268,7 @@ async function renderReport(
     case 'console': {
       const framework = await detectedFramework(options.cwd ?? process.cwd())
       return `${formatConsoleReport(audits, {
-        ...(await sourceLookups(options.cwd ?? process.cwd())),
+        ...(await sourceLookups(options.cwd ?? process.cwd(), audits)),
         dir,
         failOn,
         completeness,
@@ -294,16 +294,39 @@ async function detectedFramework(cwd: string): Promise<string | undefined> {
   return (await detectFramework(cwd, await readPackageJson(cwd)))?.framework.id
 }
 
-async function sourceLookups(cwd: string): Promise<{
+async function sourceLookups(
+  cwd: string,
+  /** What the run found, which decides whether the component index is worth building. */
+  audits: readonly PageAudit[],
+): Promise<{
   sourceFor: (page: string) => string | undefined
   componentFor: (html: string) => ComponentLocation | undefined
 }> {
   const { buildRouteMap, sourceFor } = await import('../audit/routes.ts')
-  const { buildComponentIndex, componentFor } = await import('../audit/component.ts')
   const routes = await buildRouteMap(cwd)
+
+  // The component index reads the project's source — up to two thousand files —
+  // to answer one question: which file a failing element was written in. A run
+  // that found nothing to fix never asks it, and building it anyway cost every
+  // clean audit around 450 ms and 20-odd MB on a mid-size project, scaling with
+  // the source tree rather than with anything the run actually did.
+  //
+  // Both reports only reach for it from the issues view, which is built from
+  // violations and from baseline-accepted findings. No elements there, no
+  // lookups, nothing to index.
+  if (!hasElementsToAttribute(audits)) {
+    return { sourceFor: (page) => sourceFor(routes, page), componentFor: () => undefined }
+  }
+
+  const { buildComponentIndex, componentFor } = await import('../audit/component.ts')
   const components = await buildComponentIndex(cwd)
   return {
     sourceFor: (page) => sourceFor(routes, page),
     componentFor: (html) => componentFor(components, html),
   }
+}
+
+/** Whether any element will be listed, and so looked up against the source. */
+function hasElementsToAttribute(audits: readonly PageAudit[]): boolean {
+  return audits.some((audit) => audit.violations.length > 0 || (audit.accepted?.length ?? 0) > 0)
 }

@@ -124,7 +124,7 @@ program
   .option('--browser', 'audit in real Chromium, covering the rules jsdom cannot evaluate')
   .option(
     '--concurrency <n>',
-    'worker threads to audit with, or 1 for none (default: from the page and core count)',
+    'pages to audit at once, or 1 for none (default: from the page and core count)',
     parseConcurrency,
   )
   .option('--baseline <path>', 'accept the violations recorded in this file; fail only on new ones')
@@ -154,7 +154,7 @@ program
   .option('--note <text>', 'recorded on every entry, for whoever reads the file')
   .option('--expires-on <date>', 'ISO date after which the entries stop suppressing', parseDate)
   .option('--browser', 'audit in real Chromium instead of jsdom')
-  .option('--concurrency <n>', 'worker threads to audit with, or 1 for none', parseConcurrency)
+  .option('--concurrency <n>', 'pages to audit at once, or 1 for none', parseConcurrency)
   .action(async (dir: string, flags: BaselineFlags) => {
     const { exitCode } = await runBaselineCommand(dir, flags)
     process.exitCode = exitCode

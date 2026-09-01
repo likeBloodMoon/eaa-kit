@@ -182,7 +182,7 @@ chatter coming along.
 | `--format <format>` | `console` | `console`, `json`, `sarif`, or `html` |
 | `--output <path>` | stdout | Write the report to a file; parent directories are created |
 | `--browser` | off | Audit in real Chromium instead of jsdom |
-| `--concurrency <n>` | from page and core count | Worker threads to audit with; `1` audits in one thread |
+| `--concurrency <n>` | from page and core count | Pages to audit at once — threads without `--browser`, tabs with it; `1` turns both off |
 | `--baseline <path>` | — | Accept the violations recorded in this file; fail only on new ones |
 
 Dot directories such as build caches are skipped by default. `--include` and `--exclude`
@@ -267,6 +267,8 @@ eaa-kit audit ./dist --format html --output a11y.html     # a report you can sen
 
 ### `--concurrency <n>`
 
+Both engines audit several pages at once, and this flag sets how many for either.
+
 The browserless engine audits pages across worker threads. Roughly 80% of a page's audit
 time is spent inside axe-core with the CPU pinned, so this is the one place where more
 cores actually buy something. On a 4-core machine, over 100 pages of a typical marketing
@@ -290,8 +292,20 @@ they were collected rather than the order they finished, so two runs of the same
 produce byte-identical reports — a test asserts that the threaded and single-threaded
 runs agree page for page.
 
-The Chromium engine is unaffected: `--browser` drives one browser context sequentially,
-where the bottleneck is the browser rather than this process.
+`--browser` uses the same flag, for open tabs rather than threads. The bottleneck there is
+the opposite one — a real browser fetches the stylesheets, fonts and images a visitor
+would, and spends most of a page waiting on them rather than on the CPU — so waiting on
+four at once is close to free. Over 24 pages of a styled site:
+
+| Tabs | Total |
+| --- | --- |
+| `--concurrency 1` | 17.9 s |
+| 4 (the default) | 7.7 s |
+
+The default is four rather than more because each open page holds a document tree, its
+decoded images and its own copy of axe-core, and Chromium's memory is the limit rather
+than cores. The reports are identical either way: a test asserts that runs at 1, 4 and 8
+tabs agree page for page and keep the pages in the order they were collected.
 
 Threads also decide how much memory the run needs, which matters on a large site. jsdom
 builds a full DOM per page and axe-core walks it, and V8 does not reclaim that as fast as
@@ -303,6 +317,14 @@ own, so spreading the pages out lowers the peak:
 | --- | --- |
 | `--concurrency 1` | out of memory |
 | default (3 threads here) | completes |
+
+`--concurrency 1` also gives up the per-page time limit, which is worth knowing before
+reaching for it. A document can hold a thread rather than yielding — jsdom's parse and
+axe-core's walk are both synchronous — and the only thing that stops work like that is
+killing the thread doing it. That is the worker pool's job, so a run with no workers has
+no hard ceiling and a pathological page can stall it. The 32 MB per-page limit is what
+bounds the damage in that case, and a machine with too few cores to spare one is in the
+same position.
 
 The default is the safe one; `--concurrency 1` is the setting to be careful with on a big
 site in a memory-capped container. If a run does die with *JavaScript heap out of memory*,
@@ -482,6 +504,20 @@ counted away.
 A page that could not be audited exits `2` rather than `0`. It is neither clean nor
 failing, and reporting a pass for markup nothing read would be worse than reporting a
 broken run.
+
+### Pages the run declined to read
+
+A file over **32 MB** is not read, and is reported as unmeasured rather than audited.
+Nothing about a build guarantees its `.html` files are pages: a generated catalogue, a
+database export that happens to carry the extension, a log redirected into the build
+directory. Loading one into memory to hand to jsdom is an out-of-memory crash that takes
+the whole run with it — every finding on every page that was fine included — so it is
+declined instead and named in the run's completeness block. A crawl applies the same limit
+to what a server sends it.
+
+For scale: the largest page in this project's own fixtures is 4 KB, and a heavy
+real-world documentation page is under 2 MB. A file over the limit is almost never a page
+somebody wrote for a person to read.
 
 ## What the browserless engine can and cannot tell you
 

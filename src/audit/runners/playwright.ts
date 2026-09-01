@@ -39,10 +39,31 @@ export interface BrowserRunnerOptions {
    * depends on layout, so it is reported alongside the results.
    */
   viewport?: { width: number; height: number }
+  /**
+   * Pages open at once. Defaults to DEFAULT_CONCURRENCY, and 1 audits them one
+   * after another as this runner used to.
+   */
+  concurrency?: number
 }
 
 /** Desktop-ish default; large enough that nothing collapses to a mobile layout. */
 const DEFAULT_VIEWPORT = { width: 1280, height: 720 }
+
+/**
+ * Pages open at once.
+ *
+ * This runner used to audit strictly one page at a time while the browserless
+ * one had a whole measured worker pool — which had it backwards, since the
+ * browser is the slow engine: it fetches the stylesheets and images a real
+ * visitor would, and spends most of a page waiting on them rather than on the
+ * CPU. Waiting on four at once is close to free.
+ *
+ * Four rather than more because each open page holds a document tree, its
+ * decoded images and its own copy of axe-core, and Chromium's memory is the
+ * limit here rather than cores. Past this the gain flattens and the cost does
+ * not.
+ */
+const DEFAULT_CONCURRENCY = 4
 
 /**
  * Audit a built site in real Chromium.
@@ -94,14 +115,37 @@ export async function runBrowserAudit(
     // would come back unaudited. Observed on a real build the first time this
     // ran outside the fixtures.
     const context = await browser.newContext({ viewport, bypassCSP: true })
-    const audits: PageAudit[] = []
 
-    for (const page of pages) {
-      audits.push(await auditOne(context, server?.origin, page, { tags, timeout, ...options }))
-    }
+    // Indexed by position rather than pushed in completion order: the pages
+    // finish in whatever order the server answers them, and two runs of one
+    // build have to produce the same report.
+    const audits: Array<PageAudit | undefined> = Array.from({ length: pages.length })
+    const lanes = Math.max(1, Math.min(options.concurrency ?? DEFAULT_CONCURRENCY, pages.length))
+    let next = 0
+
+    // One shared queue drained by `lanes` workers, so a slow page holds up only
+    // its own lane. Each opens its own tab per page and closes it again, which
+    // is what `auditOne` already did — the only change is how many are in
+    // flight at once.
+    await Promise.all(
+      Array.from({ length: lanes }, async () => {
+        while (true) {
+          const index = next
+          if (index >= pages.length) return
+          next += 1
+          audits[index] = await auditOne(context, server?.origin, pages[index] as CollectedPage, {
+            tags,
+            timeout,
+            ...options,
+          })
+        }
+      }),
+    )
 
     await context.close()
-    return audits
+    // Every slot is filled: auditOne turns a page it cannot audit into a
+    // PageAudit carrying an error rather than throwing.
+    return audits as PageAudit[]
   } finally {
     await browser.close()
     await server?.close()
