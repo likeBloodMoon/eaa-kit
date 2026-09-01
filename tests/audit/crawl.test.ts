@@ -447,3 +447,106 @@ describe('--sitemap', () => {
     expect(result.pages.map((p) => p.relativePath)).not.toContain('deep')
   })
 })
+
+describe('limits on what a response may be', () => {
+  it('refuses a body past the ceiling instead of buffering it', async () => {
+    // `response.text()` has already read everything by the time its length
+    // could be checked, so a server that does not stop sending is an
+    // out-of-memory crash rather than a failed page. Counting bytes as they
+    // arrive is the only check that holds.
+    const { fetchImpl } = site({
+      '/': page(`<a href="/big">big</a>${'x'.repeat(200)}`),
+      '/big': page('y'.repeat(5000)),
+    })
+
+    const result = await crawlSite(new URL('http://localhost:3000'), {
+      fetchImpl,
+      maxBodyBytes: 1024,
+    })
+
+    expect(result.pages.map((found) => found.relativePath)).toEqual(['/'])
+    expect(result.failures.map((failure) => failure.reason)).toContainEqual(
+      expect.stringMatching(/larger than/),
+    )
+  })
+
+  it('reports the oversize page rather than dropping it silently', async () => {
+    // It has to reach the completeness block: a page nobody measured is not a
+    // page with no violations.
+    const { fetchImpl } = site({
+      '/': page(`<a href="/big">big</a>`),
+      '/big': page('y'.repeat(5000)),
+    })
+
+    const result = await crawlSite(new URL('http://localhost:3000'), {
+      fetchImpl,
+      maxBodyBytes: 1024,
+    })
+
+    expect(result.failures.map((failure) => failure.url)).toContainEqual(
+      expect.stringContaining('/big'),
+    )
+  })
+})
+
+describe('the files a site publishes about itself', () => {
+  /** A server that accepts the connection and then never answers. */
+  function hangs(paths: readonly string[], rest: typeof fetch): typeof fetch {
+    return (async (input: string | URL, init?: RequestInit) => {
+      const url = new URL(typeof input === 'string' ? input : input.href)
+      if (!paths.includes(url.pathname)) return rest(input as string, init)
+      return new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new Error('aborted')))
+      })
+    }) as unknown as typeof fetch
+  }
+
+  it('does not wait forever on robots.txt', async () => {
+    // These two requests are made before any page is fetched, and they were the
+    // only ones in the crawler with no timeout: a hung robots.txt left the
+    // crawl waiting before it had reported a single page.
+    const { fetchImpl } = site({ '/': page('<h1>home</h1>') })
+
+    const result = await crawlSite(new URL('http://localhost:3000'), {
+      fetchImpl: hangs(['/robots.txt'], fetchImpl),
+      timeoutMs: 100,
+    })
+
+    expect(result.pages.map((found) => found.relativePath)).toEqual(['/'])
+  })
+
+  it('does not wait forever on the sitemap either', async () => {
+    const { fetchImpl } = site({ '/': page('<h1>home</h1>') })
+
+    const result = await crawlSite(new URL('http://localhost:3000'), {
+      fetchImpl: hangs(['/sitemap.xml'], fetchImpl),
+      timeoutMs: 100,
+    })
+
+    expect(result.discovery).toBe('links')
+    expect(result.pages.map((found) => found.relativePath)).toEqual(['/'])
+  })
+
+  it('will not seed the crawl from a sitemap that redirected off the origin', async () => {
+    // A redirect is the one way out of the origin that nothing else here sees.
+    // A sitemap fetched from somewhere else is not this site's list of its own
+    // pages, and seeding from it would be taking a stranger's word for what to
+    // audit.
+    const { fetchImpl } = site({
+      '/': page('<h1>home</h1>'),
+      '/sitemap.xml': {
+        body:
+          '<urlset><url><loc>http://localhost:3000/</loc></url>' +
+          '<url><loc>http://localhost:3000/elsewhere</loc></url></urlset>',
+        type: 'application/xml',
+        redirectedTo: 'http://evil.example.com/sitemap.xml',
+      },
+      '/elsewhere': page('should never be reached'),
+    })
+
+    const result = await crawlSite(new URL('http://localhost:3000'), { fetchImpl })
+
+    expect(result.discovery).toBe('links')
+    expect(result.pages.map((found) => found.relativePath)).toEqual(['/'])
+  })
+})

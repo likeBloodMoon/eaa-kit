@@ -5,6 +5,7 @@ import type { CollectedPage } from '../collect.ts'
 import {
   type BlindRule,
   blindRulesInScope,
+  DEFAULT_PAGE_TIMEOUT_MS,
   DEFAULT_TAGS,
   failedPage,
   type PageAudit,
@@ -22,10 +23,23 @@ export type {
   PageAudit,
   RuleOutcome,
 } from '../result.ts'
-export { blindRulesInScope, DEFAULT_TAGS, ENGINE_BLIND_RULES } from '../result.ts'
+export {
+  blindRulesInScope,
+  DEFAULT_PAGE_TIMEOUT_MS,
+  DEFAULT_TAGS,
+  ENGINE_BLIND_RULES,
+} from '../result.ts'
 
-/** Per-page ceiling; one pathological document must not stall a CI run. */
-const DEFAULT_TIMEOUT_MS = 30_000
+/**
+ * Per-page ceiling.
+ *
+ * A soft one, and the limit is worth stating: this races axe-core against a
+ * timer, so it only fires where the work yields to the event loop. Neither
+ * jsdom's parse nor axe-core's walk of the tree does, so a document pathological
+ * enough to hold the thread runs past this unimpeded. The hard ceiling is the
+ * worker pool's, which terminates the thread; see the note on `runWorkers`.
+ */
+const DEFAULT_TIMEOUT_MS = DEFAULT_PAGE_TIMEOUT_MS
 
 export interface JsdomRunnerOptions {
   /** axe-core tag filter. Defaults to DEFAULT_TAGS. */

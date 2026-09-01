@@ -2,7 +2,7 @@ import { availableParallelism } from 'node:os'
 import { Worker } from 'node:worker_threads'
 import { isFile } from '../../fs.ts'
 import type { CollectedPage } from '../collect.ts'
-import { failedPage, type PageAudit, pageUrl } from '../result.ts'
+import { DEFAULT_PAGE_TIMEOUT_MS, failedPage, type PageAudit, pageUrl } from '../result.ts'
 import type { JsdomRunnerOptions } from './jsdom.ts'
 
 /**
@@ -57,6 +57,17 @@ const WORK_PER_WORKER_MS = 1600
 
 /** Threading at all means at least two, or there is nothing to overlap with. */
 const MIN_WORKERS = 2
+
+/**
+ * Grace above the runner's own per-page timeout before a worker is killed.
+ *
+ * The runner races axe-core against a timer, which works whenever the work
+ * yields to the event loop: the page is reported with an error and the thread
+ * lives on to take the next one. That is the better outcome, so it is given
+ * room to happen first. This is the backstop for when it cannot — see
+ * `watchdog` below.
+ */
+const HARD_TIMEOUT_GRACE_MS = 5_000
 
 /**
  * Ceiling on workers regardless of core count. Past this, the run is bounded by
@@ -142,12 +153,35 @@ async function auditHere(
   return runJsdomAudit(pages, options)
 }
 
+/**
+ * The only place a per-page ceiling can actually be enforced.
+ *
+ * The runner's own timeout is a `Promise.race`, and a race cannot interrupt
+ * synchronous work: jsdom's parse and axe-core's walk of the tree both hold the
+ * thread, so the timer that is meant to stop them never gets to run. Measured
+ * on a 120,000-element document with a two-second ceiling, the audit was still
+ * going more than ten minutes later — and because the pool waits on its
+ * workers, the whole run went with it. A CI job hung until the platform killed
+ * it, which is the failure the ceiling exists to prevent.
+ *
+ * `worker.terminate()` is the answer, because it stops the thread whatever it
+ * is doing. So the supervisor keeps its own deadline per page and kills the
+ * thread that overruns it, records that page as unaudited, and lets the rest of
+ * the run carry on. The page is reported as a failure rather than as a clean
+ * page, which the CLI already turns into exit 2.
+ *
+ * Two runs still have no hard ceiling, because both refuse the threads that
+ * would carry it: `--concurrency 1`, and a machine with too few cores to spare
+ * one. Both are documented rather than papered over, and the size cap in
+ * `collectPages` is what keeps them bounded in practice.
+ */
 async function runWorkers(
   pages: readonly CollectedPage[],
   options: JsdomRunnerOptions,
   count: number,
   entry: URL,
 ): Promise<PageAudit[]> {
+  const deadlineMs = (options.timeoutMs ?? DEFAULT_PAGE_TIMEOUT_MS) + HARD_TIMEOUT_GRACE_MS
   // Indexed by position, not by completion order: two runs of the same build
   // must produce the same report, and the workers finish out of order.
   //
@@ -181,7 +215,15 @@ async function runWorkers(
         // thread rather than about the page it happened to be holding.
         let completed = 0
 
+        // Armed while a page is out with this worker, cleared when it replies.
+        let watchdog: NodeJS.Timeout | undefined
+        const disarm = (): void => {
+          if (watchdog !== undefined) clearTimeout(watchdog)
+          watchdog = undefined
+        }
+
         const finish = (): void => {
+          disarm()
           void worker.terminate()
           resolve()
         }
@@ -196,9 +238,31 @@ async function runWorkers(
           next += 1
           inFlight = index
           worker.postMessage(pages[index])
+
+          // The hard ceiling. A thread wedged in synchronous work answers
+          // nothing and runs no timer of its own, so the only move left is to
+          // kill it — and the page it was holding is recorded as unaudited
+          // rather than left to look clean. The worker is not replaced: the
+          // others keep draining the queue, and anything they never reach is
+          // swept up below.
+          watchdog = setTimeout(() => {
+            watchdog = undefined
+            if (inFlight !== undefined) {
+              audits[inFlight] = failedPage(
+                identity(pages[inFlight] as CollectedPage, options),
+                `the audit worker was stopped after ${deadlineMs}ms on this page`,
+              )
+              inFlight = undefined
+            }
+            finish()
+          }, deadlineMs)
+          // A run whose pages all answer quickly should not be held open by the
+          // timer that is waiting to prove they did not.
+          watchdog.unref?.()
         }
 
         worker.on('message', (audit: PageAudit) => {
+          disarm()
           if (inFlight !== undefined) {
             audits[inFlight] = audit
             completed += 1
@@ -221,6 +285,7 @@ async function runWorkers(
         // left for the sweep below to audit in this process. Threads that
         // cannot start are meant to make a run slower, not fail it.
         worker.on('error', (cause: Error) => {
+          disarm()
           if (inFlight !== undefined && completed > 0) {
             audits[inFlight] = failedPage(
               identity(pages[inFlight] as CollectedPage, options),

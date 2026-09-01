@@ -12,6 +12,23 @@ export const DEFAULT_EXCLUDE = ['**/node_modules/**', '**/.git/**'] as const
 /** Number of files read in parallel; keeps large builds under the fd limit. */
 const READ_CONCURRENCY = 24
 
+/**
+ * Largest page this will read, in bytes.
+ *
+ * Nothing about a build guarantees the files in it are pages. A generated
+ * catalogue, a checked-in database export with an .html extension, a log
+ * somebody redirected into the build directory — all glob as HTML, and reading
+ * one into a string and handing it to jsdom is an out-of-memory crash rather
+ * than a report. The crash takes the whole run with it, including the findings
+ * on every page that was fine.
+ *
+ * 32 MB is far above any page written for a person to read: the largest in the
+ * fixtures is 4 KB, and a heavy real-world documentation page is under 2 MB.
+ * A file past this is reported as unmeasured, which is the honest answer — the
+ * run did not look at it — and leaves the rest of the audit intact.
+ */
+export const MAX_PAGE_BYTES = 32 * 1024 * 1024
+
 /** A UTF-8 byte-order mark is not markup, and jsdom treats it as text. */
 export function stripBom(html: string): string {
   return html.charCodeAt(0) === 0xfeff ? html.slice(1) : html
@@ -40,6 +57,11 @@ export interface CollectOptions {
    * auditing; what must not happen is the file going unmentioned.
    */
   onUnreadable?: (relativePath: string, reason: string) => void
+  /**
+   * Largest page to read, in bytes. Defaults to MAX_PAGE_BYTES. A file over it
+   * is reported through `onUnreadable` and left out of the run.
+   */
+  maxBytes?: number
 }
 
 /**
@@ -86,7 +108,9 @@ export async function collectPages(
   for (let i = 0; i < relativePaths.length; i += READ_CONCURRENCY) {
     const batch = relativePaths.slice(i, i + READ_CONCURRENCY)
     const read = await Promise.all(
-      batch.map((relativePath) => readPage(root, relativePath, options.onUnreadable)),
+      batch.map((relativePath) =>
+        readPage(root, relativePath, options.onUnreadable, options.maxBytes ?? MAX_PAGE_BYTES),
+      ),
     )
     for (const page of read) {
       if (page !== undefined) pages.push(page)
@@ -140,9 +164,25 @@ async function readPage(
   root: string,
   relativePath: string,
   onUnreadable: CollectOptions['onUnreadable'],
+  maxBytes: number,
 ): Promise<CollectedPage | undefined> {
   const absolutePath = path.join(root, relativePath)
   try {
+    // Size first, so an unreadably large file is declined rather than loaded
+    // and then regretted. stat is one syscall against a read that is not
+    // bounded by anything.
+    const { size } = await stat(absolutePath)
+    if (size > maxBytes) {
+      if (onUnreadable === undefined) {
+        throw new Error(`${relativePath} is ${size} bytes, over the ${maxBytes} byte limit`)
+      }
+      onUnreadable(
+        relativePath,
+        `${megabytes(size)} MB, over the ${megabytes(maxBytes)} MB limit for one page`,
+      )
+      return undefined
+    }
+
     const html = await readFile(absolutePath, 'utf8')
     return { absolutePath, relativePath, html: stripBom(html) }
   } catch (cause) {
@@ -271,4 +311,9 @@ function generic(head: string): string {
  */
 function article(name: string): string {
   return /^[aeiou]/i.test(name) ? 'an' : 'a'
+}
+
+/** Sizes in the megabytes a person reads, not the bytes a computer counts. */
+function megabytes(bytes: number): string {
+  return (bytes / (1024 * 1024)).toFixed(1).replace(/\.0$/, '')
 }

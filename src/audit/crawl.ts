@@ -31,6 +31,21 @@ export const DEFAULT_REQUEST_TIMEOUT_MS = 15_000
 /** Requests in flight at once. Politeness, not throughput. */
 const REQUEST_CONCURRENCY = 4
 
+/**
+ * Largest response body this will read, in bytes.
+ *
+ * A crawl reads whatever the server sends, and nothing obliges a server to send
+ * something reasonable — a misconfigured export endpoint, a log streamed as
+ * text/html, or a host that simply does not stop. `response.text()` buffers all
+ * of it before anyone can object, so the ceiling has to be applied while the
+ * body is still arriving.
+ *
+ * Matches the on-disk page limit: the two paths audit the same kind of
+ * document, and a page that would be declined off disk should not be accepted
+ * because it arrived over HTTP instead.
+ */
+const MAX_BODY_BYTES = 32 * 1024 * 1024
+
 export class CrawlError extends Error {
   override readonly name = 'CrawlError'
 }
@@ -61,6 +76,11 @@ export interface CrawlOptions {
    * Relative to the entry URL, or absolute on the same origin.
    */
   sitemap?: string
+  /**
+   * Largest response body to read, in bytes. Defaults to MAX_BODY_BYTES. A
+   * response over it is recorded as a failure rather than buffered.
+   */
+  maxBodyBytes?: number
   /** Injectable for tests. Defaults to global fetch. */
   fetchImpl?: typeof fetch
   /** Called as pages arrive, for progress reporting. */
@@ -192,6 +212,7 @@ async function fetchPage(
   timeoutMs: number,
   /** Origin the crawl is confined to. A redirect that leaves it is refused. */
   origin: string,
+  maxBodyBytes: number,
 ): Promise<{ ok: true; value: Fetched } | { ok: false; reason: string }> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
@@ -228,8 +249,11 @@ async function fetchPage(
       return { ok: false, reason: `not HTML (${type.split(';')[0] || 'no content-type'})` }
     }
 
-    const html = await response.text()
-    return { ok: true, value: { url: finalUrl, html } }
+    const body = await readCapped(response, maxBodyBytes)
+    if (body === undefined) {
+      return { ok: false, reason: `larger than the ${maxBodyBytes} byte limit for one page` }
+    }
+    return { ok: true, value: { url: finalUrl, html: body } }
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : String(cause)
     return {
@@ -239,6 +263,57 @@ async function fetchPage(
   } finally {
     clearTimeout(timer)
   }
+}
+
+/**
+ * A response body, up to a limit, or undefined when it runs past it.
+ *
+ * Streamed rather than buffered, because `response.text()` has already read
+ * everything by the time it could be checked, and a content-length header is
+ * both optional and unverified — a chunked response carries no length at all,
+ * and one that carries a length is not obliged to tell the truth. Counting the
+ * bytes as they arrive is the only check that holds either way, and the body is
+ * cancelled the moment it goes over so nothing keeps arriving.
+ */
+async function readCapped(response: Response, limit: number): Promise<string | undefined> {
+  const body = response.body
+  // No stream to meter — an implementation that does not expose one, which the
+  // injectable fetch in the tests is. Fall back to the length after the fact.
+  if (!body) {
+    const text = await response.text()
+    return text.length > limit ? undefined : text
+  }
+
+  const reader = body.getReader()
+  const chunks: Uint8Array[] = []
+  let total = 0
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      if (value === undefined) continue
+      total += value.byteLength
+      if (total > limit) {
+        await reader.cancel()
+        return undefined
+      }
+      chunks.push(value)
+    }
+  } finally {
+    reader.releaseLock()
+  }
+
+  return new TextDecoder().decode(concat(chunks, total))
+}
+
+function concat(chunks: readonly Uint8Array[], total: number): Uint8Array {
+  const joined = new Uint8Array(total)
+  let at = 0
+  for (const chunk of chunks) {
+    joined.set(chunk, at)
+    at += chunk.byteLength
+  }
+  return joined
 }
 
 /** Paths robots.txt disallows for us. Only the wildcard group is read. */
@@ -272,12 +347,38 @@ async function fetchSiteFile(
   entry: URL,
   impl: typeof fetch,
   name: string,
+  timeoutMs: number,
+  maxBodyBytes: number,
 ): Promise<string | undefined> {
+  // These two requests are made before any page is fetched, and they used to be
+  // the only ones in the crawler with no timeout on them. A server that accepts
+  // the connection and then never answers — a hung backend, a stalled proxy,
+  // a firewall that blackholes rather than refuses — left the crawl waiting on
+  // robots.txt forever, before it had reported a single page.
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
-    const response = await impl(new URL(name, entry).href, { redirect: 'follow' })
-    return response.ok ? await response.text() : undefined
+    const response = await impl(new URL(name, entry).href, {
+      redirect: 'follow',
+      signal: controller.signal,
+    })
+    if (!response.ok) return undefined
+
+    // The same check fetchPage makes, for the same reason: a redirect is the
+    // one way out of the origin that nothing else here sees. A sitemap fetched
+    // from somewhere else is not this site's list of its own pages, and
+    // seeding the crawl from it would be taking a stranger's word for what to
+    // audit.
+    const finalUrl = new URL(response.url || new URL(name, entry).href)
+    if (finalUrl.origin !== entry.origin) return undefined
+
+    // A sitemap index for a large site is legitimately big, and nothing caps
+    // what a server may send. Capped like any other body.
+    return await readCapped(response, maxBodyBytes)
   } catch {
     return undefined
+  } finally {
+    clearTimeout(timer)
   }
 }
 
@@ -293,10 +394,13 @@ export async function crawlSite(entry: URL, options: CrawlOptions = {}): Promise
   const maxPages = options.maxPages ?? DEFAULT_MAX_PAGES
   const maxDepth = options.maxDepth ?? DEFAULT_MAX_DEPTH
   const timeoutMs = options.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS
+  const maxBodyBytes = options.maxBodyBytes ?? MAX_BODY_BYTES
   const failures: CrawlResult['failures'] = []
 
   // Paths the site's own robots.txt puts off limits.
-  const robots = options.ignoreRobots ? undefined : await fetchSiteFile(entry, impl, '/robots.txt')
+  const robots = options.ignoreRobots
+    ? undefined
+    : await fetchSiteFile(entry, impl, '/robots.txt', timeoutMs, maxBodyBytes)
   const blocked = robots === undefined ? [] : disallowedPaths(robots)
 
   const allowed = (url: URL): boolean => !blocked.some((path) => url.pathname.startsWith(path))
@@ -317,7 +421,13 @@ export async function crawlSite(entry: URL, options: CrawlOptions = {}): Promise
   // following alone never reaches. A named one is asked for and nothing else is
   // tried, so a wrong path is a visible mistake rather than a silent fallback
   // to a crawl that quietly covers less.
-  const sitemap = await fetchSiteFile(entry, impl, options.sitemap ?? '/sitemap.xml')
+  const sitemap = await fetchSiteFile(
+    entry,
+    impl,
+    options.sitemap ?? '/sitemap.xml',
+    timeoutMs,
+    maxBodyBytes,
+  )
   const listed = sitemap === undefined ? [] : urlsFromSitemap(sitemap, entry)
   if (listed.length > 0) {
     discovery = 'sitemap'
@@ -332,7 +442,7 @@ export async function crawlSite(entry: URL, options: CrawlOptions = {}): Promise
     const results = await Promise.all(
       batch.map(async (item) => ({
         item,
-        result: await fetchPage(item.url, impl, timeoutMs, entry.origin),
+        result: await fetchPage(item.url, impl, timeoutMs, entry.origin, maxBodyBytes),
       })),
     )
 

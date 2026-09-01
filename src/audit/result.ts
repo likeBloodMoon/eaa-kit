@@ -3,6 +3,16 @@ import type { AxeResults, ImpactValue, NodeResult, Result, RunOptions } from 'ax
 import axe from 'axe-core'
 import type { CollectedPage } from './collect.ts'
 
+/**
+ * Per-page ceiling for an audit, in milliseconds.
+ *
+ * Lives here rather than in the jsdom runner because the worker pool needs it
+ * to set its own deadline, and the pool deliberately does not import jsdom —
+ * loading 630 ms of dependency to supervise threads that each load their own
+ * would be pure overhead. The same reason ENGINE_BLIND_RULES sits here.
+ */
+export const DEFAULT_PAGE_TIMEOUT_MS = 30_000
+
 /** WCAG 2.2 AA and everything it builds on. Best-practice rules stay off. */
 export const DEFAULT_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] as const
 

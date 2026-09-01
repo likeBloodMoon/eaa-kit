@@ -323,6 +323,56 @@ describe.skipIf(!canDenyReads)('a file that cannot be read', () => {
   })
 })
 
+describe('a page too large to read', () => {
+  /**
+   * Nothing about a build guarantees its .html files are pages. A generated
+   * catalogue, a database export, a log redirected into the build directory —
+   * all glob as HTML, and reading one into a string to hand to jsdom is an
+   * out-of-memory crash that takes the whole run with it, findings and all.
+   */
+  async function siteWithOversizePage(): Promise<string> {
+    return makeTempSite({
+      'good.html': '<!doctype html><html lang="en"></html>',
+      'huge.html': 'x'.repeat(4096),
+    })
+  }
+
+  it('is declined and reported, leaving the rest of the build audited', async () => {
+    const dir = await siteWithOversizePage()
+
+    const unreadable: Array<{ file: string; reason: string }> = []
+    const pages = await collectPages(dir, {
+      maxBytes: 1024,
+      onUnreadable: (file, reason) => unreadable.push({ file, reason }),
+    })
+
+    expect(pages.map((page) => page.relativePath)).toEqual(['good.html'])
+    expect(unreadable).toHaveLength(1)
+    expect(unreadable[0]?.file).toBe('huge.html')
+    expect(unreadable[0]?.reason).toMatch(/over the/)
+  })
+
+  it('says how big it was and what the limit is', async () => {
+    // The reader has to be able to tell a file that is genuinely too big from
+    // one the tool declined for a reason it cannot see.
+    const dir = await siteWithOversizePage()
+
+    const unreadable: string[] = []
+    await collectPages(dir, {
+      maxBytes: 1024,
+      onUnreadable: (_file, reason) => unreadable.push(reason),
+    })
+
+    expect(unreadable[0]).toMatch(/MB/)
+  })
+
+  it('still throws when nobody said they would report it', async () => {
+    const dir = await siteWithOversizePage()
+
+    await expect(collectPages(dir, { maxBytes: 1024 })).rejects.toThrow(/limit/)
+  })
+})
+
 describe('advice for a project that writes no HTML at all', () => {
   it('names the serve command instead of a build directory', async () => {
     // "No HTML found in ./dist" describes a directory that was never going to
