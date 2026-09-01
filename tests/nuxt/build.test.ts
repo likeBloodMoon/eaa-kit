@@ -1,10 +1,9 @@
 import { execFile } from 'node:child_process'
-import { access, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
-import { createRequire } from 'node:module'
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
-import { afterEach, beforeAll, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 
 /**
  * The module driven by a real `nuxt generate` and a real `nuxt build`.
@@ -29,19 +28,6 @@ const projects: string[] = []
 const run = promisify(execFile)
 
 /** Build once, if the bundle is not already there. As in the Astro suite. */
-beforeAll(async () => {
-  try {
-    await access(ENTRY)
-    return
-  } catch {
-    // not built yet
-  }
-  const require = createRequire(import.meta.url)
-  const manifest = require('tsdown/package.json') as { bin: { tsdown: string } }
-  const entry = path.join(path.dirname(require.resolve('tsdown/package.json')), manifest.bin.tsdown)
-  await run(process.execPath, [entry], { cwd: REPO })
-}, 180_000)
-
 afterEach(async () => {
   await Promise.all(projects.splice(0).map((dir) => rm(dir, { recursive: true, force: true })))
 })

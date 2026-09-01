@@ -1,11 +1,10 @@
 import { execFile } from 'node:child_process'
-import { access, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
-import { createRequire } from 'node:module'
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
-import { afterEach, beforeAll, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 
 /**
  * The integration driven by a real `astro build`.
@@ -37,24 +36,6 @@ const projects: string[] = []
  * this test's setup rather than something it assumes somebody did first — the
  * CI order runs the suite before the build.
  */
-beforeAll(async () => {
-  try {
-    await access(ENTRY)
-    return
-  } catch {
-    // not built yet
-  }
-  // Not node_modules/.bin/tsdown: that shim is extensionless and unrunnable by
-  // execFile on Windows, and its tsdown.CMD sibling needs shell: true there,
-  // which Node refuses to spawn without (EINVAL) and which would put this path
-  // through a shell on every platform. Resolving the package's own entry and
-  // handing it to the running node is the same on all three.
-  const require = createRequire(import.meta.url)
-  const manifest = require('tsdown/package.json') as { bin: { tsdown: string } }
-  const entry = path.join(path.dirname(require.resolve('tsdown/package.json')), manifest.bin.tsdown)
-  await promisify(execFile)(process.execPath, [entry], { cwd: REPO })
-}, 120_000)
-
 afterEach(async () => {
   await Promise.all(projects.splice(0).map((dir) => rm(dir, { recursive: true, force: true })))
 })
