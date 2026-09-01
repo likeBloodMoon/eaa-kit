@@ -41,6 +41,20 @@ export interface IntegrationLogger {
 }
 
 /**
+ * Where an integration writes when its host offers no logger of its own.
+ *
+ * stderr rather than stdout, so a line about accessibility never lands in the
+ * middle of a report being piped to a file, and prefixed either way: a message
+ * in somebody's build log has to say what produced it.
+ */
+export function stderrLogger(): IntegrationLogger {
+  const write = (message: string): void => {
+    process.stderr.write(`eaa-kit: ${message}\n`)
+  }
+  return { info: write, warn: write, error: write }
+}
+
+/**
  * Thrown to fail the build. Its own class so a consumer can tell an audit
  * failure from the build tool falling over.
  */

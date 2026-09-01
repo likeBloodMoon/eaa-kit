@@ -50,6 +50,17 @@ export interface CrawlOptions {
   allowRemote?: boolean
   /** Ignore robots.txt. Only honoured together with allowRemote. */
   ignoreRobots?: boolean
+  /**
+   * Where the site lists its own pages, when that is not `/sitemap.xml`.
+   *
+   * A CMS rarely puts it there: WordPress with Yoast serves `/sitemap_index.xml`,
+   * TYPO3 and Craft put it behind a route of their own. Link following alone
+   * then finds only what the navigation happens to link to, which on a site with
+   * a thousand articles is the front page and a menu.
+   *
+   * Relative to the entry URL, or absolute on the same origin.
+   */
+  sitemap?: string
   /** Injectable for tests. Defaults to global fetch. */
   fetchImpl?: typeof fetch
   /** Called as pages arrive, for progress reporting. */
@@ -303,8 +314,10 @@ export async function crawlSite(entry: URL, options: CrawlOptions = {}): Promise
   }
 
   // Worth one request: a sitemap finds pages nothing links to, which link
-  // following alone never reaches.
-  const sitemap = await fetchSiteFile(entry, impl, '/sitemap.xml')
+  // following alone never reaches. A named one is asked for and nothing else is
+  // tried, so a wrong path is a visible mistake rather than a silent fallback
+  // to a crawl that quietly covers less.
+  const sitemap = await fetchSiteFile(entry, impl, options.sitemap ?? '/sitemap.xml')
   const listed = sitemap === undefined ? [] : urlsFromSitemap(sitemap, entry)
   if (listed.length > 0) {
     discovery = 'sitemap'

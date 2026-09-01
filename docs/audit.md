@@ -344,10 +344,132 @@ is what buys the most. An unclassified impact sorts with the most severe, on the
 reasoning as `--fail-on`.
 
 **Source files.** Where the project uses a router convention, each page is named with the
-file that produced it. Next.js (both routers), Nuxt, Astro and SvelteKit are recognised,
-read from the conventions themselves rather than from a build manifest, so this does not
-break when a framework changes its internals. A dynamic route like `app/blog/[slug]` serves
-many paths and is left unmapped rather than guessed at — a wrong file is worse than none.
+file that produced it, read from the conventions themselves rather than from a build
+manifest, so this does not break when a framework changes its internals.
+
+| Recognised | Read from |
+| --- | --- |
+| Next.js, both routers | `app/`, `src/app/`, `pages/`, `src/pages/` |
+| Remix / React Router | `app/routes/`, including flat routes (`blog.post.tsx`) |
+| Nuxt | `pages/` |
+| Astro | `src/pages/` |
+| Starlight | `src/content/docs/` |
+| SvelteKit | `src/routes/` |
+| Gatsby | `src/pages/` |
+| Docusaurus | `docs/`, under its default `/docs` base path |
+| VitePress | `docs/` |
+| Hugo | `content/`, including `_index.md` section pages |
+
+Which convention applies is decided by what the project actually is, not by which directory
+happens to exist: `src/pages` belongs to Next.js, Astro and Gatsby alike, so the dependency
+in `package.json` picks between them.
+
+A dynamic route like `app/blog/[slug]`, `blog.$slug.tsx` or `pages/[id].vue` serves many
+paths and is left unmapped rather than guessed at — a wrong file is worse than none.
+
+Two are deliberately not mapped. **Angular** keeps its routes in a TypeScript configuration
+object rather than in the filesystem, and reading it would mean parsing or running project
+code. **Eleventy and Jekyll** let a page set its own URL in front matter, so the file layout
+is not the route; mapping their default convention alone would be right until somebody used
+the feature, and quietly wrong after that.
+
+## What to do about a finding
+
+axe-core says what is wrong and links to a page explaining the rule. Neither is the fix, so
+each finding carries three more things: who the barrier stops, what to change, and the
+corrected form of **the markup that actually failed** rather than a textbook example.
+
+```
+  ✗ image-alt critical, WCAG 1.1.1
+      Images must have alternative text
+      A screen reader announces this image by its filename, or skips it entirely.
+      Fix: Add alt text describing what the image conveys. If it is decorative and
+      repeats adjacent text, use alt="" so it is skipped deliberately.
+      → <img src="/assets/logo.svg" alt="What this image shows">
+```
+
+Where the fix genuinely differs by framework, it is given in that framework's idiom — where
+`lang` actually lives in a Next.js, Nuxt, Astro, SvelteKit or Remix project is not the same
+question as which attribute is missing. For most rules it does not differ, and the same
+advice is given whatever built the site: a missing `alt` is a missing `alt` everywhere.
+
+**Deterministic and offline.** No model, no API key, no network call. This tool sits next to
+a document with legal weight, and a plausible fix that is wrong is a worse failure here than
+no fix at all — somebody would paste it, the report would go green, and the barrier would
+still be there.
+
+Findings also name the source file **and line** where the element was written, so
+`src/components/Header.astro:12` opens an editor rather than starting a search.
+
+## How much of WCAG a run reaches
+
+WCAG 2.2 has **55 success criteria** at Levels A and AA. axe-core has rules touching **23**
+of them. Every run says so:
+
+```
+Of the 55 WCAG 2.2 A and AA success criteria, 34 cannot be checked by any
+automated engine and need a person. This run reached a verdict on 6.
+--browser would answer 4 more criteria.
+```
+
+`--coverage` lists all 55 and what this run reached on each. The HTML report always
+includes the table.
+
+Each criterion lands in exactly one of four outcomes, and they are never summed or divided
+into a score:
+
+| | |
+| --- | --- |
+| **evaluated here** | A rule for it reached a pass or a violation on this run |
+| **this engine could not evaluate it** | A rule exists and this engine is blind to it — `--browser` may answer it |
+| **rules ran and found nothing to check** | The rules applied to nothing on this site |
+| **no automated rule exists** | Nothing can check it; a person must |
+
+The last is the majority, and it is the point. A tool that reported "23 of 55" as a
+percentage would be presenting a limit of automated testing as though it were a measurement
+of your site. The denominator here is the standard, not your markup — which is why it is
+worth stating at all, and why it never becomes a grade.
+
+`rules ran and found nothing to check` is kept apart from `evaluated` for the same reason
+`inapplicable` is kept apart from `passes`: a page with no images proves nothing about
+image alternatives.
+
+## Sites that render on a server
+
+A CMS writes no browsable HTML to disk: every page is rendered per request, so there is no
+build directory to point at and never was one. `eaa-kit audit` recognises WordPress, TYPO3,
+Craft, Laravel, Symfony, Rails and Django, and rather than reporting an empty `./dist` it
+says what the project is and how to audit it:
+
+```
+./dist does not exist. This is a Laravel project.
+  It renders every page on a server and writes no HTML to disk, so there is
+  no build directory to audit. Start it, then audit what it serves:
+    php artisan serve
+    eaa-kit audit --url http://localhost:8000
+```
+
+It stops there deliberately. For a static builder, `eaa-kit audit` with no arguments will
+run the project's own build and even start its preview server; for a CMS it will do
+neither. Starting one of these means spawning a stateful, usually container-backed stack
+that may touch a database, which is a great deal more than an accessibility audit was asked
+to do — and a `package.json` in a WordPress or Laravel project belongs to a theme's asset
+build, so `npm run build` would produce stylesheets and no pages.
+
+**Finding the pages.** Crawling from the front page finds only what the navigation links
+to, which on a site with a thousand articles is a menu. A sitemap is the site's own list of
+its pages, and `/sitemap.xml` is tried automatically — but a CMS rarely puts it there.
+WordPress with Yoast serves `/sitemap_index.xml`, and TYPO3 and Craft put it behind a route
+of their own:
+
+```bash
+eaa-kit audit --url http://localhost:8000 --sitemap /sitemap_index.xml
+```
+
+A named sitemap is used instead of the default rather than as well as it, so a wrong path
+is a visible mistake rather than a silent fall back to a crawl that covers less. Whatever
+the crawl could not reach is [reported with the run](reports.md#completeness) rather than
+counted away.
 
 ## Exit codes
 

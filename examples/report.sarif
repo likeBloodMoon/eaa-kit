@@ -6,7 +6,7 @@
       "tool": {
         "driver": {
           "name": "eaa-kit",
-          "version": "0.3.0",
+          "version": "0.4.0",
           "rules": [
             {
               "id": "area-alt",
@@ -1174,7 +1174,13 @@
           "no-autoplay-audio",
           "scrollable-region-focusable",
           "target-size"
-        ]
+        ],
+        "complete": true,
+        "discovery": "directory",
+        "pagesAudited": 5,
+        "pagesErrored": 0,
+        "pagesUnreachable": 0,
+        "truncated": false
       }
     }
   ]

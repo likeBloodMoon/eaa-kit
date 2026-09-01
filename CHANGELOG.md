@@ -9,9 +9,195 @@ move: the JSON report's `schemaVersion` and the baseline file's. Both are bumped
 a field is removed, renamed, or changes meaning — new fields may appear without one, so
 consumers must ignore what they do not recognise.
 
-## Unreleased
+## 0.4.0 — 2026-09-01
+
+### Added
+
+- **What a run did not measure is now in the report.** A crawl that fetched twelve pages of
+  a two-hundred-page site, or that failed forty URLs on the way, produced a report
+  byte-identical to a complete one: the crawler had already counted the failures, the
+  truncation and how the pages were found, and every one of those numbers was written to
+  stderr and then dropped. The person who reads the report is usually not the person who
+  watched it run, so the facts now reach all four formats — a `completeness` object in
+  JSON, a section in the HTML report naming each page it could not reach and why, lines in
+  the console summary, and `run.properties` in SARIF.
+
+  The HTML report grows a fourth verdict for it. A clean result over part of a site is not
+  the clean result it looks like, so it no longer gets the plain pass banner: it says that
+  no violations were found *and* that the whole site was not measured, because the banner
+  is the part that gets quoted. Exit codes are deliberately unchanged — an incomplete run
+  is not a violation, and failing builds on it would break every pipeline already running
+  this tool.
+
+- **Four more build-time integrations**: `eaa-kit/eleventy`, `eaa-kit/docusaurus`,
+  `eaa-kit/webpack` and `eaa-kit/nuxt`. Each is a thin adapter over the decision function the
+  Astro integration and the Vite plugin already share, and each describes its host
+  structurally, so none of them adds a dependency and installing eaa-kit in a project with no
+  webpack still typechecks.
+
+  Two earn their place by knowing something the Vite plugin cannot. The **Nuxt** module
+  audits in `close` rather than when Vite finishes, because Nitro prerenders afterwards — a
+  Vite hook would read the build before the pages it exists to audit had been written — and
+  it refuses to pass a `nuxt build` that prerendered nothing rather than reporting success
+  over an empty directory. The **webpack** plugin skips watch rebuilds, since auditing a
+  whole site on every keystroke would make a dev server unusable, and skips a build that
+  already failed, since reporting its missing pages as accessibility findings would send
+  somebody after defects nothing measured.
+
+  There is deliberately no Next.js plugin, and the docs now say why: Next has no hook that
+  fires after `output: 'export'` writes `out/`, so a config wrapper would audit stale output
+  or none. `next build && eaa-kit audit ./out` is the honest answer.
+
+- **What to do about a finding, not just what is wrong with it.** axe-core says "images must
+  have alternative text" and links to a page about the rule; neither is the fix, and the gap
+  between a report and a corrected line of code is where an accessibility tool either earns
+  its place in a build or becomes something people mute. Each finding now carries who the
+  barrier stops, what to change, and the corrected form of the markup that actually failed —
+  the user's own element, because a textbook snippet is a second thing to translate.
+
+  Where the fix genuinely differs by framework it is given in that idiom: where `lang` lives
+  in a Next.js, Nuxt, Astro, SvelteKit or Remix project is not the same question as which
+  attribute is missing. Where it does not differ — which is most rules — the same advice is
+  given whatever built the site, because emitting fourteen near-identical snippets would be
+  churn pretending to be coverage. An overlay states only what changes and inherits the
+  rest, so a framework-specific fix cannot silently lose the corrected snippet along with it.
+
+  Deterministic and offline: no model, no API key, no network. This sits beside a document
+  with legal weight, and a plausible fix that is wrong is a worse failure than no fix at
+  all — somebody would paste it, the report would go green, and the barrier would still be
+  there.
+
+- **Findings name the line as well as the file.** `componentFor` already had to find the
+  literal in the source to know which file contained it; recording where it found it costs
+  one more scan of one string, and `src/components/Header.astro:12` opens an editor where
+  `src/components/Header.astro` starts a search.
+
+- **How much of WCAG a run actually reaches, with the standard as the denominator.** The
+  tool refuses to divide passes by failures and is right to — only `passes` is evidence,
+  and the two summed would make an empty page look compliant — but refusing that number
+  left nothing in its place, so "automated testing finds a minority of barriers" stayed a
+  sentence in the footer rather than a figure.
+
+  WCAG 2.2 has 55 success criteria at Levels A and AA. axe-core has rules touching 23 of
+  them. Every run now says so in a line, `--coverage` lists all 55 and what the run reached
+  on each, and the HTML report always includes the table. Each criterion lands in exactly
+  one of four outcomes — evaluated here, not evaluable by this engine, rules ran and found
+  nothing to check, or no automated rule exists at all — which are never summed or divided
+  into a score. The last is the majority, and it is the point: a percentage would present a
+  limit of automated testing as though it were a measurement of the site.
+
+  Falling out of the same table: the cost of the browserless engine, said as a number
+  rather than as general advice. `MANUAL_CHECKS` already recorded per rule whether a real
+  browser resolves it, and nothing read that field; the report now names how many more
+  criteria `--browser` would answer.
+
+- **Six more routers can name the source file behind a page.** Remix and React Router
+  (including flat routes, where `blog.post.tsx` serves `/blog/post`), Gatsby, Docusaurus,
+  VitePress, Starlight and Hugo join Next.js, Nuxt, Astro and SvelteKit. The registry
+  already recognised fourteen builders; the report could name a source file for five of
+  them, so everyone else got `leistungen.html` — which the route mapper's own comment calls
+  "accurate and unhelpful".
+
+  Angular, Eleventy and Jekyll are deliberately still unmapped, and the docs now say why:
+  Angular's routes live in a TypeScript object rather than the filesystem, and Eleventy and
+  Jekyll let a page set its own URL in front matter, so their file layout is not the route.
+  Mapping the default convention alone would be right until somebody used the feature.
+
+- **WordPress, TYPO3, Craft, Laravel, Symfony, Rails and Django are recognised.** They
+  write no browsable HTML to disk, so an empty `./dist` is not a path to correct — there
+  was never going to be anything in it. Rather than the generic "point me at your build
+  directory", the tool now names the project, the command that gets it serving, and the
+  `--url` line to run next. They are identified by a file rather than a dependency, because
+  a `package.json` in one of these belongs to a theme's asset build and says nothing about
+  the CMS around it — which is also why a WordPress theme bundled with Vite is reported as
+  WordPress rather than as Vite.
+
+  Detected and then left alone: `eaa-kit audit` with no arguments will run a static
+  builder's own build and start its preview server, and for these it does neither. Starting
+  one means spawning a stateful, usually container-backed stack that may touch a database,
+  which is more than an accessibility audit was asked to do.
+
+- **`eaa-kit diff <before.json> <after.json>`**, for the question a review actually asks and
+  which neither report answers on its own: running the auditor on a branch prints everything
+  wrong with the site, and the two or three findings somebody introduced are somewhere in
+  the middle of it. Every violating element is sorted into new, fixed, unchanged, or *not
+  compared*.
+
+  That last bucket is the reason to trust the other three. A violation missing from the
+  second run has two explanations — somebody fixed it, or nothing looked at that page — and
+  reporting the second as fixed would turn a crawl that stopped early into a changelog of
+  work nobody did. So a violation is called fixed only where the later run actually reached a
+  verdict on its page. `--fail-on` judges new violations only; failing on what was already
+  there would be an audit with extra steps.
+
+  It is not a baseline and does not replace one. A baseline is a file somebody commits and
+  maintains, answering *what have we agreed to live with*; a diff is stateless and answers
+  *what did this change do*.
+
+- **Every node in the JSON report carries its `fingerprint`** — the same identity the
+  baseline records and SARIF sends, so a consumer comparing two reports need not reimplement
+  the hash and risk disagreeing with the two tools that already depend on it agreeing.
+
+- **`--sitemap`**, for the site's page list when it is not at `/sitemap.xml`. WordPress with
+  Yoast serves `/sitemap_index.xml`; TYPO3 and Craft put it behind a route of their own, and
+  link following alone then finds only what the navigation links to. A named sitemap is used
+  instead of the default rather than as well as it, so a wrong path is a visible mistake
+  rather than a silent fall back to a crawl that covers less.
+
+### Fixed
+
+- **The Nuxt module read a value that is undefined in every build.** It took the output
+  directory from `nuxt.options.nitro.output.publicDir`, which Nuxt never populates — Nitro
+  resolves it onto its own instance instead. The module would have refused every build,
+  including a successful `nuxt generate`, with "there was nothing to audit". Its unit test
+  agreed with the bug, because a hand-written stand-in only ever confirms what its author
+  assumed. It is now driven by a real `nuxt generate` and a real `nuxt build`, as the Astro
+  integration already was, and reads the directory from `nitro:init` where it actually
+  lives. The timing claim the module rests on survived that check: at `build:done` the
+  public directory does not exist, and by `close` it holds every prerendered page.
+
+- **The Eleventy plugin audited on every watch rebuild.** `eleventy.after` fires on each
+  save under `--watch` and `--serve`, so a dev server would have run a full site audit
+  between keystrokes — the webpack plugin already guarded against exactly this and Eleventy
+  did not. It now audits one-shot builds only, and skips the non-filesystem output modes
+  (`--to=json` and friends), which write nothing to look at. A real `eleventy` build drives
+  it in the tests; unlike the Nuxt module, its reading of the hook was correct to begin with.
+
+- **A criterion with one unevaluable rule among several read as "nothing to check".** WCAG
+  2.1.1 Keyboard is the only criterion whose rules are mixed: `scrollable-region-focusable`
+  needs computed overflow, while `frame-focusable-content` and `server-side-image-map` are
+  DOM-determinable. Requiring every rule to be blind before reporting a criterion as
+  unevaluated meant a page with no frames and no image maps reported 2.1.1 as though the
+  rules had run cleanly — while the same report's rule listing said
+  `scrollable-region-focusable` had reached no verdict. One document contradicting itself
+  about a Level A criterion, in the direction that understates the gap: the browserless
+  engine's cost was reported one criterion lower than it is. A test now asserts the two
+  views cannot disagree.
+
+- **The bundled GitHub Action example pinned a version three releases old**, and the runnable
+  copy of the workflow told readers to use a moving `@v0` tag that `docs/integrations.md`
+  says on the same page does not and will not exist. The example and the documentation now
+  agree.
+
+- **A Gatsby project is no longer reported as Next.js.** Route conventions were matched by
+  probing directories in declaration order, and `src/pages` belongs to Next.js, Astro,
+  Gatsby and Vue alike, so whichever was declared first claimed it. The mapping was right
+  and the name beside it was wrong. Which convention applies is now decided by what the
+  registry says the project is, falling back to probing only where it recognises nothing.
+
+- **One unreadable file no longer fails the whole collection.** A single bad permission bit
+  in a build directory rejected every page with it, so the run reported as a crash rather
+  than as the one page nobody could look at. The rest of the build is audited and the file
+  is named in the report. The failure is only swallowed where a caller has undertaken to
+  report it, so nothing goes missing silently.
 
 ### Changed
+
+- The engine-blindness table moved from the jsdom runner to `result.ts`, beside the
+  `BlindRule` type it instantiates. It is data about what an engine can see, not about the
+  jsdom library, and a module reachable from the CLI's startup path could not read it where
+  it was without pulling 630 ms of jsdom into `eaa-kit --help`. Both names are still
+  exported from the runner, so nothing that imported them had to change.
 
 - **Duplicated code folded into shared helpers**, with no change to any report, exit code
   or public export. Six modules had their own `try`/`stat`/`catch` for whether a path
@@ -73,6 +259,11 @@ consumers must ignore what they do not recognise.
   would send somebody off installing a browser they already have.
 
 ### Testing
+
+- **Every subpath export is now imported from a real packaged install**, not merely checked
+  for existence on disk. A file that ships and does not load fails inside somebody's build
+  rather than in this repository, which is exactly how the browser-mode bugs of 0.2.x reached
+  users.
 
 - **The packaged CLI is now run the way an install runs it**, by `pnpm test:packaged` and
   on every CI job. Three browser-mode bugs reached users through this path in 0.2.1 and

@@ -11,6 +11,7 @@ import {
 import { TOOL_VERSION } from '../version.ts'
 import { type AuditCommandOptions, OUTPUT_FORMATS, runAuditCommand } from './audit.ts'
 import { type BaselineCommandOptions, runBaselineCommand } from './baseline.ts'
+import { DIFF_FORMATS, type DiffCommandOptions, runDiffCommand } from './diff.ts'
 import {
   runStatementCommand,
   STATEMENT_FORMATS,
@@ -27,6 +28,7 @@ import {
  */
 type AuditFlags = Omit<AuditCommandOptions, 'noBuild' | 'cwd' | 'timeoutMs'> & { build: boolean }
 type BaselineFlags = Omit<BaselineCommandOptions, 'cwd' | 'timeoutMs'>
+type DiffFlags = Omit<DiffCommandOptions, 'cwd'>
 type StatementFlags = Omit<StatementCommandOptions, 'locale' | 'cwd'> & { lang?: StatementLocale }
 
 /**
@@ -100,8 +102,10 @@ program
   .option('--no-build', 'never run the project build or start its server')
   .option('--per-page', 'also list every page and its result')
   .option('--manual', 'what to check by hand for the rules this engine cannot evaluate')
+  .option('--coverage', 'list every WCAG 2.2 A/AA criterion and what this run reached on it')
   .option('--allow-remote', 'allow --url to crawl a host that is not localhost')
   .option('--ignore-robots', 'crawl paths robots.txt disallows')
+  .option('--sitemap <path>', 'where the site lists its pages, if not /sitemap.xml')
   .option('--max-pages <n>', 'stop the crawl after this many pages', parsePositive)
   .option('--max-depth <n>', 'how far from the entry URL to follow links', parseDepth)
   .option(
@@ -143,6 +147,7 @@ program
   .option('--url <url>', 'record a baseline from a running site instead of a directory')
   .option('--allow-remote', 'allow --url to crawl a host that is not localhost')
   .option('--ignore-robots', 'crawl paths robots.txt disallows')
+  .option('--sitemap <path>', 'where the site lists its pages, if not /sitemap.xml')
   .option('--max-pages <n>', 'stop the crawl after this many pages', parsePositive)
   .option('--max-depth <n>', 'how far from the entry URL to follow links', parseDepth)
   .option('--output <path>', `where to write it (default: ${DEFAULT_BASELINE_FILE})`)
@@ -152,6 +157,24 @@ program
   .option('--concurrency <n>', 'worker threads to audit with, or 1 for none', parseConcurrency)
   .action(async (dir: string, flags: BaselineFlags) => {
     const { exitCode } = await runBaselineCommand(dir, flags)
+    process.exitCode = exitCode
+  })
+
+program
+  .command('diff')
+  .description('Compare two JSON reports: what a change made worse, and what it fixed')
+  .argument('<before>', 'JSON report from before the change')
+  .argument('<after>', 'JSON report from after it')
+  .option('--format <format>', `output format (${DIFF_FORMATS.join('|')})`, oneOf(DIFF_FORMATS))
+  .option('--output <path>', 'write the diff here instead of stdout')
+  .option(
+    '--fail-on <impact>',
+    `exit 1 on NEW violations at or above this impact (${IMPACT_LEVELS.join('|')})`,
+    parseImpact,
+    DEFAULT_FAIL_ON,
+  )
+  .action(async (before: string, after: string, flags: DiffFlags) => {
+    const { exitCode } = await runDiffCommand(before, after, flags)
     process.exitCode = exitCode
   })
 

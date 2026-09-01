@@ -31,6 +31,14 @@ inputs:
       workflow should not be one input away from crawling production.
     required: false
     default: 'false'
+  sitemap:
+    description: >-
+      Where the site lists its own pages, when that is not /sitemap.xml. A CMS
+      rarely puts it there: WordPress with Yoast serves /sitemap_index.xml, and
+      TYPO3 and Craft put it behind a route of their own. Only used with "url";
+      link following alone finds only what the navigation links to.
+    required: false
+    default: ''
   max-pages:
     description: Stop the crawl after this many pages.
     required: false
@@ -114,6 +122,7 @@ runs:
         EAA_DIRECTORY: ${{ inputs.directory }}
         EAA_URL: ${{ inputs.url }}
         EAA_ALLOW_REMOTE: ${{ inputs.allow-remote }}
+        EAA_SITEMAP: ${{ inputs.sitemap }}
         EAA_MAX_PAGES: ${{ inputs.max-pages }}
         EAA_FAIL_ON: ${{ inputs.fail-on }}
         EAA_SARIF: ${{ inputs.sarif-file }}
@@ -130,6 +139,9 @@ runs:
           args=(--url "$EAA_URL")
           if [ "$EAA_ALLOW_REMOTE" = "true" ]; then
             args+=(--allow-remote)
+          fi
+          if [ -n "$EAA_SITEMAP" ]; then
+            args+=(--sitemap "$EAA_SITEMAP")
           fi
           if [ -n "$EAA_MAX_PAGES" ]; then
             args+=(--max-pages "$EAA_MAX_PAGES")

@@ -14,6 +14,8 @@ import { count } from '../text.ts'
  */
 
 import type { CollectedPage } from '../audit/collect.ts'
+import { type RunCompleteness, runCompleteness } from '../audit/completeness.ts'
+import type { ComponentLocation } from '../audit/component.ts'
 import { advise, emitDocument, fail, note, runEngine } from './command.ts'
 import { type CrawlCommandOptions, resolvePages } from './pages.ts'
 
@@ -50,6 +52,8 @@ export interface AuditCommandOptions extends CrawlCommandOptions {
   perPage?: boolean
   /** Print the manual check for each rule the engine could not evaluate. */
   manual?: boolean
+  /** List every WCAG 2.2 A/AA criterion and what this run reached on it. */
+  coverage?: boolean
 }
 
 export interface AuditCommandResult {
@@ -74,7 +78,7 @@ export async function runAuditCommand(
 ): Promise<AuditCommandResult> {
   const resolved = await resolvePages(dir, options)
   if (!resolved) return { audits: [], exitCode: 2 }
-  const { pages, origin, label, cleanup } = resolved
+  const { pages, origin, label, cleanup, completeness: collection } = resolved
   // try/finally rather than a call before each return: auto-detection may have
   // started the project's server, and leaving it running would hold the process
   // open after the report is written.
@@ -107,10 +111,12 @@ export async function runAuditCommand(
       audits = applied
     }
 
+    const completeness = runCompleteness(audits, collection)
+
     // label, not dir: it is what the run actually audited. dir is undefined
     // under auto-detection, and was the unused ./dist default under --url,
     // which put a directory nobody read into the report.
-    await emit(audits, label, failOn, options)
+    await emit(audits, label, failOn, completeness, options)
 
     // A page that could not be audited is not a clean page. Exiting 0 here would
     // hand back a pass for markup nothing ever looked at, so it is reported as a
@@ -200,11 +206,12 @@ async function emit(
   audits: readonly PageAudit[],
   dir: string,
   failOn: ImpactLevel,
+  completeness: RunCompleteness,
   options: AuditCommandOptions,
 ): Promise<void> {
   const format = options.format ?? 'console'
   const toFile = typeof options.output === 'string'
-  const body = await renderReport(audits, dir, failOn, format, toFile, options)
+  const body = await renderReport(audits, dir, failOn, completeness, format, toFile, options)
 
   // Against the same working directory as --baseline, rather than the process's:
   // a caller that says where relative paths start means it for all of them.
@@ -217,6 +224,7 @@ async function renderReport(
   /** What was audited: a build directory, or a crawl's entry URL. */
   dir: string,
   failOn: ImpactLevel,
+  completeness: RunCompleteness,
   format: OutputFormat,
   toFile: boolean,
   options: AuditCommandOptions,
@@ -229,30 +237,38 @@ async function renderReport(
           directory: dir,
           ...(options.url === undefined ? {} : { sourceKind: 'url' as const }),
           failOn,
+          completeness,
           ...(options.baseUrl ? { baseUrl: options.baseUrl } : {}),
         }),
       )
     }
     case 'sarif': {
       const { buildSarifReport, serialiseSarifReport } = await import('../audit/report/sarif.ts')
-      return serialiseSarifReport(buildSarifReport(audits, { directory: dir }))
+      return serialiseSarifReport(buildSarifReport(audits, { directory: dir, completeness }))
     }
     case 'html': {
       const { buildHtmlReport } = await import('../audit/report/html.ts')
+      const framework = await detectedFramework(options.cwd ?? process.cwd())
       return buildHtmlReport(audits, {
         ...(await sourceLookups(options.cwd ?? process.cwd())),
         directory: dir,
         failOn,
+        completeness,
+        ...(framework === undefined ? {} : { framework }),
         ...(options.baseUrl ? { baseUrl: options.baseUrl } : {}),
       })
     }
     case 'console': {
+      const framework = await detectedFramework(options.cwd ?? process.cwd())
       return `${formatConsoleReport(audits, {
         ...(await sourceLookups(options.cwd ?? process.cwd())),
         dir,
         failOn,
+        completeness,
         ...(options.perPage ? { perPage: true } : {}),
         ...(options.manual ? { manual: true } : {}),
+        ...(options.coverage ? { coverage: true } : {}),
+        ...(framework === undefined ? {} : { framework }),
         ...(toFile ? { color: false } : {}),
       })}\n`
     }
@@ -264,9 +280,16 @@ async function renderReport(
  * so. Best-effort: a project using no convention this recognises gets the
  * report it always got, with no source named.
  */
+/** The registry id of whatever built this project, for framework-shaped advice. */
+async function detectedFramework(cwd: string): Promise<string | undefined> {
+  const { detectFramework } = await import('../audit/frameworks.ts')
+  const { readPackageJson } = await import('../audit/project.ts')
+  return (await detectFramework(cwd, await readPackageJson(cwd)))?.framework.id
+}
+
 async function sourceLookups(cwd: string): Promise<{
   sourceFor: (page: string) => string | undefined
-  componentFor: (html: string) => string | undefined
+  componentFor: (html: string) => ComponentLocation | undefined
 }> {
   const { buildRouteMap, sourceFor } = await import('../audit/routes.ts')
   const { buildComponentIndex, componentFor } = await import('../audit/component.ts')

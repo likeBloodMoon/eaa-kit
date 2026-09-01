@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -254,5 +254,101 @@ describe('emptyDirectoryHint', () => {
     const hint = await emptyDirectoryHint('./build', await project({ 'build/x.txt': '' }))
 
     expect(hint).toMatch(/^\.\/build holds no HTML files\./)
+  })
+})
+
+/**
+ * Whether this platform and user can make a file unreadable at all.
+ *
+ * Two environments cannot, for unrelated reasons: root bypasses the mode bits,
+ * and Windows' chmod only toggles a read-only flag that does not stop a read.
+ * Both would make these cases assert against a file the process can happily
+ * open, so both have to be skipped — and enumerating them by name is how the
+ * first attempt got it wrong, since `process.getuid` does not exist on Windows
+ * and a root check silently passed there.
+ *
+ * So it is measured rather than guessed: write a file, deny it, try to read it.
+ * That is exactly the precondition, and it stays right on a platform nobody
+ * thought about.
+ */
+const canDenyReads = await (async (): Promise<boolean> => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'eaa-collect-probe-'))
+  try {
+    const file = path.join(dir, 'denied')
+    await writeFile(file, 'x')
+    await chmod(file, 0o000)
+    try {
+      await readFile(file, 'utf8')
+      return false
+    } catch {
+      return true
+    }
+  } finally {
+    await chmod(path.join(dir, 'denied'), 0o644).catch(() => {})
+    await rm(dir, { recursive: true, force: true })
+  }
+})()
+
+describe.skipIf(!canDenyReads)('a file that cannot be read', () => {
+  async function siteWithUnreadableFile(): Promise<string> {
+    const dir = await mkdtemp(path.join(tmpdir(), 'eaa-collect-'))
+    tempDirs.push(dir)
+    await writeFile(path.join(dir, 'good.html'), '<!doctype html><title>ok</title>')
+    await writeFile(path.join(dir, 'bad.html'), '<!doctype html><title>no</title>')
+    await chmod(path.join(dir, 'bad.html'), 0o000)
+    return dir
+  }
+
+  it('is reported and skipped rather than failing the whole collection', async () => {
+    // One bad permission bit in a build directory used to reject everything, so
+    // the run reported as a crash rather than as the one page nobody could
+    // look at.
+    const dir = await siteWithUnreadableFile()
+
+    const unreadable: Array<{ file: string; reason: string }> = []
+    const pages = await collectPages(dir, {
+      onUnreadable: (file, reason) => unreadable.push({ file, reason }),
+    })
+
+    expect(pages.map((page) => page.relativePath)).toEqual(['good.html'])
+    expect(unreadable).toHaveLength(1)
+    expect(unreadable[0]?.file).toBe('bad.html')
+  })
+
+  it('still throws when nobody said they would report it', async () => {
+    // The failure is only swallowed where a caller has undertaken to name it.
+    const dir = await siteWithUnreadableFile()
+
+    await expect(collectPages(dir)).rejects.toThrow()
+  })
+})
+
+describe('advice for a project that writes no HTML at all', () => {
+  it('names the serve command instead of a build directory', async () => {
+    // "No HTML found in ./dist" describes a directory that was never going to
+    // hold any, so there is no path to correct and nothing to build.
+    const dir = await makeTempSite({ artisan: '' })
+
+    const hint = await emptyDirectoryHint('./dist', dir)
+
+    expect(hint).toContain('Laravel')
+    expect(hint).toContain('writes no HTML to disk')
+    expect(hint).toContain('php artisan serve')
+    expect(hint).toContain('eaa-kit audit --url')
+    // The thing it must never say: a directory to try that cannot exist.
+    expect(hint).not.toContain('./undefined')
+    expect(hint).not.toContain('Run your build')
+  })
+
+  it('says the same for a WordPress site whose theme is built with Vite', async () => {
+    const dir = await makeTempSite({
+      'wp-config.php': '',
+      'package.json': JSON.stringify({ devDependencies: { vite: '5.0.0' } }),
+    })
+
+    const hint = await emptyDirectoryHint('./dist', dir)
+
+    expect(hint).toContain('WordPress')
+    expect(hint).toContain('eaa-kit audit --url')
   })
 })

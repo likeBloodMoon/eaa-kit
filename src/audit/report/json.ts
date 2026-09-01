@@ -1,5 +1,8 @@
 import axe from 'axe-core'
 import { TOOL_VERSION } from '../../version.ts'
+import type { RunCompleteness } from '../completeness.ts'
+import { buildCoverage, type Coverage } from '../coverage.ts'
+import { elementFingerprint } from '../fingerprint.ts'
 import { countAtOrAbove, type ImpactLevel, impactLabel, isImpactLevel } from '../impact.ts'
 import { ruleOutcomes } from '../result.ts'
 import type { Finding, IncompleteFinding, PageAudit } from '../runners/jsdom.ts'
@@ -32,6 +35,15 @@ export interface JsonNode {
   /** CSS selector path to the element. */
   target: string[]
   failureSummary: string | null
+  /**
+   * Stable identity of this element: rule, selector and markup, never the page.
+   *
+   * The same value the baseline file records and SARIF sends as a partial
+   * fingerprint, so all three agree on what one defect is. Emitted so a
+   * consumer comparing two reports need not reimplement the hash and risk
+   * disagreeing with the tools that already use it.
+   */
+  fingerprint: string
 }
 
 export interface JsonFinding {
@@ -115,6 +127,25 @@ export interface JsonReport {
     baseUrl: string | null
   }
   summary: JsonSummary
+  /**
+   * What this run measured, and what it did not reach.
+   *
+   * `summary` counts the pages that were audited. This says whether those were
+   * all the pages there are, which no other field can answer: a crawl stopped
+   * at its limit and a complete one produce identical summaries. Read
+   * `completeness.complete` before drawing any conclusion from the counts.
+   */
+  completeness: RunCompleteness
+  /**
+   * How much of WCAG this run could reach, with the standard as the
+   * denominator rather than the DOM.
+   *
+   * Never a score. The four counts partition the 55 WCAG 2.2 A/AA criteria
+   * exactly once and must not be summed into a ratio: `noAutomatedRule` is the
+   * majority of them, and dividing anything by 55 would present a limit of
+   * automated testing as a property of the site.
+   */
+  coverage: Coverage
   /** Every rule id appearing anywhere in the document, sorted by id. */
   rules: Record<string, JsonRule>
   pages: JsonPage[]
@@ -126,6 +157,8 @@ export interface JsonReportOptions {
   /** Which of the two `directory` holds. Defaults to a directory. */
   sourceKind?: 'directory' | 'url'
   failOn: ImpactLevel
+  /** What the run did and did not manage to measure. */
+  completeness: RunCompleteness
   baseUrl?: string
   /** Injectable so tests and snapshots are not time-dependent. */
   now?: Date
@@ -159,6 +192,8 @@ export function buildJsonReport(
       baseUrl: options.baseUrl ?? null,
     },
     summary: buildSummary(audits, options.failOn),
+    completeness: options.completeness,
+    coverage: buildCoverage(audits),
     rules: buildRuleIndex(audits),
     pages: audits.map(toJsonPage),
   }
@@ -259,6 +294,7 @@ function toJsonFinding(finding: Finding): JsonFinding {
       html: node.html,
       target: node.target,
       failureSummary: node.failureSummary ?? null,
+      fingerprint: elementFingerprint(finding.ruleId, node.target.join(' '), node.html),
     })),
   }
 }

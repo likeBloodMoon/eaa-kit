@@ -1,4 +1,6 @@
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { createServer, type Server } from 'node:http'
+import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -270,5 +272,87 @@ describe('--concurrency', { timeout: THREAD_TIMEOUT_MS }, () => {
     await runAuditCommand(SITE, { concurrency: 1 })
 
     expect(stderr.join('')).not.toContain('threads')
+  })
+})
+
+describe('the completeness block', () => {
+  it('reports a directory run as complete, and says how the pages were found', async () => {
+    await runAuditCommand(SITE, { include: ['about/**'], format: 'json' })
+
+    const document = JSON.parse(stdout.join(''))
+    expect(document.completeness).toMatchObject({
+      discovery: 'directory',
+      complete: true,
+      errored: 0,
+      truncated: false,
+    })
+    expect(document.completeness.unreachable).toEqual([])
+    expect(document.completeness.audited).toBe(document.summary.pages)
+  }, 60_000)
+
+  describe('over a crawl', () => {
+    /** A tiny site on loopback: two real pages and one link that 404s. */
+    function serve(pages: Record<string, string>): Promise<{ origin: string; close: () => void }> {
+      const server: Server = createServer((request, response) => {
+        const body = pages[(request.url ?? '/').split('?')[0] as string]
+        if (body === undefined) {
+          response.writeHead(404, { 'content-type': 'text/html' })
+          response.end('gone')
+          return
+        }
+        response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+        response.end(body)
+      })
+      return new Promise((resolve) => {
+        server.listen(0, '127.0.0.1', () => {
+          const { port } = server.address() as AddressInfo
+          resolve({
+            origin: `http://127.0.0.1:${port}`,
+            close: () => server.close(),
+          })
+        })
+      })
+    }
+
+    const html = (body: string): string =>
+      `<!doctype html><html lang="en"><head><title>t</title></head><body>${body}</body></html>`
+
+    it('names the pages a crawl could not fetch', async () => {
+      const site = await serve({
+        '/': html('<a href="/a">a</a><a href="/missing">missing</a>'),
+        '/a': html('<p>a</p>'),
+      })
+      try {
+        await runAuditCommand(undefined, { url: site.origin, format: 'json' })
+
+        const document = JSON.parse(stdout.join(''))
+        expect(document.completeness.complete).toBe(false)
+        expect(document.completeness.discovery).toBe('links')
+        expect(document.completeness.unreachable).toHaveLength(1)
+        expect(document.completeness.unreachable[0].location).toContain('/missing')
+      } finally {
+        site.close()
+      }
+    }, 60_000)
+
+    it('says the run was truncated when it stopped at --max-pages', async () => {
+      // The case that used to be indistinguishable from a complete clean run:
+      // three pages exist, one was audited, and the report said nothing.
+      const site = await serve({
+        '/': html('<a href="/a">a</a><a href="/b">b</a>'),
+        '/a': html('<p>a</p>'),
+        '/b': html('<p>b</p>'),
+      })
+      try {
+        await runAuditCommand(undefined, { url: site.origin, maxPages: 1, format: 'json' })
+
+        const document = JSON.parse(stdout.join(''))
+        expect(document.completeness.truncated).toBe(true)
+        expect(document.completeness.complete).toBe(false)
+        expect(document.summary.pages).toBe(1)
+      } finally {
+        site.close()
+      }
+    }, 60_000)
   })
 })

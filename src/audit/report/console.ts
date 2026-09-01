@@ -1,5 +1,8 @@
 import pc from 'picocolors'
 import { collapse, count, plural } from '../../text.ts'
+import { discoveryLabel, missedParts, type RunCompleteness } from '../completeness.ts'
+import { type ComponentLocation, componentPath } from '../component.ts'
+import { buildCoverage, type Coverage, coverageSummary } from '../coverage.ts'
 import {
   countAtOrAbove,
   DEFAULT_FAIL_ON,
@@ -9,6 +12,7 @@ import {
 } from '../impact.ts'
 import { blindRules, coverageParts, groupIssues, type IssueElement, isShared } from '../issues.ts'
 import { manualCheckFor, understandingUrl } from '../manual.ts'
+import { remediationFor } from '../remediation.ts'
 import type { Finding, IncompleteFinding, PageAudit } from '../runners/jsdom.ts'
 
 export interface ConsoleReportOptions {
@@ -28,7 +32,7 @@ export interface ConsoleReportOptions {
    * Maps a failing element to the source file it was written in. Where route
    * mapping names the page, this names the component the page only renders.
    */
-  componentFor?: (html: string) => string | undefined
+  componentFor?: (html: string) => ComponentLocation | undefined
   /**
    * List every page and its result, under the issues. Off by default: on a
    * fifty-page site it is a wall, and what somebody needs first is what is
@@ -42,6 +46,27 @@ export interface ConsoleReportOptions {
    * need it every time.
    */
   manual?: boolean
+  /**
+   * What the run measured and what it never reached.
+   *
+   * Optional rather than required only so a caller rendering a report by hand
+   * need not synthesise one; the CLI always supplies it. A report built without
+   * it says nothing about coverage of the site rather than claiming it was
+   * complete.
+   */
+  completeness?: RunCompleteness
+  /**
+   * List every WCAG 2.2 A/AA criterion and what this run reached on it. Off by
+   * default: it is fifty-five lines, and the one-line summary above it carries
+   * the part that changes how the report reads.
+   */
+  coverage?: boolean
+  /**
+   * Registry id of the framework this project uses, so the advice can be given
+   * in its idiom where that differs. Undefined falls back to the generic fix,
+   * which for most rules is the same one.
+   */
+  framework?: string
 }
 
 const DEFAULT_MAX_NODES = 3
@@ -93,10 +118,13 @@ interface Context {
   maxNodes: number
   failOn: ImpactLevel
   sourceFor: (pagePath: string) => string | undefined
-  componentFor: (html: string) => string | undefined
+  componentFor: (html: string) => ComponentLocation | undefined
   manual: boolean
+  coverage: boolean
+  framework: string | undefined
   c: ReturnType<typeof pc.createColors>
   symbol: (kind: 'violation' | 'review' | 'blind' | 'clean' | 'error') => string
+  completeness: RunCompleteness | undefined
 }
 
 function context(options: ConsoleReportOptions): Context {
@@ -112,6 +140,9 @@ function context(options: ConsoleReportOptions): Context {
     sourceFor: options.sourceFor ?? (() => undefined),
     componentFor: options.componentFor ?? (() => undefined),
     manual: options.manual ?? false,
+    coverage: options.coverage ?? false,
+    framework: options.framework,
+    completeness: options.completeness,
     c,
     symbol: (kind) => {
       switch (kind) {
@@ -283,10 +314,17 @@ function summary(audits: readonly PageAudit[], ctx: Context): string[] {
   const reviewCount = countRules(audits, 'needs-review')
   const pages = count(audits.length, 'page')
 
-  const lines = [line(ctx, 'Summary', ctx.c.bold)]
+  const lines = [line(ctx, 'Summary', ctx.c.bold), ...completenessLines(ctx)]
 
   if (ruleCount === 0) {
-    lines.push(line(ctx, `  No violations across ${pages}.`, ctx.c.green))
+    // Qualified rather than plain when the run did not see the whole site: "no
+    // violations" over a fraction of the pages is not the sentence it looks
+    // like, and the completeness lines above have just said which fraction.
+    const clean =
+      ctx.completeness && !ctx.completeness.complete
+        ? `  No violations across the ${pages} that were audited.`
+        : `  No violations across ${pages}.`
+    lines.push(line(ctx, clean, ctx.c.green))
   } else {
     lines.push(
       render(ctx, [
@@ -327,6 +365,101 @@ function summary(audits: readonly PageAudit[], ctx: Context): string[] {
   }
 
   lines.push(...blindSection(audits, ctx))
+  lines.push(...coverageSection(audits, ctx))
+  return lines
+}
+
+/**
+ * How much of the standard this run could reach.
+ *
+ * One line by default. It is the sentence that stops a clean report reading as
+ * a clean site: most of WCAG cannot be checked by any automated engine, and
+ * until this was printed the report said so only in prose, in the footer, where
+ * it could be read as boilerplate.
+ */
+function coverageSection(audits: readonly PageAudit[], ctx: Context): string[] {
+  const coverage = buildCoverage(audits)
+  const lines = [
+    '',
+    ...wrap(coverageSummary(coverage), ctx.width - 2).map((text) =>
+      line(ctx, `  ${text}`, ctx.c.dim),
+    ),
+  ]
+
+  if (coverage.browserWouldAnswer > 0) {
+    const verb = coverage.browserWouldAnswer === 1 ? 'criterion' : 'criteria'
+    lines.push(
+      line(ctx, `  --browser would answer ${coverage.browserWouldAnswer} more ${verb}.`, ctx.c.dim),
+    )
+  }
+
+  if (!ctx.coverage) {
+    lines.push(
+      line(ctx, '  Run with --coverage for the criterion-by-criterion breakdown.', ctx.c.dim),
+    )
+    return lines
+  }
+
+  lines.push('', line(ctx, 'Coverage', ctx.c.bold))
+  for (const criterion of coverage.criteria) {
+    const paint = criterion.status === 'evaluated' ? ctx.c.green : ctx.c.dim
+    const note = criterion.browserWouldAnswer ? ' (--browser would answer this)' : ''
+    lines.push(
+      render(ctx, [
+        { text: `  ${criterion.number} `, paint: ctx.c.bold },
+        { text: `${criterion.title} (${criterion.level}) — ` },
+        { text: `${STATUS_WORDS[criterion.status]}${note}`, paint },
+      ]),
+    )
+  }
+  return lines
+}
+
+/** What each outcome is called, in words rather than a symbol. */
+const STATUS_WORDS: Record<Coverage['criteria'][number]['status'], string> = {
+  evaluated: 'evaluated here',
+  'not-evaluated': 'this engine could not evaluate it',
+  'nothing-to-check': 'rules ran and found nothing on this site to check',
+  'no-automated-rule': 'no automated rule exists; a person must check it',
+}
+
+/**
+ * What the run never looked at.
+ *
+ * Printed before the counts rather than after them, because it changes how they
+ * read: "no violations" means one thing over a whole site and another over the
+ * twelve pages of it a crawl managed to fetch before it hit its limit.
+ *
+ * Pages that errored are left to the summary's own line, which already names
+ * them; repeating the number here would read as twice as many.
+ */
+function completenessLines(ctx: Context): string[] {
+  const completeness = ctx.completeness
+  if (completeness === undefined || completeness.complete) return []
+
+  const lines: string[] = []
+
+  if (completeness.unreachable.length > 0) {
+    const noun = plural(completeness.unreachable.length, 'page')
+    lines.push(
+      line(
+        ctx,
+        `  ${completeness.unreachable.length} ${noun} could not be reached, and were not audited`,
+        ctx.c.yellow,
+      ),
+    )
+  }
+
+  if (completeness.truncated) {
+    lines.push(line(ctx, '  The run stopped at its page limit; the site has more', ctx.c.yellow))
+  }
+
+  if (lines.length > 0) {
+    lines.push(
+      line(ctx, '  This report describes what was audited, not the whole site.', ctx.c.dim),
+    )
+  }
+
   return lines
 }
 
@@ -460,6 +593,7 @@ function issuesSection(audits: readonly PageAudit[], ctx: Context): string[] {
       ]),
     )
     lines.push(line(ctx, `      ${issue.help}`, ctx.c.dim))
+    lines.push(...remediationLines(issue.ruleId, issue.elements[0]?.html, ctx))
 
     for (const element of issue.elements.slice(0, ctx.maxNodes)) {
       lines.push(line(ctx, `      ${collapse(element.html)}`))
@@ -474,6 +608,34 @@ function issuesSection(audits: readonly PageAudit[], ctx: Context): string[] {
   return lines
 }
 
+/**
+ * What to do about the rule, under the finding rather than in a link.
+ *
+ * axe-core's help text says what is wrong; this says who it stops and what to
+ * change. The corrected line is built from the element that actually failed,
+ * because a textbook snippet is a second thing to translate before anybody can
+ * use it.
+ */
+function remediationLines(ruleId: string, html: string | undefined, ctx: Context): string[] {
+  const remediation = remediationFor(ruleId, ctx.framework)
+  if (remediation === undefined) return []
+
+  const indent = '      '
+  const width = ctx.width - indent.length - 2
+  const lines = [
+    ...wrap(remediation.why, width).map((text) => line(ctx, `${indent}${text}`, ctx.c.dim)),
+    ...wrap(`Fix: ${remediation.fix}`, width).map((text) => line(ctx, `${indent}${text}`)),
+  ]
+
+  const example = html === undefined ? undefined : remediation.example?.(html)
+  if (example !== undefined) {
+    lines.push(
+      render(ctx, [{ text: `${indent}→ `, paint: ctx.c.green }, { text: collapse(example) }]),
+    )
+  }
+  return lines
+}
+
 /** Where one element appears, and what that says about where the fix goes. */
 function whereLines(element: IssueElement, ctx: Context): string[] {
   const shown = element.pages.slice(0, ctx.maxNodes)
@@ -485,7 +647,12 @@ function whereLines(element: IssueElement, ctx: Context): string[] {
   const lines =
     component === undefined
       ? []
-      : [render(ctx, [{ text: '        written in ', paint: ctx.c.dim }, { text: component }])]
+      : [
+          render(ctx, [
+            { text: '        written in ', paint: ctx.c.dim },
+            { text: componentPath(component) },
+          ]),
+        ]
 
   lines.push(line(ctx, `        on ${count(element.pages.length, 'page')}:`, ctx.c.dim))
 

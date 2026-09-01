@@ -151,6 +151,13 @@ export function string(options: { min?: number } = {}): Schema<string> {
   }
 }
 
+export function boolean(): Schema<boolean> {
+  return {
+    read: (value, path, issues) =>
+      typeof value === 'boolean' ? value : fail(issues, path, 'expected true or false'),
+  }
+}
+
 export function number(): Schema<number> {
   return {
     read: (value, path, issues) =>

@@ -1,9 +1,13 @@
 import axe from 'axe-core'
 import { collapse, count, escapeAttribute, escapeText, standardsReference } from '../../text.ts'
 import { TOOL_VERSION } from '../../version.ts'
+import { discoveryLabel, missedParts, type RunCompleteness } from '../completeness.ts'
+import { type ComponentLocation, componentPath } from '../component.ts'
+import { buildCoverage, type CriterionCoverage } from '../coverage.ts'
 import { countAtOrAbove, type ImpactLevel, impactLabel, impactRank } from '../impact.ts'
 import { blindRules, coverageParts, groupIssues, isShared } from '../issues.ts'
 import { manualCheckFor, understandingUrl } from '../manual.ts'
+import { remediationFor } from '../remediation.ts'
 import type { Finding, IncompleteFinding, PageAudit } from '../runners/jsdom.ts'
 import { buildSummary } from './json.ts'
 
@@ -37,11 +41,28 @@ export interface HtmlReportOptions {
   /** Maps an audited page to the source file that produced it, when known. */
   sourceFor?: (pagePath: string) => string | undefined
   /** Maps a failing element to the source file it was written in. */
-  componentFor?: (html: string) => string | undefined
+  componentFor?: (html: string) => ComponentLocation | undefined
   /** Build directory the audit ran against. */
   directory: string
   /** Lowest impact that fails the run. */
   failOn: ImpactLevel
+  /**
+   * What the run measured and what it never reached.
+   *
+   * This document is the one that leaves the building — it is emailed to the
+   * client whose site it is, who did not watch the run and never saw the
+   * warnings it wrote to the terminal. If a crawl reached a fraction of the
+   * site, this is the only place they will find that out.
+   *
+   * Optional only so a caller rendering a report by hand need not synthesise
+   * one; the CLI always supplies it.
+   */
+  completeness?: RunCompleteness
+  /**
+   * Registry id of the framework this project uses, so the advice can be given
+   * in its idiom where that differs.
+   */
+  framework?: string
   baseUrl?: string
   /** Injectable so tests and snapshots are not time-dependent. */
   now?: Date
@@ -71,9 +92,11 @@ ${verdict(audits, failing, options)}
 ${scoreboard(audits)}
 ${issues(audits, options)}
 ${runDetails(audits, engine, generatedAt, options)}
+${notMeasured(options)}
 ${summary(audits, failing, options)}
 ${pages(audits)}
 ${notEvaluated(audits)}
+${coverageSection(audits)}
 ${footer()}
 </main>
 </body>
@@ -118,6 +141,20 @@ function verdict(
       `${count(below, 'violation')} below ${escapeText(options.failOn)}, which do not fail the run.`,
     )
   }
+
+  // A clean result over part of a site is not the clean result it looks like,
+  // and this is the document read by somebody who was not there to see the run
+  // stop early. It gets its own banner rather than a footnote further down,
+  // because the banner is the part that will be quoted.
+  const completeness = options.completeness
+  if (completeness && !completeness.complete) {
+    return banner(
+      'partial',
+      'No violations found, but the whole site was not measured',
+      `${escapeText(missedParts(completeness).join(', '))}. This report describes ${count(completeness.audited, 'page')}, not the site.`,
+    )
+  }
+
   return banner('pass', 'No violations found', 'Automated testing found nothing to report.')
 }
 
@@ -142,6 +179,11 @@ function runDetails(
     ['eaa-kit', `${TOOL_VERSION} · axe-core ${axe.version}`],
   ]
   if (options.baseUrl) rows.splice(1, 0, ['Base URL', options.baseUrl])
+  // How the pages were found belongs next to how many there were: "12 pages"
+  // means something different when the site listed 200 in its sitemap.
+  if (options.completeness) {
+    rows.splice(2, 0, ['Pages found via', discoveryLabel(options.completeness.discovery)])
+  }
 
   const body = rows
     .map(
@@ -150,6 +192,60 @@ function runDetails(
     .join('\n')
 
   return `<h2>The run</h2>\n<dl class="run">\n${body}\n</dl>`
+}
+
+/** Pages named individually before the rest are counted. */
+const MAX_UNREACHABLE = 20
+
+/**
+ * The pages this run never reached, named rather than counted away.
+ *
+ * Named, because a count is not actionable: forty URLs that failed are a broken
+ * link check, a server that fell over halfway, or a section behind a login, and
+ * which of the three it was is only visible from the addresses. The reasons come
+ * straight from the crawler, so a reader can tell a 404 from a timeout.
+ */
+function notMeasured(options: HtmlReportOptions): string {
+  const completeness = options.completeness
+  if (completeness === undefined || completeness.complete) return ''
+
+  const parts: string[] = [
+    '<h2>What this run did not measure</h2>',
+    `<p>This report covers ${count(completeness.audited, 'page')}. It is not a description of
+  the whole site, and a clean result here does not extend to anything listed below.</p>`,
+  ]
+
+  if (completeness.truncated) {
+    parts.push(
+      `<p class="note">The run stopped at its page limit, so pages beyond ${count(completeness.collected, 'page')}
+  were never fetched. Raise <code>--max-pages</code> to go further.</p>`,
+    )
+  }
+
+  if (completeness.errored > 0) {
+    parts.push(
+      `<p class="note">${count(completeness.errored, 'page')} could not be audited after being
+  fetched, and ${completeness.errored === 1 ? 'is' : 'are'} not counted anywhere in this report.</p>`,
+    )
+  }
+
+  if (completeness.unreachable.length > 0) {
+    const shown = completeness.unreachable
+      .slice(0, MAX_UNREACHABLE)
+      .map(
+        (item) =>
+          `  <li><code>${escapeText(item.location)}</code> — ${escapeText(item.reason)}</li>`,
+      )
+      .join('\n')
+    const rest = completeness.unreachable.length - MAX_UNREACHABLE
+    parts.push(
+      `<p>${count(completeness.unreachable.length, 'page')} could not be reached:</p>`,
+      `<ul class="unreachable">\n${shown}\n</ul>`,
+    )
+    if (rest > 0) parts.push(`<p class="note">…and ${count(rest, 'more page')}.</p>`)
+  }
+
+  return parts.join('\n')
 }
 
 /**
@@ -310,6 +406,74 @@ ${items}
 </ul>`
 }
 
+/**
+ * How much of the standard this run could reach.
+ *
+ * Always included, and placed last, where a reader who has been through the
+ * findings arrives at the limits of what produced them. The counts are shown as
+ * four separate figures and never as a ratio: `no automated rule` is the
+ * majority of WCAG, and a percentage would present a limit of automated testing
+ * as a property of this site.
+ */
+function coverageSection(audits: readonly PageAudit[]): string {
+  const coverage = buildCoverage(audits)
+
+  const rows = coverage.criteria
+    .map((criterion) => {
+      const url = understandingUrl(criterion.number)
+      const name = escapeText(`${criterion.number} ${criterion.title}`)
+      const linked = url === undefined ? name : `<a href="${escapeAttribute(url)}">${name}</a>`
+      return `  <tr class="${escapeAttribute(criterion.status)}">
+    <td>${linked}</td>
+    <td>${escapeText(criterion.level)}</td>
+    <td>${statusText(criterion)}</td>
+  </tr>`
+    })
+    .join('\n')
+
+  return `<h2>Coverage of WCAG 2.2 AA</h2>
+<p>Of the ${coverage.total} success criteria at Levels A and AA,
+  <strong>${coverage.noAutomatedRule}</strong> cannot be checked by any automated engine and
+  need a person. This run reached a verdict on <strong>${coverage.evaluated}</strong>.</p>
+<ul class="counts">
+  <li><strong>${coverage.evaluated}</strong> evaluated here</li>
+  <li><strong>${coverage.notEvaluated}</strong> not evaluated by this engine${
+    coverage.browserWouldAnswer > 0
+      ? ` — a run with a real browser would answer ${coverage.browserWouldAnswer} of them`
+      : ''
+  }</li>
+  <li><strong>${coverage.nothingToCheck}</strong> had rules that ran and found nothing on this site to check</li>
+  <li><strong>${coverage.noAutomatedRule}</strong> have no automated rule at all</li>
+</ul>
+<p class="note">
+  These four are counted separately and never added together or divided into a score. Most
+  of WCAG cannot be automated, and a percentage here would present that limit of automated
+  testing as though it were a measurement of this site.
+</p>
+<div class="scroll">
+<table class="coverage">
+<thead><tr><th>Success criterion</th><th>Level</th><th>This run</th></tr></thead>
+<tbody>
+${rows}
+</tbody>
+</table>
+</div>`
+}
+
+function statusText(criterion: CriterionCoverage): string {
+  const browser = criterion.browserWouldAnswer ? ' <em>(a real browser would answer this)</em>' : ''
+  switch (criterion.status) {
+    case 'evaluated':
+      return `Evaluated${browser}`
+    case 'not-evaluated':
+      return `This engine could not evaluate it${browser}`
+    case 'nothing-to-check':
+      return 'Rules ran and found nothing on this site to check'
+    case 'no-automated-rule':
+      return 'No automated rule exists; a person must check it'
+  }
+}
+
 function footer(): string {
   return `<hr>
 <footer>
@@ -364,6 +528,7 @@ li + li { margin-top: 0.5rem; }
 .verdict.pass { background: #eef7ee; border-color: #216e39; }
 .verdict.fail { background: #fdeeee; border-color: #a01b1b; }
 .verdict.broken { background: #fdf4e3; border-color: #8a5a00; }
+.verdict.partial { background: #fdf4e3; border-color: #8a5a00; }
 .badge { display: inline-block; padding: 0 0.45rem; border-radius: 3px; font-size: 0.8rem;
   font-weight: 600; border: 1px solid; }
 .badge.critical { background: #fdeeee; border-color: #a01b1b; color: #7a1414; }
@@ -383,6 +548,17 @@ p.rule { margin-bottom: 0.25rem; }
 p.standards, p.coverage, .reason, li.more, p.accepted-heading, ul.accepted { color: #4a4a4a; font-size: 0.9rem; }
 p.coverage { margin-top: 0.5rem; }
 ul.nodes { list-style: none; padding-left: 0; }
+ul.unreachable { padding-left: 1.25rem; }
+.remediation { border-left: 3px solid #c9c9c9; padding: 0.1rem 0 0.1rem 0.75rem; margin: 0.5rem 0; }
+.remediation .why { margin: 0.3rem 0; opacity: 0.85; }
+.remediation .fix { margin: 0.3rem 0; }
+pre.suggested { background: #eef7ee; border-left: 3px solid #216e39; padding: 0.5rem; overflow-x: auto; }
+.scroll { overflow-x: auto; }
+table.coverage { border-collapse: collapse; width: 100%; font-size: 0.95em; }
+table.coverage th, table.coverage td { text-align: left; padding: 0.3rem 0.6rem; border-bottom: 1px solid #e3e3e3; vertical-align: top; }
+table.coverage tr.evaluated td:last-child { color: #216e39; }
+table.coverage em { font-style: normal; opacity: 0.75; }
+ul.unreachable li { margin-bottom: 0.2rem; overflow-wrap: anywhere; }
 code.selector { color: #4a4a4a; }
 p.clean { color: #216e39; }
 p.note { font-size: 0.95rem; }
@@ -428,6 +604,11 @@ ul.page-list { margin: 0.35rem 0 0; padding-left: 1.25rem; }
   .verdict.pass { background: #10240f; border-color: #7ee2a8; }
   .verdict.fail { background: #2b1111; border-color: #ff9d9d; }
   .verdict.broken { background: #2b2310; border-color: #ffd28a; }
+  .verdict.partial { background: #2b2310; border-color: #ffd28a; }
+  table.coverage th, table.coverage td { border-bottom-color: #333; }
+  table.coverage tr.evaluated td:last-child { color: #7ee2a8; }
+  .remediation { border-left-color: #555; }
+  pre.suggested { background: #10240f; border-left-color: #7ee2a8; }
   .tile.critical { background: #2b1111; border-color: #ff9d9d; color: #ffc9c9; }
   .tile.serious { background: #2b1d11; border-color: #ffb98a; color: #ffd7bd; }
   .tile.moderate { background: #2b2610; border-color: #f0d264; color: #f5e3a4; }
@@ -533,6 +714,7 @@ function issueSection(
   return `<li class="issue">
 <h3><span class="badge ${impact}">${impact}</span> <code>${escapeText(issue.ruleId)}</code> ${criteria}</h3>
 <p class="help">${escapeText(issue.help)}</p>
+${remediationBlock(issue.ruleId, issue.elements[0]?.html, options)}
 ${issue.elements
   .slice(0, MAX_NODES)
   .map((element) => issueElement(element, options))
@@ -543,6 +725,32 @@ ${
     : ''
 }
 </li>`
+}
+
+/**
+ * What to do about the rule, beside the finding rather than behind a link.
+ *
+ * The corrected line is built from the element that actually failed. A textbook
+ * snippet is a second thing to translate before anybody can use it, and this
+ * document is read by people who did not run the audit and may not write the
+ * code either — the closer it gets to the line as it should have been, the less
+ * of that translation is left to them.
+ */
+function remediationBlock(
+  ruleId: string,
+  html: string | undefined,
+  options: HtmlReportOptions,
+): string {
+  const remediation = remediationFor(ruleId, options.framework)
+  if (remediation === undefined) return ''
+
+  const example = html === undefined ? undefined : remediation.example?.(html)
+
+  return `<div class="remediation">
+<p class="why">${escapeText(remediation.why)}</p>
+<p class="fix"><strong>Fix.</strong> ${escapeText(remediation.fix)}</p>
+${example === undefined ? '' : `<pre class="suggested"><code>${escapeText(collapse(example, MAX_SNIPPET))}</code></pre>`}
+</div>`
 }
 
 function issueElement(
@@ -568,7 +776,7 @@ function issueElement(
 
   return `<div class="element">
 <pre><code>${escapeText(collapse(element.html, MAX_SNIPPET))}</code></pre>
-${component === undefined ? '' : `<p class="written-in">Written in <code>${escapeText(component)}</code></p>`}
+${component === undefined ? '' : `<p class="written-in">Written in <code>${escapeText(componentPath(component))}</code></p>`}
 ${element.selector === '' ? '' : `<p class="selector"><code>${escapeText(element.selector)}</code></p>`}
 <p class="reach">Found on ${count(element.pages.length, 'page')}.${
     isShared(element) ? ' <strong>Identical on each — likely one shared component.</strong>' : ''

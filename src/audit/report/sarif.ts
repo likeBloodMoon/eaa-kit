@@ -2,6 +2,7 @@ import path from 'node:path'
 import type { ImpactValue } from 'axe-core'
 import { standardsReference } from '../../text.ts'
 import { TOOL_VERSION } from '../../version.ts'
+import type { RunCompleteness } from '../completeness.ts'
 import { elementFingerprint } from '../fingerprint.ts'
 import { isImpactLevel } from '../impact.ts'
 import { findingElements, ruleOutcomes } from '../result.ts'
@@ -75,6 +76,11 @@ export interface SarifReportOptions {
   directory: string
   /** Resolved against this when making artifact URIs repo-relative. */
   cwd?: string
+  /**
+   * What the run measured and what it never reached. Optional only so a caller
+   * rendering a log by hand need not synthesise one; the CLI always supplies it.
+   */
+  completeness?: RunCompleteness
   now?: Date
 }
 
@@ -158,7 +164,7 @@ export function buildSarifReport(
           },
         ],
         results,
-        properties: summaryProperties(audits),
+        properties: summaryProperties(audits, options.completeness),
       },
     ],
   }
@@ -243,7 +249,10 @@ function toSarifRule(outcome: RuleOutcome): SarifRule {
  * Coverage that has no place in `results` but should not vanish: a SARIF log
  * with no results must not be mistaken for "everything was checked".
  */
-function summaryProperties(audits: readonly PageAudit[]): Record<string, unknown> {
+function summaryProperties(
+  audits: readonly PageAudit[],
+  completeness: RunCompleteness | undefined,
+): Record<string, unknown> {
   let needsReview = 0
   let notEvaluated = 0
   const notEvaluatedRules = new Set<string>()
@@ -265,6 +274,19 @@ function summaryProperties(audits: readonly PageAudit[]): Record<string, unknown
     needsReview,
     notEvaluated,
     notEvaluatedRules: [...notEvaluatedRules].sort(),
+    // The pages that produced no alerts because nothing ever looked at them.
+    // Code scanning shows alerts and not this, so it survives here for whoever
+    // reads the artifact rather than the pull request.
+    ...(completeness
+      ? {
+          complete: completeness.complete,
+          discovery: completeness.discovery,
+          pagesAudited: completeness.audited,
+          pagesErrored: completeness.errored,
+          pagesUnreachable: completeness.unreachable.length,
+          truncated: completeness.truncated,
+        }
+      : {}),
   }
 }
 

@@ -399,3 +399,51 @@ describe('crawlSite and redirects', () => {
     expect(result.failures).toEqual([])
   })
 })
+
+describe('--sitemap', () => {
+  const doc = (paths: string[]): string =>
+    `<?xml version="1.0"?><urlset>${paths
+      .map((p) => `<url><loc>http://localhost:3000${p}</loc></url>`)
+      .join('')}</urlset>`
+
+  it("reads the site's page list from a path that is not /sitemap.xml", async () => {
+    // WordPress with Yoast serves /sitemap_index.xml; TYPO3 and Craft put it
+    // behind a route of their own. Link following alone then finds only what
+    // the navigation happens to link to.
+    const { fetchImpl, requests } = site({
+      '/': page('<a href="/a">a</a>'),
+      '/a': page('a'),
+      '/deep': page('nothing links here'),
+      '/sitemap_index.xml': { body: doc(['/', '/a', '/deep']), type: 'application/xml' },
+    })
+
+    const result = await crawlSite(new URL('http://localhost:3000'), {
+      fetchImpl,
+      sitemap: '/sitemap_index.xml',
+    })
+
+    expect(result.discovery).toBe('sitemap')
+    expect(result.pages.map((p) => p.relativePath).sort()).toContain('deep')
+    expect(requests).toContain('/sitemap_index.xml')
+  })
+
+  it('does not fall back to the default path when a named one is empty', async () => {
+    // A wrong --sitemap should be a visible mistake, not a silent fallback to a
+    // crawl that quietly covers less.
+    const { fetchImpl, requests } = site({
+      '/': page('<a href="/a">a</a>'),
+      '/a': page('a'),
+      '/sitemap.xml': { body: doc(['/', '/a', '/deep']), type: 'application/xml' },
+      '/deep': page('nothing links here'),
+    })
+
+    const result = await crawlSite(new URL('http://localhost:3000'), {
+      fetchImpl,
+      sitemap: '/wrong.xml',
+    })
+
+    expect(result.discovery).toBe('links')
+    expect(requests).not.toContain('/sitemap.xml')
+    expect(result.pages.map((p) => p.relativePath)).not.toContain('deep')
+  })
+})

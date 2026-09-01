@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "createdOn": "2026-08-29",
+  "createdOn": "2026-09-01",
   "entries": [
     {
       "page": "index.html",
@@ -9,7 +9,7 @@
       "selector": "html",
       "help": "<html> element must have a lang attribute",
       "impact": "serious",
-      "acceptedOn": "2026-08-29"
+      "acceptedOn": "2026-09-01"
     },
     {
       "page": "index.html",
@@ -18,7 +18,7 @@
       "selector": "img",
       "help": "Images must have alternative text",
       "impact": "critical",
-      "acceptedOn": "2026-08-29"
+      "acceptedOn": "2026-09-01"
     },
     {
       "page": "index.html",
@@ -27,7 +27,7 @@
       "selector": "a",
       "help": "Links must have discernible text",
       "impact": "serious",
-      "acceptedOn": "2026-08-29"
+      "acceptedOn": "2026-09-01"
     }
   ]
 }

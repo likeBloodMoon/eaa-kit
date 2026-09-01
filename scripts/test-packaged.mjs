@@ -31,6 +31,7 @@ import { existsSync } from 'node:fs'
 import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 const REPO = path.resolve(import.meta.dirname, '..')
 
@@ -180,6 +181,32 @@ try {
       .flatMap((entry) => (typeof entry === 'string' ? [entry] : Object.values(entry)))
       .every((file) => existsSync(path.join(installed, file))),
   )
+
+  // Existing on disk is not the same as loading. Every build-time integration
+  // is a subpath export nothing else in the suite imports the published copy
+  // of, and a broken one fails inside somebody's build rather than here —
+  // which is exactly how the browser-mode bugs of 0.2.x reached users.
+  for (const subpath of ['astro', 'vite', 'eleventy', 'docusaurus', 'webpack', 'nuxt']) {
+    const file = path.join(installed, 'dist', subpath, 'index.js')
+    const loaded = spawnSync(
+      process.execPath,
+      [
+        '-e',
+        `import(${JSON.stringify(pathToFileURL(file).href)})
+           .then((m) => {
+             if (typeof m.default !== 'function') throw new Error('no default export')
+             console.log('ok')
+           })
+           .catch((error) => { console.error(String(error)); process.exit(1) })`,
+      ],
+      { encoding: 'utf8' },
+    )
+    check(
+      `the ${subpath} entry loads from a real install`,
+      loaded.status === 0,
+      `${loaded.stdout}${loaded.stderr}`.trim(),
+    )
+  }
 
   // The whole point: the tool is under root/tool, the project under root/browser,
   // and Playwright is installed only in the latter. This is npx.

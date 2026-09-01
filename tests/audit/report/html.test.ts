@@ -1,6 +1,11 @@
 import { fileURLToPath } from 'node:url'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { collectPages } from '../../../src/audit/collect.ts'
+import {
+  type Collection,
+  completeCollection,
+  runCompleteness,
+} from '../../../src/audit/completeness.ts'
 import { buildHtmlReport } from '../../../src/audit/report/html.ts'
 import { auditPage, type PageAudit, runJsdomAudit } from '../../../src/audit/runners/jsdom.ts'
 
@@ -416,5 +421,156 @@ describe('the scoreboard and issues sections', () => {
     const page = build([blank({ violations: [finding({ nodes })] })])
 
     expect(text(page)).toContain('and 4 more elements')
+  })
+})
+
+describe('what the run did not measure', () => {
+  /** A clean page, so the only thing deciding the verdict is completeness. */
+  const clean = [blank()]
+
+  function partial(overrides: Partial<Collection>): string {
+    return build(clean, {
+      completeness: runCompleteness(clean, {
+        discovery: 'links',
+        collected: 1,
+        unreachable: [],
+        truncated: false,
+        ...overrides,
+      }),
+    })
+  }
+
+  it('gives a clean, complete run the plain pass banner', () => {
+    const html = build(clean, {
+      completeness: runCompleteness(clean, completeCollection('directory', 1)),
+    })
+
+    expect(html).toContain('class="verdict pass"')
+    expect(text(html)).toContain('No violations found')
+    expect(html).not.toContain('class="verdict partial"')
+    expect(html).not.toContain('What this run did not measure')
+  })
+
+  it('refuses the plain pass banner when the whole site was not measured', () => {
+    // The bug this exists to prevent: a crawl that reached a fraction of a site
+    // and found nothing used to render exactly like a complete clean run.
+    const html = partial({ truncated: true })
+
+    expect(html).toContain('class="verdict partial"')
+    expect(html).not.toContain('class="verdict pass"')
+    expect(text(html)).toContain('the whole site was not measured')
+  })
+
+  it('names the pages it could not reach, with the reason for each', () => {
+    const html = partial({
+      unreachable: [
+        { location: 'https://example.com/pricing', reason: 'HTTP 404' },
+        { location: 'https://example.com/team', reason: 'timed out' },
+      ],
+    })
+
+    const readable = text(html)
+    expect(readable).toContain('https://example.com/pricing')
+    expect(readable).toContain('HTTP 404')
+    expect(readable).toContain('https://example.com/team')
+    expect(readable).toContain('timed out')
+  })
+
+  it('says how the pages were found', () => {
+    expect(text(partial({ discovery: 'sitemap', truncated: true }))).toContain(
+      'sitemap.xml and links',
+    )
+  })
+
+  it('says nothing about completeness when it was not given any', () => {
+    // A caller rendering a report by hand gets the document it always got,
+    // rather than a claim that the run was complete.
+    const html = build(clean)
+
+    expect(html).not.toContain('What this run did not measure')
+    expect(html).not.toContain('class="verdict partial"')
+  })
+})
+
+describe('the coverage section', () => {
+  it('leads with what cannot be automated rather than with what passed', () => {
+    const readable = text(report)
+
+    expect(readable).toContain('Coverage of WCAG 2.2 AA')
+    expect(readable).toContain('cannot be checked by any automated engine')
+  })
+
+  it('never turns the four counts into a score', () => {
+    // A percentage here would present a limit of automated testing as though it
+    // were a measurement of this site.
+    const section = report.slice(report.indexOf('Coverage of WCAG 2.2 AA'))
+
+    expect(section).not.toMatch(/\d+\s*%/)
+    expect(section).toContain('never added together or divided into a score')
+  })
+
+  it('lists all 55 criteria with somewhere to read what each requires', () => {
+    const section = report.slice(report.indexOf('Coverage of WCAG 2.2 AA'))
+    const rows = section.match(/<tr class="/g) ?? []
+
+    expect(rows).toHaveLength(55)
+    expect(section).toContain('https://www.w3.org/WAI/WCAG22/Understanding/')
+  })
+
+  it('says which criteria a real browser would answer', () => {
+    expect(text(report)).toContain('a real browser would answer')
+  })
+
+  it('keeps the wide table inside its own scroll container', () => {
+    // The page body must never scroll sideways on a narrow screen.
+    expect(report).toContain('<div class="scroll">')
+  })
+})
+
+describe('the remediation block', () => {
+  it('says who a barrier stops and what to change', () => {
+    const readable = text(report)
+
+    expect(readable).toContain('screen reader')
+    expect(readable).toContain('Fix.')
+  })
+
+  it('shows the corrected form of the markup that actually failed', () => {
+    const withImage = [blank({ violations: [finding()] })]
+
+    // The failing element is <img src="/logo.svg"> with no alt. Quotes are
+    // left alone by escapeText, which only has to make the markup safe between
+    // tags.
+    expect(build(withImage)).toContain('class="suggested"')
+    expect(build(withImage)).toContain('alt="What this image shows"')
+  })
+
+  it('gives the framework-specific fix when the project names one', () => {
+    const withLang = [
+      blank({
+        violations: [
+          finding({
+            ruleId: 'html-has-lang',
+            help: '<html> element must have a lang attribute',
+            nodes: [{ html: '<html>', target: ['html'] }],
+          }),
+        ],
+      }),
+    ]
+
+    expect(text(build(withLang, { framework: 'astro' }))).toContain('src/layouts')
+    expect(text(build(withLang))).not.toContain('src/layouts')
+  })
+})
+
+describe('the source location of a failing element', () => {
+  it('names the line as well as the file, so an editor can open it', () => {
+    const withImage = [blank({ violations: [finding()] })]
+
+    const html = build(withImage, {
+      componentFor: () => ({ file: 'src/components/Header.astro', line: 12, column: 5 }),
+    })
+
+    expect(text(html)).toContain('src/components/Header.astro:12')
   })
 })

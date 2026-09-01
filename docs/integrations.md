@@ -1,6 +1,13 @@
 # Integrations
 
-Two ways to run eaa-kit as part of a build rather than by hand.
+Ways to run eaa-kit as part of a build rather than by hand. Every one of them reaches the
+same point — a finished build in a directory that has to be judged before the build may
+proceed — and shares one decision function, so they cannot drift into disagreeing about
+what a passing build is. Only the hook name and the logger differ.
+
+None of them adds a dependency: each describes the shape of its host structurally, so
+installing eaa-kit in a project that has no Astro, no webpack and no Nuxt costs nothing and
+still typechecks.
 
 ## Astro integration
 
@@ -53,6 +60,86 @@ A build the audit could not complete — no HTML in the output, a page nothing c
 baseline that is not there — fails the build too, but says so in those words. It is not a
 failing audit; it is a build that was never checked, and reporting it as violations would
 send somebody looking for defects that were never measured.
+
+## Eleventy plugin
+
+```js
+// eleventy.config.js
+import eaaKit from 'eaa-kit/eleventy'
+
+export default function (eleventyConfig) {
+  eleventyConfig.addPlugin(eaaKit)
+  // or, configured:
+  // eleventyConfig.addPlugin(eaaKit, { failOn: 'moderate' })
+}
+```
+
+Audits in `eleventy.after`, which fires once the files are written and hands over the output
+directory — worth having here more than for most builders, since Eleventy's is configurable
+and the audit would otherwise be guessing at `_site`.
+
+## Docusaurus plugin
+
+```js
+// docusaurus.config.js
+export default {
+  plugins: [['eaa-kit/docusaurus', { failOn: 'serious' }]],
+}
+```
+
+Audits in `postBuild`, which runs when the whole site is on disk and is given `outDir`. A
+documentation site is an unusually good case for this: docs are where an organisation's own
+accessibility claims usually live, they are generated from Markdown by machinery nobody on
+the team wrote, and nobody opens every page.
+
+## webpack plugin
+
+```js
+// webpack.config.js
+const EaaKitPlugin = require('eaa-kit/webpack').default
+
+module.exports = {
+  plugins: [new EaaKitPlugin({ failOn: 'serious' })],
+}
+```
+
+Audits in `afterEmit`, the first hook at which every file is on disk. Watch rebuilds are
+skipped: auditing a whole site on every keystroke would make a dev server unusable, and a
+failing audit there cannot stop anything being shipped anyway. A build that already failed
+is skipped too — it has no output worth judging, and reporting missing pages as
+accessibility findings would send somebody after defects nothing ever measured.
+
+Worth having even though webpack is not a site generator: it is what Create React App,
+ejected setups and a long tail of bespoke pipelines run, and none of them is covered by the
+Vite plugin.
+
+## Nuxt module
+
+```ts
+// nuxt.config.ts
+export default defineNuxtConfig({
+  modules: [['eaa-kit/nuxt', { failOn: 'serious' }]],
+})
+```
+
+Nuxt builds on Vite, so [the Vite plugin](#vite-plugin) already runs in a Nuxt project.
+This module exists because it runs at the wrong moment and against the wrong directory.
+All three points below were measured against a real `nuxt generate`, which drives this
+module in the test suite.
+
+**When.** Vite's `closeBundle` fires when Vite has finished, and Nitro prerenders after
+that. At `build:done` the public directory does not exist at all; by `close` it holds every
+prerendered page. The module audits in `close`.
+
+**Where.** The output directory is not on `nuxt.options.nitro.output` — that is undefined
+throughout a build. Nitro resolves it onto its own instance, which reaches a module through
+the `nitro:init` hook.
+
+**What.** `nuxt build` produces a server: `.output/public` exists and holds assets with no
+page among them. Auditing it would find nothing and report success, which is the worst
+outcome available, so a server build is told what it is instead. Pass
+`allowServerBuild: true` where that is expected and the audit should stand down, or
+`directory` to name a path yourself.
 
 ## Vite plugin
 
@@ -137,7 +224,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - uses: likeBloodMoon/eaa-kit@v0.1.0
+      - uses: likeBloodMoon/eaa-kit@v0.3.0
         with:
           install-command: npm ci
           build-command: npm run build
@@ -164,6 +251,7 @@ watching is the wrong default for something whose job is to fail that build.
 | `base-url` | — | Audit pages under their real site URL |
 | `sarif-file` | `eaa-kit.sarif` | Where to write the SARIF log |
 | `upload-sarif` | `true` | Upload to GitHub code scanning |
+| `sitemap` | — | Where the site lists its pages, if not `/sitemap.xml`; with `url` only |
 | `baseline` | — | Path to a baseline file; fail only on violations it does not list |
 | `concurrency` | from page and core count | Worker threads for the browserless engine; `1` for none |
 | `version` | `latest` | Version of eaa-kit to run |

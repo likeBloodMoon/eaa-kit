@@ -2,7 +2,12 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { detectPackageManager, findBuildOutput, readPackageJson } from '../../src/audit/project.ts'
+import {
+  autoDetectSource,
+  detectPackageManager,
+  findBuildOutput,
+  readPackageJson,
+} from '../../src/audit/project.ts'
 
 const dirs: string[] = []
 
@@ -84,5 +89,45 @@ describe('readPackageJson', () => {
     ['a package.json that is not JSON', { 'package.json': 'not json' }],
   ])('returns nothing for %s', async (_name, files) => {
     expect(await readPackageJson(await project(files))).toBeUndefined()
+  })
+})
+
+describe('a CMS is detected and then left alone', () => {
+  it('never runs a build or starts a server for one', async () => {
+    // Starting these means spawning a stateful, usually container-backed stack
+    // that may touch a database — a great deal more than an accessibility audit
+    // was asked to do, and not something to do to somebody's machine uninvited.
+    const dir = await project({
+      'manage.py': '',
+      'package.json': JSON.stringify({ scripts: { build: 'exit 1', start: 'exit 1' } }),
+    })
+
+    const detected = await autoDetectSource(dir)
+
+    expect(detected?.directory).toBeUndefined()
+    expect(detected?.url).toBeUndefined()
+    expect(detected?.steps.join(' ')).toContain('Django')
+    expect(detected?.steps.join(' ')).toContain('writes no HTML to disk')
+  })
+
+  it('fires before anything else, so a CMS with no package.json is still caught', async () => {
+    // Most Django and Rails projects have no package.json at all, and the
+    // ordinary path gives up there. The guard has to come first, or the reader
+    // gets the generic "point me at a build directory" advice for a project
+    // that has none.
+    const dir = await project({ 'manage.py': '' })
+
+    const detected = await autoDetectSource(dir)
+
+    expect(detected?.steps.join(' ')).toContain('writes no HTML to disk')
+  })
+
+  it('leaves an ordinary project to the usual path', async () => {
+    // No CMS marker: this gives up in the normal way rather than through the
+    // guard, which is the difference between "nothing to audit here" and "this
+    // kind of project is audited differently".
+    const dir = await project({ 'package.json': JSON.stringify({ scripts: {} }) })
+
+    expect(await autoDetectSource(dir, { noBuild: true })).toBeUndefined()
   })
 })

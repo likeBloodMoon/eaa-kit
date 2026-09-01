@@ -31,6 +31,15 @@ export interface CollectOptions {
   include?: readonly string[]
   /** Glob patterns to skip. */
   exclude?: readonly string[]
+  /**
+   * Called for a file that matched but could not be read.
+   *
+   * One unreadable file used to reject the whole collection, so a single bad
+   * permission bit in a build directory reported as a crash rather than as the
+   * one page nobody could look at. The rest of the build is still worth
+   * auditing; what must not happen is the file going unmentioned.
+   */
+  onUnreadable?: (relativePath: string, reason: string) => void
 }
 
 /**
@@ -76,7 +85,12 @@ export async function collectPages(
   const pages: CollectedPage[] = []
   for (let i = 0; i < relativePaths.length; i += READ_CONCURRENCY) {
     const batch = relativePaths.slice(i, i + READ_CONCURRENCY)
-    pages.push(...(await Promise.all(batch.map((relativePath) => readPage(root, relativePath)))))
+    const read = await Promise.all(
+      batch.map((relativePath) => readPage(root, relativePath, options.onUnreadable)),
+    )
+    for (const page of read) {
+      if (page !== undefined) pages.push(page)
+    }
   }
   return pages
 }
@@ -99,10 +113,23 @@ async function assertDirectory(root: string, original: string): Promise<void> {
   }
 }
 
-async function readPage(root: string, relativePath: string): Promise<CollectedPage> {
+async function readPage(
+  root: string,
+  relativePath: string,
+  onUnreadable: CollectOptions['onUnreadable'],
+): Promise<CollectedPage | undefined> {
   const absolutePath = path.join(root, relativePath)
-  const html = await readFile(absolutePath, 'utf8')
-  return { absolutePath, relativePath, html: stripBom(html) }
+  try {
+    const html = await readFile(absolutePath, 'utf8')
+    return { absolutePath, relativePath, html: stripBom(html) }
+  } catch (cause) {
+    // Without a handler this stays what it was: a file the caller never hears
+    // about is worse than one it cannot open, so the failure is only swallowed
+    // where somebody has said they will report it.
+    if (onUnreadable === undefined) throw cause
+    onUnreadable(relativePath, (cause as Error).message)
+    return undefined
+  }
 }
 
 /**
@@ -147,6 +174,21 @@ async function frameworkAdvice(
   }
 
   const lines = [`${head} This is ${article(framework.name)} ${framework.name} project.`]
+
+  // A CMS has no build directory, so there is no path to correct and nothing to
+  // build: "no HTML found in ./dist" describes a directory that was never going
+  // to hold any. The only honest next step is to get the site serving, so that
+  // is the whole of the advice rather than a footnote under advice that cannot
+  // apply.
+  if (outputs.length === 0) {
+    lines.push(
+      `  It renders every page on a server and writes no HTML to disk, so there is`,
+      `  no build directory to audit. Start it, then audit what it serves:`,
+      ...(framework.serveCommand === undefined ? [] : [`    ${framework.serveCommand}`]),
+      '    eaa-kit audit --url http://localhost:8000',
+    )
+    return lines.join('\n')
+  }
 
   if (framework.staticOutput !== undefined) {
     lines.push(

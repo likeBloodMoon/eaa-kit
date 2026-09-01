@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="generator" content="eaa-kit 0.3.0">
+<meta name="generator" content="eaa-kit 0.4.0">
 <title>Accessibility audit · tests/fixtures/site</title>
 <style>
 :root { color-scheme: light dark; }
@@ -27,6 +27,7 @@ li + li { margin-top: 0.5rem; }
 .verdict.pass { background: #eef7ee; border-color: #216e39; }
 .verdict.fail { background: #fdeeee; border-color: #a01b1b; }
 .verdict.broken { background: #fdf4e3; border-color: #8a5a00; }
+.verdict.partial { background: #fdf4e3; border-color: #8a5a00; }
 .badge { display: inline-block; padding: 0 0.45rem; border-radius: 3px; font-size: 0.8rem;
   font-weight: 600; border: 1px solid; }
 .badge.critical { background: #fdeeee; border-color: #a01b1b; color: #7a1414; }
@@ -46,6 +47,17 @@ p.rule { margin-bottom: 0.25rem; }
 p.standards, p.coverage, .reason, li.more, p.accepted-heading, ul.accepted { color: #4a4a4a; font-size: 0.9rem; }
 p.coverage { margin-top: 0.5rem; }
 ul.nodes { list-style: none; padding-left: 0; }
+ul.unreachable { padding-left: 1.25rem; }
+.remediation { border-left: 3px solid #c9c9c9; padding: 0.1rem 0 0.1rem 0.75rem; margin: 0.5rem 0; }
+.remediation .why { margin: 0.3rem 0; opacity: 0.85; }
+.remediation .fix { margin: 0.3rem 0; }
+pre.suggested { background: #eef7ee; border-left: 3px solid #216e39; padding: 0.5rem; overflow-x: auto; }
+.scroll { overflow-x: auto; }
+table.coverage { border-collapse: collapse; width: 100%; font-size: 0.95em; }
+table.coverage th, table.coverage td { text-align: left; padding: 0.3rem 0.6rem; border-bottom: 1px solid #e3e3e3; vertical-align: top; }
+table.coverage tr.evaluated td:last-child { color: #216e39; }
+table.coverage em { font-style: normal; opacity: 0.75; }
+ul.unreachable li { margin-bottom: 0.2rem; overflow-wrap: anywhere; }
 code.selector { color: #4a4a4a; }
 p.clean { color: #216e39; }
 p.note { font-size: 0.95rem; }
@@ -91,6 +103,11 @@ ul.page-list { margin: 0.35rem 0 0; padding-left: 1.25rem; }
   .verdict.pass { background: #10240f; border-color: #7ee2a8; }
   .verdict.fail { background: #2b1111; border-color: #ff9d9d; }
   .verdict.broken { background: #2b2310; border-color: #ffd28a; }
+  .verdict.partial { background: #2b2310; border-color: #ffd28a; }
+  table.coverage th, table.coverage td { border-bottom-color: #333; }
+  table.coverage tr.evaluated td:last-child { color: #7ee2a8; }
+  .remediation { border-left-color: #555; }
+  pre.suggested { background: #10240f; border-left-color: #7ee2a8; }
   .tile.critical { background: #2b1111; border-color: #ff9d9d; color: #ffc9c9; }
   .tile.serious { background: #2b1d11; border-color: #ffb98a; color: #ffd7bd; }
   .tile.moderate { background: #2b2610; border-color: #f0d264; color: #f5e3a4; }
@@ -130,6 +147,11 @@ ul.page-list { margin: 0.35rem 0 0; padding-left: 1.25rem; }
 <li class="issue">
 <h3><span class="badge critical">critical</span> <code>image-alt</code> <span class="wcag">WCAG 1.1.1</span></h3>
 <p class="help">Images must have alternative text</p>
+<div class="remediation">
+<p class="why">A screen reader announces this image by its filename, or skips it entirely.</p>
+<p class="fix"><strong>Fix.</strong> Add alt text describing what the image conveys. If it is decorative and repeats adjacent text, use alt="" so it is skipped deliberately rather than by accident.</p>
+<pre class="suggested"><code>&lt;img src="/assets/logo.svg" alt="What this image shows"&gt;</code></pre>
+</div>
 <div class="element">
 <pre><code>&lt;img src="/assets/logo.svg"&gt;</code></pre>
 
@@ -143,6 +165,11 @@ ul.page-list { margin: 0.35rem 0 0; padding-left: 1.25rem; }
 <li class="issue">
 <h3><span class="badge serious">serious</span> <code>html-has-lang</code> <span class="wcag">WCAG 3.1.1</span></h3>
 <p class="help">&lt;html&gt; element must have a lang attribute</p>
+<div class="remediation">
+<p class="why">A screen reader reads the page in whatever language it defaults to, so German content is read with English pronunciation rules and is close to unintelligible.</p>
+<p class="fix"><strong>Fix.</strong> Set app.head.htmlAttrs.lang in nuxt.config.ts, or call useHead({ htmlAttrs: { lang: 'de' } }) in app.vue.</p>
+<pre class="suggested"><code>&lt;html lang="de"&gt;</code></pre>
+</div>
 <div class="element">
 <pre><code>&lt;html&gt;&lt;head&gt; &lt;title&gt;Startseite&lt;/title&gt; &lt;/head&gt; &lt;body&gt; &lt;img src="/assets/logo.svg"&gt; &lt;a href="/about/"&gt;&lt;/a&gt; &lt;p&gt;Willkommen.&lt;/p&gt; &lt;/body&gt;&lt;/html&gt;</code></pre>
 
@@ -156,6 +183,11 @@ ul.page-list { margin: 0.35rem 0 0; padding-left: 1.25rem; }
 <li class="issue">
 <h3><span class="badge serious">serious</span> <code>link-name</code> <span class="wcag">WCAG 2.4.4 4.1.2</span></h3>
 <p class="help">Links must have discernible text</p>
+<div class="remediation">
+<p class="why">A screen reader announces this as "link" with nothing after it, so where it goes is unknowable without following it.</p>
+<p class="fix"><strong>Fix.</strong> Give the &lt;NuxtLink&gt; content, or an aria-label where it renders an icon alone.</p>
+<pre class="suggested"><code>&lt;a href="/about/"&gt;Where this link goes&lt;/a&gt;</code></pre>
+</div>
 <div class="element">
 <pre><code>&lt;a href="/about/"&gt;&lt;/a&gt;</code></pre>
 
@@ -171,11 +203,13 @@ ul.page-list { margin: 0.35rem 0 0; padding-left: 1.25rem; }
 <dl class="run">
   <div><dt>Directory</dt><dd>tests/fixtures/site</dd></div>
   <div><dt>Pages</dt><dd>5</dd></div>
+  <div><dt>Pages found via</dt><dd>files in the build directory</dd></div>
   <div><dt>Engine</dt><dd>jsdom (browserless)</dd></div>
   <div><dt>Threshold</dt><dd>serious and above fails the run</dd></div>
   <div><dt>Generated</dt><dd>2026-01-01T00:00:00.000Z</dd></div>
-  <div><dt>eaa-kit</dt><dd>0.3.0 · axe-core 4.13.0</dd></div>
+  <div><dt>eaa-kit</dt><dd>0.4.0 · axe-core 4.13.0</dd></div>
 </dl>
+
 <h2>Summary</h2>
 <ul class="counts">
   <li><strong>3 violations</strong> on 1 of 5 pages, across 3 elements</li>
@@ -297,6 +331,303 @@ accessibility barriers and this is where the rest of them are.</p>
     <p class="criteria"><a href="https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html">WCAG 2.5.8</a></p>
   </li>
 </ul>
+<h2>Coverage of WCAG 2.2 AA</h2>
+<p>Of the 55 success criteria at Levels A and AA,
+  <strong>34</strong> cannot be checked by any automated engine and
+  need a person. This run reached a verdict on <strong>6</strong>.</p>
+<ul class="counts">
+  <li><strong>6</strong> evaluated here</li>
+  <li><strong>6</strong> not evaluated by this engine — a run with a real browser would answer 5 of them</li>
+  <li><strong>9</strong> had rules that ran and found nothing on this site to check</li>
+  <li><strong>34</strong> have no automated rule at all</li>
+</ul>
+<p class="note">
+  These four are counted separately and never added together or divided into a score. Most
+  of WCAG cannot be automated, and a percentage here would present that limit of automated
+  testing as though it were a measurement of this site.
+</p>
+<div class="scroll">
+<table class="coverage">
+<thead><tr><th>Success criterion</th><th>Level</th><th>This run</th></tr></thead>
+<tbody>
+  <tr class="evaluated">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/non-text-content.html">1.1.1 Non-text Content</a></td>
+    <td>A</td>
+    <td>Evaluated</td>
+  </tr>
+  <tr class="nothing-to-check">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/audio-only-and-video-only-prerecorded.html">1.2.1 Audio-only and Video-only (Prerecorded)</a></td>
+    <td>A</td>
+    <td>Rules ran and found nothing on this site to check</td>
+  </tr>
+  <tr class="nothing-to-check">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/captions-prerecorded.html">1.2.2 Captions (Prerecorded)</a></td>
+    <td>A</td>
+    <td>Rules ran and found nothing on this site to check</td>
+  </tr>
+  <tr class="no-automated-rule">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/audio-description-or-media-alternative-prerecorded.html">1.2.3 Audio Description or Media Alternative (Prerecorded)</a></td>
+    <td>A</td>
+    <td>No automated rule exists; a person must check it</td>
+  </tr>
+  <tr class="no-automated-rule">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/captions-live.html">1.2.4 Captions (Live)</a></td>
+    <td>AA</td>
+    <td>No automated rule exists; a person must check it</td>
+  </tr>
+  <tr class="no-automated-rule">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/audio-description-prerecorded.html">1.2.5 Audio Description (Prerecorded)</a></td>
+    <td>AA</td>
+    <td>No automated rule exists; a person must check it</td>
+  </tr>
+  <tr class="evaluated">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/info-and-relationships.html">1.3.1 Info and Relationships</a></td>
+    <td>A</td>
+    <td>Evaluated</td>
+  </tr>
+  <tr class="no-automated-rule">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/meaningful-sequence.html">1.3.2 Meaningful Sequence</a></td>
+    <td>A</td>
+    <td>No automated rule exists; a person must check it</td>
+  </tr>
+  <tr class="no-automated-rule">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/sensory-characteristics.html">1.3.3 Sensory Characteristics</a></td>
+    <td>A</td>
+    <td>No automated rule exists; a person must check it</td>
+  </tr>
+  <tr class="no-automated-rule">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/orientation.html">1.3.4 Orientation</a></td>
+    <td>AA</td>
+    <td>No automated rule exists; a person must check it</td>
+  </tr>
+  <tr class="nothing-to-check">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/identify-input-purpose.html">1.3.5 Identify Input Purpose</a></td>
+    <td>AA</td>
+    <td>Rules ran and found nothing on this site to check</td>
+  </tr>
+  <tr class="not-evaluated">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/use-of-color.html">1.4.1 Use of Color</a></td>
+    <td>A</td>
+    <td>This engine could not evaluate it <em>(a real browser would answer this)</em></td>
+  </tr>
+  <tr class="not-evaluated">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/audio-control.html">1.4.2 Audio Control</a></td>
+    <td>A</td>
+    <td>This engine could not evaluate it</td>
+  </tr>
+  <tr class="not-evaluated">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html">1.4.3 Contrast (Minimum)</a></td>
+    <td>AA</td>
+    <td>This engine could not evaluate it <em>(a real browser would answer this)</em></td>
+  </tr>
+  <tr class="nothing-to-check">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/resize-text.html">1.4.4 Resize Text</a></td>
+    <td>AA</td>
+    <td>Rules ran and found nothing on this site to check</td>
+  </tr>
+  <tr class="no-automated-rule">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/images-of-text.html">1.4.5 Images of Text</a></td>
+    <td>AA</td>
+    <td>No automated rule exists; a person must check it</td>
+  </tr>
+  <tr class="no-automated-rule">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/reflow.html">1.4.10 Reflow</a></td>
+    <td>AA</td>
+    <td>No automated rule exists; a person must check it</td>
+  </tr>
+  <tr class="no-automated-rule">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/non-text-contrast.html">1.4.11 Non-text Contrast</a></td>
+    <td>AA</td>
+    <td>No automated rule exists; a person must check it</td>
+  </tr>
+  <tr class="not-evaluated">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/text-spacing.html">1.4.12 Text Spacing</a></td>
+    <td>AA</td>
+    <td>This engine could not evaluate it <em>(a real browser would answer this)</em></td>
+  </tr>
+  <tr class="no-automated-rule">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/content-on-hover-or-focus.html">1.4.13 Content on Hover or Focus</a></td>
+    <td>AA</td>
+    <td>No automated rule exists; a person must check it</td>
+  </tr>
+  <tr class="not-evaluated">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/keyboard.html">2.1.1 Keyboard</a></td>
+    <td>A</td>
+    <td>This engine could not evaluate it <em>(a real browser would answer this)</em></td>
+  </tr>
+  <tr class="no-automated-rule">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/no-keyboard-trap.html">2.1.2 No Keyboard Trap</a></td>
+    <td>A</td>
+    <td>No automated rule exists; a person must check it</td>
+  </tr>
+  <tr class="no-automated-rule">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/character-key-shortcuts.html">2.1.4 Character Key Shortcuts</a></td>
+    <td>A</td>
+    <td>No automated rule exists; a person must check it</td>
+  </tr>
+  <tr class="nothing-to-check">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/timing-adjustable.html">2.2.1 Timing Adjustable</a></td>
+    <td>A</td>
+    <td>Rules ran and found nothing on this site to check</td>
+  </tr>
+  <tr class="nothing-to-check">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/pause-stop-hide.html">2.2.2 Pause, Stop, Hide</a></td>
+    <td>A</td>
+    <td>Rules ran and found nothing on this site to check</td>
+  </tr>
+  <tr class="no-automated-rule">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/three-flashes-or-below-threshold.html">2.3.1 Three Flashes or Below Threshold</a></td>
+    <td>A</td>
+    <td>No automated rule exists; a person must check it</td>
+  </tr>
+  <tr class="nothing-to-check">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/bypass-blocks.html">2.4.1 Bypass Blocks</a></td>
+    <td>A</td>
+    <td>Rules ran and found nothing on this site to check</td>
+  </tr>
+  <tr class="evaluated">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/page-titled.html">2.4.2 Page Titled</a></td>
+    <td>A</td>
+    <td>Evaluated</td>
+  </tr>
+  <tr class="no-automated-rule">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/focus-order.html">2.4.3 Focus Order</a></td>
+    <td>A</td>
+    <td>No automated rule exists; a person must check it</td>
+  </tr>
+  <tr class="evaluated">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/link-purpose-in-context.html">2.4.4 Link Purpose (In Context)</a></td>
+    <td>A</td>
+    <td>Evaluated</td>
+  </tr>
+  <tr class="no-automated-rule">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/multiple-ways.html">2.4.5 Multiple Ways</a></td>
+    <td>AA</td>
+    <td>No automated rule exists; a person must check it</td>
+  </tr>
+  <tr class="no-automated-rule">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/headings-and-labels.html">2.4.6 Headings and Labels</a></td>
+    <td>AA</td>
+    <td>No automated rule exists; a person must check it</td>
+  </tr>
+  <tr class="no-automated-rule">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/focus-visible.html">2.4.7 Focus Visible</a></td>
+    <td>AA</td>
+    <td>No automated rule exists; a person must check it</td>
+  </tr>
+  <tr class="no-automated-rule">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/focus-not-obscured-minimum.html">2.4.11 Focus Not Obscured (Minimum)</a></td>
+    <td>AA</td>
+    <td>No automated rule exists; a person must check it</td>
+  </tr>
+  <tr class="no-automated-rule">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/pointer-gestures.html">2.5.1 Pointer Gestures</a></td>
+    <td>A</td>
+    <td>No automated rule exists; a person must check it</td>
+  </tr>
+  <tr class="no-automated-rule">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/pointer-cancellation.html">2.5.2 Pointer Cancellation</a></td>
+    <td>A</td>
+    <td>No automated rule exists; a person must check it</td>
+  </tr>
+  <tr class="no-automated-rule">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/label-in-name.html">2.5.3 Label in Name</a></td>
+    <td>A</td>
+    <td>No automated rule exists; a person must check it</td>
+  </tr>
+  <tr class="no-automated-rule">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/motion-actuation.html">2.5.4 Motion Actuation</a></td>
+    <td>A</td>
+    <td>No automated rule exists; a person must check it</td>
+  </tr>
+  <tr class="no-automated-rule">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/dragging-movements.html">2.5.7 Dragging Movements</a></td>
+    <td>AA</td>
+    <td>No automated rule exists; a person must check it</td>
+  </tr>
+  <tr class="not-evaluated">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html">2.5.8 Target Size (Minimum)</a></td>
+    <td>AA</td>
+    <td>This engine could not evaluate it <em>(a real browser would answer this)</em></td>
+  </tr>
+  <tr class="evaluated">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/language-of-page.html">3.1.1 Language of Page</a></td>
+    <td>A</td>
+    <td>Evaluated</td>
+  </tr>
+  <tr class="nothing-to-check">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/language-of-parts.html">3.1.2 Language of Parts</a></td>
+    <td>AA</td>
+    <td>Rules ran and found nothing on this site to check</td>
+  </tr>
+  <tr class="no-automated-rule">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/on-focus.html">3.2.1 On Focus</a></td>
+    <td>A</td>
+    <td>No automated rule exists; a person must check it</td>
+  </tr>
+  <tr class="no-automated-rule">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/on-input.html">3.2.2 On Input</a></td>
+    <td>A</td>
+    <td>No automated rule exists; a person must check it</td>
+  </tr>
+  <tr class="no-automated-rule">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/consistent-navigation.html">3.2.3 Consistent Navigation</a></td>
+    <td>AA</td>
+    <td>No automated rule exists; a person must check it</td>
+  </tr>
+  <tr class="no-automated-rule">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/consistent-identification.html">3.2.4 Consistent Identification</a></td>
+    <td>AA</td>
+    <td>No automated rule exists; a person must check it</td>
+  </tr>
+  <tr class="no-automated-rule">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/consistent-help.html">3.2.6 Consistent Help</a></td>
+    <td>A</td>
+    <td>No automated rule exists; a person must check it</td>
+  </tr>
+  <tr class="no-automated-rule">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/error-identification.html">3.3.1 Error Identification</a></td>
+    <td>A</td>
+    <td>No automated rule exists; a person must check it</td>
+  </tr>
+  <tr class="nothing-to-check">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/labels-or-instructions.html">3.3.2 Labels or Instructions</a></td>
+    <td>A</td>
+    <td>Rules ran and found nothing on this site to check</td>
+  </tr>
+  <tr class="no-automated-rule">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/error-suggestion.html">3.3.3 Error Suggestion</a></td>
+    <td>AA</td>
+    <td>No automated rule exists; a person must check it</td>
+  </tr>
+  <tr class="no-automated-rule">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/error-prevention-legal-financial-data.html">3.3.4 Error Prevention (Legal, Financial, Data)</a></td>
+    <td>AA</td>
+    <td>No automated rule exists; a person must check it</td>
+  </tr>
+  <tr class="no-automated-rule">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/redundant-entry.html">3.3.7 Redundant Entry</a></td>
+    <td>A</td>
+    <td>No automated rule exists; a person must check it</td>
+  </tr>
+  <tr class="no-automated-rule">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/accessible-authentication-minimum.html">3.3.8 Accessible Authentication (Minimum)</a></td>
+    <td>AA</td>
+    <td>No automated rule exists; a person must check it</td>
+  </tr>
+  <tr class="evaluated">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/name-role-value.html">4.1.2 Name, Role, Value</a></td>
+    <td>A</td>
+    <td>Evaluated</td>
+  </tr>
+  <tr class="no-automated-rule">
+    <td><a href="https://www.w3.org/WAI/WCAG22/Understanding/status-messages.html">4.1.3 Status Messages</a></td>
+    <td>AA</td>
+    <td>No automated rule exists; a person must check it</td>
+  </tr>
+</tbody>
+</table>
+</div>
 <hr>
 <footer>
   <p>

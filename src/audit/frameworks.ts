@@ -45,6 +45,16 @@ export interface Framework {
    * is a real answer for this project rather than a consolation.
    */
   serves: boolean
+  /**
+   * What to run to get the site serving, for projects that never write HTML at
+   * all.
+   *
+   * A CMS has no build directory, so "no HTML found in ./dist" is not a
+   * misconfiguration to correct — there was never going to be any. `outputs` is
+   * empty for these, and this is what the advice names instead: the command
+   * that gets the site up, so `--url` has something to point at.
+   */
+  serveCommand?: string
 }
 
 /**
@@ -170,6 +180,75 @@ export const FRAMEWORKS: readonly Framework[] = [
     files: ['_config.yml'],
     outputs: ['_site'],
     serves: false,
+  },
+  // Everything below renders on a server and writes no browsable HTML to disk.
+  // They are identified by a file rather than a dependency because their
+  // package.json, where there is one, belongs to a theme's asset build and says
+  // nothing about the CMS around it — and they are ordered ahead of Vite for
+  // exactly that reason: a WordPress theme bundled with Vite is a WordPress
+  // site, and auditing the folder Vite filled would audit its stylesheets.
+  {
+    id: 'wordpress',
+    name: 'WordPress',
+    packages: [],
+    files: ['wp-config.php', 'wp-config-sample.php', 'wp-load.php'],
+    outputs: [],
+    serves: true,
+    serveCommand: 'wp-env start, ddev start, or whichever local stack this site uses',
+  },
+  {
+    id: 'typo3',
+    name: 'TYPO3',
+    packages: [],
+    files: ['typo3conf', 'public/typo3conf', 'typo3'],
+    outputs: [],
+    serves: true,
+    serveCommand: 'ddev start, or your usual local stack',
+  },
+  {
+    id: 'craft',
+    name: 'Craft CMS',
+    packages: [],
+    files: ['craft'],
+    outputs: [],
+    serves: true,
+    serveCommand: 'ddev start, or php craft serve',
+  },
+  {
+    id: 'laravel',
+    name: 'Laravel',
+    packages: [],
+    files: ['artisan'],
+    outputs: [],
+    serves: true,
+    serveCommand: 'php artisan serve',
+  },
+  {
+    id: 'symfony',
+    name: 'Symfony',
+    packages: [],
+    files: ['bin/console', 'symfony.lock'],
+    outputs: [],
+    serves: true,
+    serveCommand: 'symfony serve, or php -S localhost:8000 -t public',
+  },
+  {
+    id: 'rails',
+    name: 'Ruby on Rails',
+    packages: [],
+    files: ['bin/rails', 'config.ru'],
+    outputs: [],
+    serves: true,
+    serveCommand: 'bin/rails server',
+  },
+  {
+    id: 'django',
+    name: 'Django',
+    packages: [],
+    files: ['manage.py'],
+    outputs: [],
+    serves: true,
+    serveCommand: 'python manage.py runserver',
   },
   {
     id: 'vite',

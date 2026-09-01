@@ -8,6 +8,7 @@ import {
   FRAMEWORKS,
   outputFromConfig,
 } from '../../src/audit/frameworks.ts'
+import { readPackageJson } from '../../src/audit/project.ts'
 
 const dirs: string[] = []
 
@@ -29,9 +30,15 @@ const pkg = (deps: Record<string, string>, dev = true): Record<string, unknown> 
   dev ? { devDependencies: deps } : { dependencies: deps }
 
 describe('the registry itself', () => {
-  it('gives every framework at least one output directory', () => {
+  it('gives every framework somewhere to audit: an output directory, or a server', () => {
+    // The rule the old invariant was reaching for. An entry with no outputs is
+    // a CMS, and it earns that only by being able to serve the pages instead —
+    // otherwise it is an entry that can be detected and never acted on, which
+    // would leave the advice naming a directory that does not exist.
     for (const framework of FRAMEWORKS) {
-      expect(framework.outputs.length, framework.id).toBeGreaterThan(0)
+      if (framework.outputs.length > 0) continue
+      expect(framework.serves, framework.id).toBe(true)
+      expect(framework.serveCommand, framework.id).toBeTruthy()
     }
   })
 
@@ -176,5 +183,49 @@ describe('candidateOutputs', () => {
     const candidates = await candidateOutputs(await project(), pkg({ astro: '5.0.0' }))
 
     expect(new Set(candidates).size).toBe(candidates.length)
+  })
+})
+
+describe('projects that render on a server and write no HTML', () => {
+  it.each([
+    ['wordpress', 'WordPress', 'wp-config.php'],
+    ['typo3', 'TYPO3', 'typo3conf/.keep'],
+    ['craft', 'Craft CMS', 'craft'],
+    ['laravel', 'Laravel', 'artisan'],
+    ['symfony', 'Symfony', 'symfony.lock'],
+    ['rails', 'Ruby on Rails', 'config.ru'],
+    ['django', 'Django', 'manage.py'],
+  ])('recognises %s by a file rather than a dependency', async (id, name, file) => {
+    // Their package.json, where there is one, belongs to a theme's asset build
+    // and says nothing about the CMS around it.
+    const dir = await project({ [file]: '' })
+
+    const detected = await detectFramework(dir, await readPackageJson(dir))
+
+    expect(detected?.framework.id).toBe(id)
+    expect(detected?.framework.name).toBe(name)
+  })
+
+  it('has no build output to name, and says how to serve instead', async () => {
+    const dir = await project({ artisan: '' })
+
+    const detected = await detectFramework(dir, undefined)
+
+    expect(detected?.framework.outputs).toEqual([])
+    expect(detected?.framework.serves).toBe(true)
+    expect(detected?.framework.serveCommand).toContain('artisan serve')
+  })
+
+  it('beats a bundler in the theme, because the site is the CMS', async () => {
+    // A WordPress theme built with Vite is a WordPress site; auditing the
+    // folder Vite filled would audit its stylesheets.
+    const dir = await project({
+      'wp-config.php': '',
+      'package.json': JSON.stringify({ devDependencies: { vite: '5.0.0' } }),
+    })
+
+    const detected = await detectFramework(dir, await readPackageJson(dir))
+
+    expect(detected?.framework.id).toBe('wordpress')
   })
 })

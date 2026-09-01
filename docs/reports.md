@@ -66,6 +66,43 @@ A complete generated document is checked in at
     "accepted": 0                               // violating elements a --baseline accepted
   },
 
+  // What the run measured, and what it never reached. "summary" counts the
+  // pages that were audited; this says whether those were all the pages there
+  // are. Read "complete" before drawing any conclusion from the counts above.
+  "completeness": {
+    "complete": true,                           // false when anything went unmeasured
+    "discovery": "directory",                   // "directory" | "sitemap" | "links"
+    "collected": 5,                             // pages handed to the engine
+    "audited": 5,                               // pages that reached a verdict
+    "errored": 0,                               // collected, then could not be audited
+    "truncated": false,                         // stopped at --max-pages
+    "unreachable": [                            // known pages never collected
+      // { "location": "https://example.com/pricing", "reason": "HTTP 404" }
+    ]
+  },
+
+  // How much of WCAG this run could reach. The four counts partition the 55
+  // WCAG 2.2 A/AA criteria exactly once and must NEVER be summed into a ratio.
+  "coverage": {
+    "total": 55,                                // WCAG 2.2 criteria at A and AA
+    "evaluated": 6,                             // a rule reached a verdict here
+    "notEvaluated": 5,                          // a rule exists; this engine is blind
+    "nothingToCheck": 10,                       // rules ran, nothing on the site matched
+    "noAutomatedRule": 34,                      // nothing can check it; a person must
+    "browserWouldAnswer": 4,                    // of notEvaluated, how many --browser answers
+    "criteria": [
+      {
+        "number": "1.1.1",
+        "title": "Non-text Content",
+        "level": "A",                           // "A" | "AA"
+        "status": "evaluated",                  // evaluated | not-evaluated
+                                                // | nothing-to-check | no-automated-rule
+        "rules": ["image-alt"],                 // keys into "rules"
+        "browserWouldAnswer": false
+      }
+    ]
+  },
+
   // Rule metadata is held once here and referenced by id everywhere else.
   // Sorted by rule id.
   "rules": {
@@ -89,7 +126,8 @@ A complete generated document is checked in at
             {
               "html": "<img src=\"/logo.svg\">",
               "target": ["img"],                // CSS selector path
-              "failureSummary": "Fix any of the following: …"   // or null
+              "failureSummary": "Fix any of the following: …",  // or null
+              "fingerprint": "9f2a1c4e8b7d0356"   // stable identity of this element
             }
           ]
         }
@@ -128,6 +166,97 @@ under version 1, so no report shape that version could already produce has chang
 the version has not moved.
 
 Read `source` in new code. `directory` is kept for consumers written against version 1.
+
+### `completeness`
+
+Every other number in the document describes the pages that were audited. None of them
+describes the pages that were not, and that is the one thing a consumer cannot work out
+for itself: a crawl that fetched twelve pages of a two-hundred-page site and a complete
+run over twelve pages produce identical summaries.
+
+So `completeness` carries what the collection stage knew. `complete` is true only when
+nothing was left unmeasured — no page unreachable, none errored, and the run did not stop
+at its limit. A tool deciding whether a clean report means anything should read it first.
+
+`errored` and `unreachable` are counted apart on purpose. An unreachable page was never
+fetched; an errored one was fetched and then could not be audited. They are different
+failures with different fixes, and summing them would name neither.
+
+`completeness` was added after `schemaVersion` 1 and does not move it: new fields may
+appear without a bump, and consumers must ignore what they do not recognise. A consumer
+written against version 1 that has never seen this field should treat its absence as
+unknown rather than as a complete run.
+
+### `fingerprint`
+
+Each node carries the same identity the baseline file records and SARIF sends as a partial
+fingerprint: a hash of the rule, the selector and the element's own markup, and deliberately
+not of the page it was found on. Two consumers already depended on it agreeing — SARIF, so
+that moving a page does not close one code-scanning alert and open an identical one, and
+the baseline, so an accepted violation stays accepted when the surrounding page changes.
+
+It is emitted so a third does not have to reimplement the hash and risk disagreeing with
+them. `eaa-kit diff` matches on it.
+
+### `coverage`
+
+The denominator is the standard, not your markup. WCAG 2.2 has 55 success criteria at
+Levels A and AA; axe-core has rules touching 23 of them, and the rest cannot be checked by
+any automated engine at all.
+
+Do not divide these. `noAutomatedRule` is the majority of WCAG, so any ratio built from
+these counts would present a limit of automated testing as though it were a measurement of
+the site — which is the same mistake as adding `inapplicable` to `passes`, and the reason
+`nothingToCheck` is a bucket of its own rather than part of `evaluated`.
+
+`browserWouldAnswer` is the cost of the browserless engine as a number: how many of the
+`notEvaluated` criteria a `--browser` run would decide. The remainder need a person
+whatever engine runs.
+
+Added after `schemaVersion` 1 and does not move it.
+
+## Comparing two runs
+
+```bash
+eaa-kit diff before.json after.json
+```
+
+Neither report answers the question a review asks. Running the auditor on a branch prints
+everything wrong with the site; almost all of it was already there, and the two or three
+findings somebody introduced are somewhere in the middle of it.
+
+`diff` reads two JSON reports and sorts every violating element into four:
+
+| | |
+| --- | --- |
+| **new** | In the later run and not the earlier one |
+| **fixed** | In the earlier run, gone from the later one, on a page the later run audited |
+| **unchanged** | In both |
+| **not compared** | In the earlier run, on a page the later run never audited |
+
+That last one is the reason to trust the other three. A violation missing from the second
+run has two possible explanations — somebody fixed it, or nothing looked at that page — and
+they are not interchangeable. Reporting the second as *fixed* would turn a crawl that
+stopped early into a changelog of work nobody did. So a violation is called fixed only when
+the later run actually reached a verdict on the page it was on, and the rest are listed
+apart, with the pages named.
+
+Markup that changed counts as a different violation rather than the same one, which is the
+conservative reading: it avoids calling something fixed because its surroundings moved.
+
+`--fail-on` judges **new** violations only. A diff that failed on what was already there
+would be an audit with extra steps, and would go red on every branch of a site carrying any
+debt.
+
+| Code | Meaning |
+| --- | --- |
+| `0` | No new violations at or above `--fail-on` |
+| `1` | At least one |
+| `2` | A report could not be read |
+
+This is not a [baseline](baseline.md), and does not replace one. A baseline is a file
+somebody commits and maintains, and it answers *what have we agreed to live with*. A diff
+is stateless, needs no decision from anybody, and answers *what did this change do*.
 
 ## SARIF output
 
