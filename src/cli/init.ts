@@ -57,6 +57,10 @@ const COUNTRY_LOCALES: Record<Country, string> = {
   AT: 'de-AT',
   DE: 'de-DE',
   CH: 'de-CH',
+  ES: 'es-ES',
+  FR: 'fr-FR',
+  IT: 'it-IT',
+  NL: 'nl-NL',
 }
 
 /**

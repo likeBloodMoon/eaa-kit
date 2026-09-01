@@ -2,11 +2,18 @@ import { IMPACT_LEVELS } from '../audit/impact.ts'
 import * as s from '../schema.ts'
 
 /** Countries with their own supervisory body and statute text. */
-export const COUNTRIES = ['AT', 'DE', 'CH'] as const
+export const COUNTRIES = ['AT', 'DE', 'CH', 'ES', 'FR', 'IT', 'NL'] as const
 export type Country = (typeof COUNTRIES)[number]
 
-/** Languages a statement can be rendered in. */
-export const STATEMENT_LOCALES = ['de', 'en'] as const
+/**
+ * Languages a statement can be rendered in.
+ *
+ * Not every country has every one: a statement is a document under a particular
+ * legal regime, not a translation of a document under another, so each country
+ * has the language it is published in and English. `renderStatement` says which
+ * ones a country has when asked for one it does not.
+ */
+export const STATEMENT_LOCALES = ['de', 'en', 'es', 'fr', 'it', 'nl'] as const
 export type StatementLocale = (typeof STATEMENT_LOCALES)[number]
 
 /**

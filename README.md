@@ -46,9 +46,10 @@ export, Nuxt, SvelteKit, anything behind a CMS — are audited running instead:
 eaa-kit audit --url http://localhost:3000
 ```
 
-**Writes the statement.** A Barrierefreiheitserklärung from one config file, in German or
-English, as Markdown or HTML, naming the statute and supervisory body of Austria,
-Switzerland or Germany — and optionally listing the barriers a real audit found.
+**Writes the statement.** A Barrierefreiheitserklärung from one config file, as Markdown or
+HTML, naming the statute and supervisory body of Austria, Germany, Switzerland, Spain,
+France, Italy or the Netherlands — in that country's language or in English — and
+optionally listing the barriers a real audit found.
 
 ```bash
 eaa-kit statement --output src/content/a11y.md

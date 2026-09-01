@@ -10,7 +10,8 @@ import { SUPPORTED_REPORT_SCHEMA } from '../../src/statement/findings.ts'
  * Stands in for a country added to COUNTRIES before its template is written.
  * AT, CH and DE all have one, so the guard needs a country that does not.
  */
-const UNWRITTEN = 'FR' as Country
+/** A country in COUNTRIES whose templates nobody has written. There is none today. */
+const UNWRITTEN = 'JP' as Country
 
 const AUDIT_FIXTURE = path.join(import.meta.dirname, '../fixtures/statement/audit.json')
 
@@ -150,7 +151,7 @@ describe('runStatementCommand', () => {
     const { exitCode } = await runStatementCommand({ cwd: dir, country: UNWRITTEN })
 
     expect(exitCode).toBe(2)
-    expect(stderr.join('')).toContain('No statement template for fr.de')
+    expect(stderr.join('')).toContain('No statement template for jp.de')
     expect(stdout.join('')).toBe('')
   })
 })

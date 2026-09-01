@@ -1,7 +1,13 @@
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { Country, EaaConfig, KnownIssue, StatementLocale } from '../config/define.ts'
+import {
+  type Country,
+  type EaaConfig,
+  type KnownIssue,
+  STATEMENT_LOCALES,
+  type StatementLocale,
+} from '../config/define.ts'
 import { isDirectory } from '../fs.ts'
 import { standardsReference } from '../text.ts'
 import { StatementError } from './error.ts'
@@ -51,16 +57,23 @@ export async function renderStatement(
   const locale = options.locale ?? defaultLocale(config)
   const template = `${country.toLowerCase()}.${locale}`
 
-  const source = await loadTemplate(template)
+  const source = await loadTemplate(country, locale)
   const markdown = tidy(renderTemplate(source, buildScope(config, locale, options.audit)))
   const html = toHtmlDocument(markdown, { lang: locale, fallbackTitle: config.site.name })
 
   return { markdown, html, locale, country, template }
 }
 
-/** A German-language site gets a German statement unless told otherwise. */
+/**
+ * A site gets its statement in its own language where there is one for it.
+ *
+ * From `site.locale`, which is a BCP 47 tag: `de-AT` and `de` both mean the
+ * German document. English is the fallback because every country has an English
+ * template, being the language a statement is most often also published in.
+ */
 function defaultLocale(config: EaaConfig): StatementLocale {
-  return config.site.locale.toLowerCase().startsWith('de') ? 'de' : 'en'
+  const language = config.site.locale.toLowerCase().split('-')[0]
+  return STATEMENT_LOCALES.find((candidate) => candidate === language) ?? 'en'
 }
 
 /**
@@ -184,6 +197,23 @@ function reasonScope(reason: KnownIssue['reason']): TemplateScope {
 }
 
 /**
+ * Where each statement language formats its dates.
+ *
+ * A region is named for every one, because a bare language tag leaves the
+ * format to whatever ICU picks: `de` is de-DE, and this tool's German documents
+ * have always been dated the Austrian way. `en-GB` for the same reason —
+ * 20 August 2026, not August 20, 2026, in a European legal document.
+ */
+const DATE_LOCALES: Record<StatementLocale, string> = {
+  de: 'de-AT',
+  en: 'en-GB',
+  es: 'es-ES',
+  fr: 'fr-FR',
+  it: 'it-IT',
+  nl: 'nl-NL',
+}
+
+/**
  * 2026-08-20 becomes 20. August 2026 or 20 August 2026.
  *
  * Every date reaching this has been through a schema that checks it, so the
@@ -196,7 +226,7 @@ function formatDate(iso: string, locale: StatementLocale): string {
   const date = new Date(`${iso}T00:00:00Z`)
   if (Number.isNaN(date.getTime())) return iso
 
-  return new Intl.DateTimeFormat(locale === 'de' ? 'de-AT' : 'en-GB', {
+  return new Intl.DateTimeFormat(DATE_LOCALES[locale], {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
@@ -218,20 +248,38 @@ function tidy(markdown: string): string {
 
 let templateDirectory: string | undefined
 
-async function loadTemplate(name: string): Promise<string> {
+/**
+ * The document for a country in a language, if there is one.
+ *
+ * The matrix is deliberately sparse: a country's statement is written under its
+ * own law and published in the language the law is administered in, plus
+ * English. Asking for a combination nobody wrote is an error naming the
+ * languages that country does have — not a fall back to another language, which
+ * would hand somebody a document in a language their readers may not have and
+ * do it quietly.
+ */
+async function loadTemplate(country: Country, locale: StatementLocale): Promise<string> {
   templateDirectory ??= await findTemplateDirectory()
   const directory = templateDirectory
+  const name = `${country.toLowerCase()}.${locale}`
   const file = path.join(directory, `${name}.md`)
 
   try {
     return await readFile(file, 'utf8')
   } catch {
-    const available = (await readdir(directory))
+    const templates = (await readdir(directory))
       .filter((entry) => entry.endsWith('.md'))
       .map((entry) => entry.replace(/\.md$/, ''))
       .sort()
+    const prefix = `${country.toLowerCase()}.`
+    const forCountry = templates
+      .filter((entry) => entry.startsWith(prefix))
+      .map((entry) => entry.slice(prefix.length))
+
     throw new StatementError(
-      `No statement template for ${name}. Available: ${available.join(', ')}`,
+      forCountry.length > 0
+        ? `No ${country} statement in ${locale}. ${country} has: ${forCountry.join(', ')}`
+        : `No statement template for ${name}. Available: ${templates.join(', ')}`,
     )
   }
 }
