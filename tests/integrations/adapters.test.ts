@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import eaaKitDocusaurus, { type PostBuildProps } from '../../src/docusaurus/index.ts'
 import eaaKitEleventy, { type EleventyAfterEvent } from '../../src/eleventy/index.ts'
 import { BuildAuditError } from '../../src/integration/run.ts'
-import eaaKitNuxt, { type NuxtLike } from '../../src/nuxt/index.ts'
+import eaaKitNuxt, { type NitroLike, type NuxtLike } from '../../src/nuxt/index.ts'
 import EaaKitWebpackPlugin, { type CompilerLike } from '../../src/webpack/index.ts'
 
 /**
@@ -174,56 +174,89 @@ describe('the webpack plugin', () => {
 })
 
 describe('the Nuxt module', () => {
-  function nuxt(publicDir: string | undefined, rootDir?: string) {
-    const handlers = new Map<string, () => Promise<void>>()
-    const instance: NuxtLike = {
-      options: {
-        ...(rootDir === undefined ? {} : { rootDir }),
-        nitro: publicDir === undefined ? {} : { output: { publicDir } },
+  /**
+   * Shaped like what a real build hands over, which a real `nuxt generate`
+   * verifies in tests/nuxt/build.test.ts. These cover the branches quickly;
+   * that suite is what keeps this stand-in honest.
+   */
+  function nuxt(publicDir: string | undefined, isStatic: boolean, rootDir?: string) {
+    const closers: Array<() => Promise<void>> = []
+    let init: ((nitro: NitroLike) => void) | undefined
+    const instance = {
+      options: rootDir === undefined ? {} : { rootDir },
+      hook: (name: string, handler: unknown) => {
+        if (name === 'nitro:init') init = handler as (nitro: NitroLike) => void
+        else closers.push(handler as () => Promise<void>)
       },
-      hook: (name, handler) => void handlers.set(name, handler),
+    } as unknown as NuxtLike
+
+    return {
+      instance,
+      /** Nitro resolves the output onto its own instance, not onto nuxt.options. */
+      run: async () => {
+        init?.({
+          options: {
+            ...(publicDir === undefined ? {} : { output: { publicDir } }),
+            ...(isStatic ? { static: true } : {}),
+          },
+        })
+        return closers[0]?.()
+      },
+      closers,
     }
-    return { instance, run: async () => handlers.get('close')?.(), handlers }
   }
 
   it('registers on close, not on Vite finishing', async () => {
-    // Nuxt prerenders with Nitro after Vite is done, so a Vite hook would audit
-    // the build before the pages it exists to read had been written.
+    // Nitro prerenders after Vite is done: at build:done the public directory
+    // does not exist yet, and at close it holds every page.
     const output = await built(true)
-    const { instance, handlers } = nuxt(output)
+    const { instance, closers } = nuxt(output, true)
 
-    eaaKitModuleUnderTest(instance)
+    eaaKitNuxt({}, instance)
 
-    expect([...handlers.keys()]).toEqual(['close'])
+    expect(closers).toHaveLength(1)
   })
 
-  function eaaKitModuleUnderTest(instance: NuxtLike, options = {}): void {
-    eaaKitNuxt(options, instance)
-  }
-
-  it('audits what Nitro says it wrote', async () => {
+  it('audits the directory Nitro reports', async () => {
     const output = await built(true)
-    const { instance, run } = nuxt(output)
-    eaaKitModuleUnderTest(instance)
+    const { instance, run } = nuxt(output, true)
+    eaaKitNuxt({}, instance)
 
     await expect(run()).resolves.toBeUndefined()
   }, 60_000)
 
-  it('refuses to pass a server build that prerendered nothing', async () => {
-    // `nuxt build` writes a server, not browsable HTML. Auditing nothing and
-    // reporting success is the worst outcome available here.
-    const { instance, run } = nuxt(undefined)
-    eaaKitModuleUnderTest(instance)
+  it('fails the build on a violation at or above the threshold', async () => {
+    const output = await built(false)
+    const { instance, run } = nuxt(output, true)
+    eaaKitNuxt({ failOn: 'critical' }, instance)
 
-    await expect(run()).rejects.toThrow(/nothing to audit/)
+    await expect(run()).rejects.toThrow(BuildAuditError)
+  }, 60_000)
+
+  it('refuses to pass a server build, which prerendered nothing', async () => {
+    // `nuxt build` leaves .output/public full of assets and no page. Auditing
+    // it would find nothing and report success.
+    const output = await built(true)
+    const { instance, run } = nuxt(output, false)
+    eaaKitNuxt({}, instance)
+
+    await expect(run()).rejects.toThrow(/server build/)
   })
 
-  it('can be told a server build is expected', async () => {
-    const { instance, run } = nuxt(undefined)
-    eaaKitModuleUnderTest(instance, { allowServerBuild: true })
+  it('stands down where a server build is expected', async () => {
+    const { instance, run } = nuxt(undefined, false)
+    eaaKitNuxt({ allowServerBuild: true }, instance)
 
     await expect(run()).resolves.toBeUndefined()
   })
+
+  it('takes an explicit directory as somebody saying where the pages are', async () => {
+    const output = await built(true)
+    const { instance, run } = nuxt(undefined, false)
+    eaaKitNuxt({ directory: output }, instance)
+
+    await expect(run()).resolves.toBeUndefined()
+  }, 60_000)
 
   it('does nothing when called without a Nuxt instance', () => {
     expect(() => eaaKitNuxt({})).not.toThrow()

@@ -1,6 +1,6 @@
 {
   "name": "eaa-kit",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "WCAG 2.2 AA auditor and EU accessibility statement generator (EAA / BFSG / BaFG). Audits a static build or a running site from the command line.",
   "type": "module",
   "license": "MIT",
@@ -78,8 +78,8 @@
     "test:packaged": "pnpm build && node scripts/test-packaged.mjs"
   },
   "peerDependencies": {
-    "playwright": ">=1.40.0",
-    "astro": ">=4.0.0"
+    "astro": ">=4.0.0",
+    "playwright": ">=1.40.0"
   },
   "peerDependenciesMeta": {
     "playwright": {
@@ -103,6 +103,7 @@
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
     "astro": "^7.2.9",
+    "nuxt": "^4.5.2",
     "playwright": "^1.62.1",
     "tsdown": "^0.22.14",
     "typescript": "^7.0.2",

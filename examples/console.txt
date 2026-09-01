@@ -8,8 +8,9 @@ Issues
       Images must have alternative text
       A screen reader announces this image by its filename, or skips it
       entirely.
-      Fix: Astro's <Image /> requires alt. Give it one describing what the
-      image conveys, or alt="" where it repeats adjacent text.
+      Fix: Add alt text describing what the image conveys. If it is decorative
+      and repeats adjacent text, use alt="" so it is skipped deliberately
+      rather than by accident.
       → <img src="/assets/logo.svg" alt="What this image shows">
       <img src="/assets/logo.svg">
         on 1 page:
@@ -20,8 +21,8 @@ Issues
       A screen reader reads the page in whatever language it defaults to, so
       German content is read with English pronunciation rules and is close to
       unintelligible.
-      Fix: Set lang on the <html> element in your layout under src/layouts,
-      not in the individual page.
+      Fix: Set app.head.htmlAttrs.lang in nuxt.config.ts, or call useHead({
+      htmlAttrs: { lang: 'de' } }) in app.vue.
       → <html lang="de">
       <html><head> <title>Startseite</title> </head> <body> <img src="/assets/l…
         on 1 page:
@@ -31,8 +32,8 @@ Issues
       Links must have discernible text
       A screen reader announces this as "link" with nothing after it, so where
       it goes is unknowable without following it.
-      Fix: Give the link text. Where the design calls for an icon alone, keep
-      the visible icon and add a visually hidden label or an aria-label.
+      Fix: Give the <NuxtLink> content, or an aria-label where it renders an
+      icon alone.
       → <a href="/about/">Where this link goes</a>
       <a href="/about/"></a>
         on 1 page:

@@ -9,7 +9,7 @@ move: the JSON report's `schemaVersion` and the baseline file's. Both are bumped
 a field is removed, renamed, or changes meaning — new fields may appear without one, so
 consumers must ignore what they do not recognise.
 
-## Unreleased
+## 0.4.0 — 2026-09-01
 
 ### Added
 
@@ -145,6 +145,16 @@ consumers must ignore what they do not recognise.
   rather than a silent fall back to a crawl that covers less.
 
 ### Fixed
+
+- **The Nuxt module read a value that is undefined in every build.** It took the output
+  directory from `nuxt.options.nitro.output.publicDir`, which Nuxt never populates — Nitro
+  resolves it onto its own instance instead. The module would have refused every build,
+  including a successful `nuxt generate`, with "there was nothing to audit". Its unit test
+  agreed with the bug, because a hand-written stand-in only ever confirms what its author
+  assumed. It is now driven by a real `nuxt generate` and a real `nuxt build`, as the Astro
+  integration already was, and reads the directory from `nitro:init` where it actually
+  lives. The timing claim the module rests on survived that check: at `build:done` the
+  public directory does not exist, and by `close` it holds every prerendered page.
 
 - **A criterion with one unevaluable rule among several read as "nothing to check".** WCAG
   2.1.1 Keyboard is the only criterion whose rules are mixed: `scrollable-region-focusable`

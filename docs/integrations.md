@@ -122,31 +122,24 @@ export default defineNuxtConfig({
 })
 ```
 
-Nuxt builds on Vite, so [the Vite plugin](#vite-plugin) already works in a Nuxt project.
-This module exists for the two things it cannot get right on its own.
+Nuxt builds on Vite, so [the Vite plugin](#vite-plugin) already runs in a Nuxt project.
+This module exists because it runs at the wrong moment and against the wrong directory.
+All three points below were measured against a real `nuxt generate`, which drives this
+module in the test suite.
 
-**When.** Vite's `closeBundle` fires when Vite has finished, and in Nuxt that is well before
-Nitro has prerendered anything — the pages the audit exists to read are written afterwards,
-by a different part of the build. The module audits in `close`, the end of the whole thing.
+**When.** Vite's `closeBundle` fires when Vite has finished, and Nitro prerenders after
+that. At `build:done` the public directory does not exist at all; by `close` it holds every
+prerendered page. The module audits in `close`.
 
-**What.** `nuxt build` produces a server, not browsable HTML; only `nuxt generate` writes
-pages to `.output/public`. A run that prerendered nothing fails with that in words rather
-than passing an audit that read no pages, which would be the worst outcome available. Pass
-`allowServerBuild: true` where a server build is expected and the audit should stand down.
+**Where.** The output directory is not on `nuxt.options.nitro.output` — that is undefined
+throughout a build. Nitro resolves it onto its own instance, which reaches a module through
+the `nitro:init` hook.
 
-## Not Next.js
-
-There is deliberately no Next.js plugin. Next has no hook that fires after `output: 'export'`
-has written `out/` — webpack's compiler hooks all run before it — so a `withEaaKit()` wrapper
-would either audit nothing or audit the previous build, and a plugin that silently audits
-stale output is worse than none. Run it as a script instead:
-
-```json
-{ "scripts": { "build": "next build && eaa-kit audit ./out" } }
-```
-
-For a Next.js app that renders on a server and never exports, `--url` is the answer:
-`eaa-kit audit --url http://localhost:3000`.
+**What.** `nuxt build` produces a server: `.output/public` exists and holds assets with no
+page among them. Auditing it would find nothing and report success, which is the worst
+outcome available, so a server build is told what it is instead. Pass
+`allowServerBuild: true` where that is expected and the audit should stand down, or
+`directory` to name a path yourself.
 
 ## Vite plugin
 
@@ -258,6 +251,7 @@ watching is the wrong default for something whose job is to fail that build.
 | `base-url` | — | Audit pages under their real site URL |
 | `sarif-file` | `eaa-kit.sarif` | Where to write the SARIF log |
 | `upload-sarif` | `true` | Upload to GitHub code scanning |
+| `sitemap` | — | Where the site lists its pages, if not `/sitemap.xml`; with `url` only |
 | `baseline` | — | Path to a baseline file; fail only on violations it does not list |
 | `concurrency` | from page and core count | Worker threads for the browserless engine; `1` for none |
 | `version` | `latest` | Version of eaa-kit to run |

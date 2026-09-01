@@ -14,68 +14,100 @@ import {
  *     modules: [['eaa-kit/nuxt', { failOn: 'serious' }]],
  *   })
  *
- * Nuxt builds on Vite, so `eaa-kit/vite` already works in a Nuxt project. This
- * exists for the two things that plugin cannot get right on its own.
+ * Nuxt builds on Vite, so `eaa-kit/vite` already runs in a Nuxt project. This
+ * exists because it runs at the wrong moment and against the wrong directory,
+ * and both were measured rather than assumed — a real `nuxt generate` drives
+ * this in the tests, which is the only way to hold a claim about somebody
+ * else's lifecycle honestly.
  *
- * The first is *when*. Vite's `closeBundle` fires when Vite has finished, and in
- * Nuxt that is well before Nitro has prerendered anything: the pages the audit
- * exists to read are written after that, by a different part of the build. The
- * `close` hook is the end of the whole thing.
+ * **When.** Vite's `closeBundle` fires when Vite has finished, and Nitro
+ * prerenders after that. At `build:done` the public directory does not exist
+ * yet; at `close` it holds every prerendered page. So `close` it is.
  *
- * The second is *what*. `nuxt build` produces a server, not browsable HTML;
- * only `nuxt generate` writes pages to `.output/public`. Auditing nothing and
- * reporting success would be the worst outcome available, so a run that
- * prerendered no pages says so rather than passing.
+ * **Where.** The output directory is not on `nuxt.options.nitro.output` — that
+ * is undefined throughout. Nitro resolves it onto its own instance, which
+ * reaches a module through `nitro:init`, so the path is captured there and used
+ * once the build is over.
  *
- * Nuxt's types are described structurally rather than imported, for the same
- * reason as every other integration here.
+ * **What.** `nuxt build` produces a server: `.output/public` exists and holds
+ * assets with no page among them. Auditing it would find nothing and report
+ * success, which is the worst outcome available here, so a server build is told
+ * what it is instead. `nitro.options.static` is what separates the two.
  */
 
 export { BuildAuditError }
 
-/** The part of the resolved Nuxt options this reads. */
+/** The part of the Nitro instance this reads, handed over by `nitro:init`. */
+export interface NitroLike {
+  options: {
+    output?: { publicDir?: string }
+    /** True for `nuxt generate`; absent for a server build. */
+    static?: boolean
+  }
+}
+
 export interface NuxtOptionsLike {
   rootDir?: string
-  /** Set when the build is a static generate rather than a server build. */
-  _generate?: boolean
-  nitro?: { output?: { publicDir?: string } }
 }
 
 export interface NuxtLike {
   options: NuxtOptionsLike
+  hook(name: 'nitro:init', handler: (nitro: NitroLike) => void): void
   hook(name: 'close', handler: () => Promise<void>): void
 }
 
 export interface EaaKitNuxtOptions extends IntegrationOptions {
-  /** Directory to audit. Defaults to what Nitro says it wrote. */
+  /** Directory to audit. Defaults to the one Nitro says it wrote. */
   directory?: string
   /**
-   * Audit even when the build produced no browsable HTML. Off by default: a
-   * `nuxt build` writes a server, and silently passing an audit that read
-   * nothing is worse than saying there was nothing to read.
+   * Let a server build pass without auditing anything.
+   *
+   * Off by default: `nuxt build` writes no browsable HTML, and a silent pass
+   * over a directory with no pages in it is indistinguishable from a clean
+   * site.
    */
   allowServerBuild?: boolean
 }
 
 export default function eaaKitModule(options: EaaKitNuxtOptions = {}, nuxt?: NuxtLike): void {
   // Nuxt calls a module with (options, nuxt). Guarding rather than asserting,
-  // because a module invoked directly in a test or a script would otherwise
-  // fail with a property access on undefined.
+  // because a module invoked directly in a script would otherwise fail on a
+  // property access rather than doing nothing.
   if (nuxt === undefined) return
 
-  nuxt.hook('close', async () => {
-    const publicDir = options.directory ?? nuxt.options.nitro?.output?.publicDir
-    const root = nuxt.options.rootDir ?? process.cwd()
+  let publicDir: string | undefined
+  let prerendered = false
 
-    if (publicDir === undefined) {
+  nuxt.hook('nitro:init', (nitro: NitroLike) => {
+    publicDir = nitro.options.output?.publicDir
+    prerendered = nitro.options.static === true
+  })
+
+  nuxt.hook('close', async () => {
+    const directory = options.directory ?? publicDir
+
+    // An explicit directory is somebody saying where the pages are, so it is
+    // taken at face value; otherwise the build has to have prerendered some.
+    if (options.directory === undefined && !prerendered) {
       if (options.allowServerBuild === true) return
       throw new BuildAuditError(
-        'eaa-kit: this build wrote no public directory, so there was nothing to audit. ' +
-          'Run `nuxt generate` to prerender pages, or audit the running site with ' +
-          '`eaa-kit audit --url`.',
+        'eaa-kit: this was a server build, so no pages were written to disk and there ' +
+          'was nothing to audit. Run `nuxt generate` to prerender them, audit the ' +
+          'running site with `eaa-kit audit --url`, or set allowServerBuild to skip this.',
       )
     }
 
-    await auditBuild(path.resolve(root, publicDir), options, stderrLogger())
+    if (directory === undefined) {
+      throw new BuildAuditError(
+        'eaa-kit: Nitro reported no public directory, so there is no path to audit. ' +
+          'Pass `directory` to the module to name one.',
+      )
+    }
+
+    await auditBuild(
+      path.resolve(nuxt.options.rootDir ?? process.cwd(), directory),
+      options,
+      stderrLogger(),
+    )
   })
 }

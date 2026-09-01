@@ -71,13 +71,47 @@ violation missing from a run that stopped early was not fixed by anybody.
 eaa-kit diff before.json after.json
 ```
 
+**Says what to do about it.** Not "images must have alternative text" and a link — who the
+barrier stops, what to change, and the corrected form of *your* markup, in your framework's
+idiom where that differs. Deterministic and offline: no model, no API key, nothing that
+could invent a fix that looks right and is not.
+
+```
+✗ image-alt critical, WCAG 1.1.1
+    A screen reader announces this image by its filename, or skips it entirely.
+    Fix: Add alt text describing what the image conveys…
+    → <img src="/assets/logo.svg" alt="What this image shows">
+    written in src/components/Header.astro:12
+```
+
+**Says how much of WCAG it could reach.** WCAG 2.2 has 55 success criteria at Levels A and
+AA. axe-core has rules touching 23 of them. Every run says so, and `--coverage` lists all
+55 with what this run reached on each — never as a percentage, because most of WCAG cannot
+be automated and a score would present that as a fact about your site.
+
+**Says what it did not measure.** A crawl that stopped at its page limit, or could not
+fetch forty URLs, no longer produces a report that looks like a complete one.
+
 **Reports in four shapes**: a console report for whoever ran it, JSON for other tools,
 SARIF for GitHub code scanning, and a self-contained HTML page for the client whose site
 it is.
 
-**Runs in your build**, as a [Vite plugin](docs/integrations.md#vite-plugin) — covering
-SvelteKit, Nuxt and Remix too — an [Astro integration](docs/integrations.md#astro-integration),
-or the bundled [GitHub Action](docs/integrations.md#github-actions).
+**Runs in your build**: a [Vite plugin](docs/integrations.md#vite-plugin) covering SvelteKit
+and Remix too, and integrations for
+[Astro](docs/integrations.md#astro-integration),
+[Nuxt](docs/integrations.md#nuxt-module),
+[Eleventy](docs/integrations.md#eleventy-plugin),
+[Docusaurus](docs/integrations.md#docusaurus-plugin) and
+[webpack](docs/integrations.md#webpack-plugin) — or the bundled
+[GitHub Action](docs/integrations.md#github-actions).
+
+**Audits what a CMS serves.** WordPress, TYPO3, Craft, Laravel, Symfony, Rails and Django
+write no HTML to disk, so eaa-kit names the command that gets the site running and audits
+that instead — following the site's own sitemap, wherever it keeps it.
+
+```bash
+eaa-kit audit --url http://localhost:8000 --sitemap /sitemap_index.xml
+```
 
 ## Documentation
 
@@ -87,6 +121,7 @@ or the bundled [GitHub Action](docs/integrations.md#github-actions).
 | [The statement command](docs/statement.md) | The config file, the three countries, and filling a statement from audit results |
 | [Baselines](docs/baseline.md) | Adopting the tool on a site that already has violations |
 | [Comparing two runs](docs/reports.md#comparing-two-runs) | The `diff` command, and what it refuses to call fixed |
+| [Coverage of WCAG](docs/audit.md#how-much-of-wcag-a-run-reaches) | What an automated engine can reach at all, and what it cannot |
 | [Report formats](docs/reports.md) | The JSON contract, SARIF, and the HTML report |
 | [Integrations](docs/integrations.md) | Astro and GitHub Actions |
 
@@ -100,7 +135,9 @@ The two things worth knowing before you rely on any of it:
 text is accurate, whether a page makes sense in reading order, or whether a form can
 actually be completed with a screen reader. A clean report means nothing was found by this
 engine, which is not the same as a site being accessible — and none of the four output
-formats will say otherwise on your behalf.
+formats will say otherwise on your behalf. This is not a disclaimer the tool leaves you to
+take on faith: it counts it. Of the 55 WCAG 2.2 A and AA criteria, 34 have no automated
+rule at all, and every report says so.
 
 **The browserless engine cannot decide everything.** jsdom has no layout, so rules that
 depend on rendering — colour contrast, target size, computed overflow — cannot be
