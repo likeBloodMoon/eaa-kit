@@ -208,13 +208,22 @@ export function buildCoverage(
       return { ...criterion, status: 'evaluated', rules, browserWouldAnswer: false }
     }
 
-    // No verdict. Either the engine is blind to every rule here, or the rules
-    // ran and matched nothing — which are different facts with different
-    // remedies, so they are not folded together.
+    // No verdict. Either the engine is blind to a rule here, or every rule ran
+    // and matched nothing — different facts with different remedies, so they
+    // are not folded together.
     const engineBlind = rules.filter(
       (rule) => blinded.has(rule) || ENGINE_BLIND_RULES[rule] !== undefined,
     )
-    if (engineBlind.length === rules.length) {
+
+    // One blind rule is enough. Requiring all of them was wrong on the one
+    // criterion where the rules are mixed: WCAG 2.1.1 Keyboard has
+    // scrollable-region-focusable, which needs computed overflow, alongside two
+    // this engine can see — so a page with no frames and no image maps reported
+    // 2.1.1 as "nothing to check" while the same report's rule listing said
+    // scrollable-region-focusable had reached no verdict. One document
+    // contradicting itself about a Level A criterion, and in the direction that
+    // understates the gap.
+    if (engineBlind.length > 0) {
       return {
         ...criterion,
         status: 'not-evaluated',

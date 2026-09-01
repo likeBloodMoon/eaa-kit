@@ -2,7 +2,13 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { DiffError, diffReports, readReport } from '../../src/audit/diff.ts'
+import {
+  DiffError,
+  diffReports,
+  readReport,
+  SUPPORTED_REPORT_SCHEMA,
+} from '../../src/audit/diff.ts'
+import { SCHEMA_VERSION } from '../../src/audit/report/json.ts'
 
 const dirs: string[] = []
 
@@ -188,5 +194,14 @@ describe('readReport', () => {
 
   it('names a file that is not there rather than throwing a system error', async () => {
     await expect(readReport('./nowhere.json')).rejects.toThrow(/Report not found/)
+  })
+})
+
+describe('the schema version it reads', () => {
+  it('is the version the report writer emits', () => {
+    // A third copy of this number, after json.ts and the statement reader.
+    // Nothing forced them to agree, so a bump to SCHEMA_VERSION would have left
+    // diff quietly refusing every report the tool now writes.
+    expect(SUPPORTED_REPORT_SCHEMA).toBe(SCHEMA_VERSION)
   })
 })

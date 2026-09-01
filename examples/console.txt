@@ -64,5 +64,5 @@ Not evaluated
 
   Of the 55 WCAG 2.2 A and AA success criteria, 34 cannot be checked by any
   automated engine and need a person. This run reached a verdict on 6.
-  --browser would answer 4 more criteria.
+  --browser would answer 5 more criteria.
   Run with --coverage for the criterion-by-criterion breakdown.

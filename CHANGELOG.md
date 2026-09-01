@@ -146,6 +146,17 @@ consumers must ignore what they do not recognise.
 
 ### Fixed
 
+- **A criterion with one unevaluable rule among several read as "nothing to check".** WCAG
+  2.1.1 Keyboard is the only criterion whose rules are mixed: `scrollable-region-focusable`
+  needs computed overflow, while `frame-focusable-content` and `server-side-image-map` are
+  DOM-determinable. Requiring every rule to be blind before reporting a criterion as
+  unevaluated meant a page with no frames and no image maps reported 2.1.1 as though the
+  rules had run cleanly — while the same report's rule listing said
+  `scrollable-region-focusable` had reached no verdict. One document contradicting itself
+  about a Level A criterion, in the direction that understates the gap: the browserless
+  engine's cost was reported one criterion lower than it is. A test now asserts the two
+  views cannot disagree.
+
 - **The bundled GitHub Action example pinned a version three releases old**, and the runnable
   copy of the workflow told readers to use a moving `@v0` tag that `docs/integrations.md`
   says on the same page does not and will not exist. The example and the documentation now

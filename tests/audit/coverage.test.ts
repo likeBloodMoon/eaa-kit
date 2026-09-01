@@ -99,6 +99,40 @@ describe('buildCoverage', () => {
     expect(focusOrder?.browserWouldAnswer).toBe(false)
   })
 
+  it('does not call a criterion "nothing to check" when a rule of it is unevaluable', () => {
+    // WCAG 2.1.1 Keyboard is the one criterion with mixed rules:
+    // scrollable-region-focusable needs computed overflow, while
+    // frame-focusable-content and server-side-image-map are DOM-determinable.
+    // Requiring every rule to be blind reported 2.1.1 as "nothing to check"
+    // while the same report's rule listing said scrollable-region-focusable had
+    // reached no verdict — one document contradicting itself, in the direction
+    // that understates the gap.
+    const keyboard = coverage.criteria.find((criterion) => criterion.number === '2.1.1')
+
+    expect(keyboard?.rules).toContain('scrollable-region-focusable')
+    expect(keyboard?.rules.length).toBeGreaterThan(1)
+    expect(keyboard?.status).toBe('not-evaluated')
+  })
+
+  it('agrees with the rule-level report about which rules reached no verdict', () => {
+    // The two views are built from the same run and must not disagree: every
+    // criterion carrying a rule this engine could not evaluate, and no verdict
+    // of its own, has to read as unevaluated in both.
+    const unevaluated = new Set<string>()
+    for (const audit of audits) {
+      for (const finding of audit.incomplete) {
+        if (finding.reason !== 'engine-limitation') continue
+        for (const criterion of finding.successCriteria) unevaluated.add(criterion)
+      }
+    }
+
+    const contradicted = coverage.criteria.filter(
+      (criterion) => unevaluated.has(criterion.number) && criterion.status === 'nothing-to-check',
+    )
+
+    expect(contradicted.map((criterion) => criterion.number)).toEqual([])
+  })
+
   it('never claims a browser would answer a criterion no rule covers', () => {
     for (const criterion of coverage.criteria) {
       if (criterion.status === 'no-automated-rule') {

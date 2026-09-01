@@ -243,13 +243,13 @@
         "number": "2.1.1",
         "title": "Keyboard",
         "level": "A",
-        "status": "nothing-to-check",
+        "status": "not-evaluated",
         "rules": [
           "frame-focusable-content",
           "scrollable-region-focusable",
           "server-side-image-map"
         ],
-        "browserWouldAnswer": false
+        "browserWouldAnswer": true
       },
       {
         "number": "2.1.2",
@@ -577,10 +577,10 @@
       }
     ],
     "evaluated": 6,
-    "notEvaluated": 5,
-    "nothingToCheck": 10,
+    "notEvaluated": 6,
+    "nothingToCheck": 9,
     "noAutomatedRule": 34,
-    "browserWouldAnswer": 4,
+    "browserWouldAnswer": 5,
     "total": 55
   },
   "rules": {
