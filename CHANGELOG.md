@@ -81,6 +81,92 @@ consumers must ignore what they do not recognise.
   Re-record a baseline with `eaa-kit baseline`, and read the new file before committing it:
   it lists what this run found, which is not necessarily what the old one accepted.
 
+## Unreleased
+
+### Fixed
+
+- **The per-page timeout could not stop the thing it was written for.** It is a
+  `Promise.race`, and a race cannot interrupt synchronous work: neither jsdom's parse nor
+  axe-core's walk of the tree yields, so the timer meant to stop them never gets to run.
+  Measured on a 120,000-element document with a two-second ceiling, the audit was still
+  going more than ten minutes later — and because the pool waits on its workers, the whole
+  run went with it. A CI job hung until the platform killed it, which is the failure the
+  ceiling exists to prevent.
+
+  The pool supervisor now keeps its own deadline per page and terminates the thread that
+  overruns it, which is the only thing that stops synchronous work. The page is recorded as
+  unaudited rather than left looking clean, and the surviving workers carry the rest of the
+  run. Two configurations still have no hard ceiling because both refuse the threads that
+  would carry one — `--concurrency 1`, and a machine with too few cores to spare one — and
+  that is now documented rather than implied.
+
+- **Nothing capped the size of an input.** `readFile` and `response.text()` both buffer
+  whatever they are given, so a generated catalogue, a database export carrying an `.html`
+  extension, or a server that does not stop sending was an out-of-memory crash rather than
+  a report — taking every finding on every page that was fine with it. Both paths now cap
+  at 32 MB, and an over-size page is reported as unmeasured through the channel that
+  already exists for pages a run could not read.
+
+- **`robots.txt` and `sitemap.xml` were fetched with no timeout**, while every other
+  request had one. They are fetched before any page is, so a server that accepts the
+  connection and never answers left the crawl waiting before it had reported a single page.
+  They now share the request timeout, refuse a redirect that leaves the origin as
+  `fetchPage` already does, and are capped like any other body.
+
+### Changed
+
+- **`--browser` audits four pages at once instead of one.** This runner took pages strictly
+  one at a time while the browserless one had a whole measured worker pool, which had it
+  backwards: the browser is the slow engine, and it spends most of a page waiting on the
+  stylesheets and images it fetches rather than on the CPU. Over 24 pages of a styled site,
+  17.9 s became 7.7 s. `--concurrency` now sets this too — threads without `--browser`,
+  open tabs with it — and its help text says so. Four is the default because each open page
+  holds a document tree, its decoded images and its own copy of axe-core, so Chromium's
+  memory is the limit rather than cores. Results are placed by position rather than pushed
+  as they arrive, and a test asserts that runs at 1, 4 and 8 tabs produce the same report
+  page for page.
+
+- **A run with nothing to fix no longer reads the project's source.** The component index
+  exists to answer one question — which file a failing element was written in — and a clean
+  run never asks it, but it was built anyway before either report rendered. Measured on a
+  1500-file project auditing one clean page: ~450 ms and ~20 MB spent on lookups that never
+  happened, scaling with the source tree rather than with anything the run did. It is now
+  built only when there is an element to attribute.
+
+- The per-page timeout constant moved to `result.ts` so the worker pool can read it without
+  pulling 630 ms of jsdom into a module that deliberately avoids it — the same move
+  `ENGINE_BLIND_RULES` already made.
+
+## Unreleased
+
+### Added
+
+- **`--fast`**, which skips the rules the browserless engine cannot decide rather than
+  running them and discarding the answer. Colour contrast is computed against a stylesheet
+  jsdom never fetched and target size against boxes that are all 0x0; both verdicts are
+  thrown away as untrustworthy, and the work to produce them is not cheap — colour contrast
+  is the most expensive rule axe-core has. Skipping the set is 14-19% of a page and 8-10%
+  of a whole run once start-up is counted.
+
+  The verdict does not move. Every skipped rule is still reported as not evaluated with the
+  same reason, no skipped rule ever becomes a pass, and the coverage view is
+  criterion-for-criterion identical — all three asserted. What is given up is the element
+  list: a rule that ran can name the elements it could not decide, which are the ones a
+  person then checks by hand, and a rule that never ran cannot. That is the whole of the
+  trade, which is why it is a flag and not the default. No effect under `--browser`, which
+  can decide those rules for real, and it says so rather than ignoring the flag quietly.
+
+### Changed
+
+- **Compiled bytecode is reused between runs.** Importing jsdom is ~700 ms and axe-core
+  another ~130 ms to import and compile, and V8 paid to compile both from source on every
+  invocation of a CLI that build scripts run over and over against unchanged code. Node's
+  compile cache is enabled in the CLI entry and again in the audit worker, since the cache
+  is per-thread and each worker compiles its own copy. A one-page audit goes 1397 ms to
+  1256 ms; a fifty-page one is unchanged, which is the expected shape for a fixed cost.
+  Best-effort: a read-only or sandboxed cache directory makes a run slightly slower and
+  nothing else.
+
 ## 0.4.0 — 2026-09-01
 
 ### Added

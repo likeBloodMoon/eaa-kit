@@ -41,7 +41,16 @@ export interface EngineOptions {
   timeoutMs?: number
   /** Audit in real Chromium instead of jsdom. Needs the playwright peer. */
   browser?: boolean
-  /** Worker threads for the browserless engine. */
+  /**
+   * Skip the rules the browserless engine cannot decide rather than running
+   * them and discarding the answer. No effect under `--browser`, which can
+   * decide them.
+   */
+  fast?: boolean
+  /**
+   * Pages audited at once: worker threads for the browserless engine, open
+   * tabs for the browser one. 1 turns both off.
+   */
   concurrency?: number
   /** Build directory to serve the pages from, or undefined for crawled pages. */
   directory?: string
@@ -70,6 +79,7 @@ export async function runEngine(
     const { runPooledAudit } = await import('../audit/runners/pool.ts')
     return runPooledAudit(pages, {
       ...runnerOptions,
+      ...(options.fast ? { fast: true } : {}),
       ...(options.concurrency === undefined ? {} : { concurrency: options.concurrency }),
     })
   }
@@ -78,7 +88,10 @@ export async function runEngine(
     '../audit/runners/playwright.ts'
   )
   try {
-    return await runBrowserAudit(options.directory, pages, runnerOptions)
+    return await runBrowserAudit(options.directory, pages, {
+      ...runnerOptions,
+      ...(options.concurrency === undefined ? {} : { concurrency: options.concurrency }),
+    })
   } catch (cause) {
     if (cause instanceof BrowserUnavailableError) {
       fail(cause.message)

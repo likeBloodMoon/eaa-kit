@@ -143,6 +143,88 @@ describe('runBrowserAudit', () => {
   }, 120_000)
 })
 
+describe('auditing several pages at once', () => {
+  /**
+   * This runner used to take pages strictly one at a time while the browserless
+   * one had a whole measured worker pool — backwards, since the browser is the
+   * slow engine and spends most of a page waiting on the stylesheets and images
+   * it fetches rather than on the CPU. Measured over 24 pages: 17.9 s serial
+   * against 7.7 s across four.
+   *
+   * What must not change is the report. The pages finish in whatever order the
+   * server answers them, and two runs of one build have to produce the same
+   * document, so results are placed by position rather than pushed as they
+   * arrive.
+   */
+  async function manyPages(): Promise<string> {
+    const dir = await mkdtemp(path.join(tmpdir(), 'eaa-kit-lanes-'))
+    await mkdir(path.join(dir, 'assets'), { recursive: true })
+    await writeFile(path.join(dir, 'assets', 'site.css'), STYLES, 'utf8')
+    for (let index = 0; index < 6; index += 1) {
+      await writeFile(
+        path.join(dir, `page-${index}.html`),
+        PAGE.replace('<title>Kontrast</title>', `<title>Seite ${index}</title>`).replace(
+          '<h1>Überschrift</h1>',
+          `<h1>Seite ${index}</h1><img src="/missing-${index}.png">`,
+        ),
+        'utf8',
+      )
+    }
+    return dir
+  }
+
+  it('reports the same thing across lanes as it does one at a time', async () => {
+    const dir = await manyPages()
+    try {
+      const pages = await collectPages(dir)
+
+      const serial = await runBrowserAudit(dir, pages, { concurrency: 1 })
+      const parallel = await runBrowserAudit(dir, pages, { concurrency: 4 })
+
+      const shape = (audits: PageAudit[]) =>
+        audits.map((audit) => ({
+          path: audit.relativePath,
+          violations: audit.violations.map((finding) => finding.ruleId).sort(),
+          error: audit.error,
+        }))
+
+      expect(shape(parallel)).toEqual(shape(serial))
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  }, 180_000)
+
+  it('keeps the pages in the order they were given', async () => {
+    // Placed by position, not pushed on completion: the lanes finish out of
+    // order and a report whose page order moved between runs would make every
+    // diff of it noise.
+    const dir = await manyPages()
+    try {
+      const pages = await collectPages(dir)
+
+      const audits = await runBrowserAudit(dir, pages, { concurrency: 4 })
+
+      expect(audits.map((audit) => audit.relativePath)).toEqual(
+        pages.map((page) => page.relativePath),
+      )
+      expect(audits.every((audit) => audit.error === undefined)).toBe(true)
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  }, 180_000)
+
+  it('never opens more lanes than there are pages', async () => {
+    // A single page asked for four lanes would open three tabs with nothing to
+    // put in them.
+    const pages = await collectPages(directory)
+
+    const audits = await runBrowserAudit(directory, pages, { concurrency: 8 })
+
+    expect(audits).toHaveLength(pages.length)
+    expect(audits[0]?.error).toBeUndefined()
+  }, 180_000)
+})
+
 describe('audit --browser, end to end', () => {
   /**
    * The headline invocation: no directory argument, so auto-detection finds the

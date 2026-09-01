@@ -35,6 +35,23 @@ async function repeated(count: number): Promise<CollectedPage[]> {
   }))
 }
 
+/**
+ * A document that holds its thread rather than yielding.
+ *
+ * 120,000 elements: nothing exotic, and well within what a generated
+ * catalogue page produces. What matters is that jsdom's parse and axe-core's
+ * walk of it are both synchronous, so a timer racing them never gets to run.
+ */
+function pathological(name: string): CollectedPage {
+  let body = ''
+  for (let index = 0; index < 120_000; index += 1) body += `<span id="s${index}">x</span>`
+  return {
+    absolutePath: path.join(SITE, name),
+    relativePath: name,
+    html: `<!doctype html><html lang="en"><head><title>Big</title></head><body><h1>H</h1>${body}</body></html>`,
+  }
+}
+
 /** Pages of a given size, which is all the estimate looks at. */
 function sized(count: number, bytes: number): CollectedPage[] {
   return Array.from({ length: count }, (_, index) => ({
@@ -263,3 +280,51 @@ async function brokenWorker(): Promise<URL> {
 function strip(audits: readonly { durationMs: number }[]): unknown[] {
   return audits.map(({ durationMs: _durationMs, ...rest }) => rest)
 }
+
+describe('the hard per-page ceiling', { timeout: 180_000 }, () => {
+  /**
+   * The runner's own timeout is a `Promise.race`, and a race cannot interrupt
+   * synchronous work. Measured before this existed: a two-second ceiling on
+   * this document was still running ten minutes later, and because the pool
+   * waits on its workers the entire run hung with it.
+   */
+  it('stops a document that holds its thread, instead of waiting for it', async () => {
+    const started = Date.now()
+
+    const audits = await runPooledAudit([pathological('slow.html')], {
+      timeoutMs: 1000,
+      concurrency: 2,
+    })
+
+    expect(Date.now() - started).toBeLessThan(60_000)
+    expect(audits).toHaveLength(1)
+    expect(audits[0]?.error).toBeDefined()
+  })
+
+  it('records the page as unaudited rather than as a clean one', async () => {
+    // The distinction the exit code rests on: a page nothing could read is not
+    // a page with no violations.
+    const audits = await runPooledAudit([pathological('slow.html')], {
+      timeoutMs: 1000,
+      concurrency: 2,
+    })
+
+    expect(audits[0]?.violations).toEqual([])
+    expect(audits[0]?.error).toMatch(/stopped after/)
+  })
+
+  it('lets the rest of the run finish', async () => {
+    // Killing the thread must not cost the pages it never held. The surviving
+    // workers drain the queue, and the sweep picks up anything they missed.
+    const [a, b] = await repeated(2)
+    const pages = [a as CollectedPage, pathological('slow.html'), b as CollectedPage]
+
+    const audits = await runPooledAudit(pages, { timeoutMs: 1000, concurrency: 3 })
+
+    expect(audits).toHaveLength(3)
+    expect(audits[0]?.error).toBeUndefined()
+    expect(audits[1]?.error).toBeDefined()
+    expect(audits[2]?.error).toBeUndefined()
+    expect(audits[0]?.violations.length).toBeGreaterThan(0)
+  })
+})

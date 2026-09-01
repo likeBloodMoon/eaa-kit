@@ -373,3 +373,68 @@ describe('auditPage', () => {
     expect(audit.violations.map((finding) => finding.ruleId)).toContain('document-title')
   })
 })
+
+describe('--fast: skipping what this engine cannot decide', () => {
+  /**
+   * Normally the blind rules are run and their verdict thrown away — axe-core
+   * computes colour contrast against a stylesheet jsdom never fetched, and
+   * `shapeResults` discards the answer as untrustworthy. `fast` switches them
+   * off instead. Measured end to end at 8-10% of a run; the rules themselves
+   * are 14-19% of a page, and the rest of the run dilutes it.
+   *
+   * The verdict must not move. What is lost is the element list, and that is
+   * the whole of the trade.
+   */
+  let normal: PageAudit[]
+  let fast: PageAudit[]
+
+  beforeAll(async () => {
+    const pages = await collectPages(SITE)
+    normal = await runJsdomAudit(pages)
+    fast = await runJsdomAudit(pages, { fast: true })
+  }, 120_000)
+
+  it('finds exactly the same violations', () => {
+    const shape = (audits: PageAudit[]) =>
+      audits.map((audit) => ({ path: audit.relativePath, rules: ruleIds(audit.violations).sort() }))
+
+    expect(shape(fast)).toEqual(shape(normal))
+  })
+
+  it('still reports every blind rule as unevaluated', () => {
+    // The point of the flag is to skip work, never to skip the disclosure. A
+    // rule that quietly vanished would read as coverage this run never had.
+    for (const audit of fast) {
+      const unevaluated = audit.incomplete
+        .filter((finding) => finding.reason === 'engine-limitation')
+        .map((finding) => finding.ruleId)
+
+      for (const ruleId of ['color-contrast', 'target-size']) {
+        expect(unevaluated, audit.relativePath).toContain(ruleId)
+      }
+    }
+  })
+
+  it('never moves a blind rule into passes', () => {
+    // The one outcome that would make the flag dishonest rather than merely
+    // less detailed.
+    for (const audit of fast) {
+      for (const ruleId of Object.keys(ENGINE_BLIND_RULES)) {
+        expect(ruleIds(audit.passes), audit.relativePath).not.toContain(ruleId)
+      }
+    }
+  })
+
+  it('gives up the elements those rules matched, which is the trade', () => {
+    // Pinned rather than merely accepted: somebody reading this should see the
+    // cost, not discover it from an empty list in a report.
+    const withNodes = (audits: PageAudit[]) =>
+      audits
+        .flatMap((audit) => audit.incomplete)
+        .filter((finding) => finding.ruleId === 'color-contrast')
+        .reduce((total, finding) => total + finding.nodes.length, 0)
+
+    expect(withNodes(normal)).toBeGreaterThan(0)
+    expect(withNodes(fast)).toBe(0)
+  })
+})

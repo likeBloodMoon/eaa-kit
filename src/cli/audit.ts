@@ -16,7 +16,7 @@ import { count } from '../text.ts'
 import type { CollectedPage } from '../audit/collect.ts'
 import { type RunCompleteness, runCompleteness } from '../audit/completeness.ts'
 import type { ComponentLocation } from '../audit/component.ts'
-import { advise, emitDocument, fail, note, runEngine } from './command.ts'
+import { advise, emitDocument, fail, note, runEngine, warn } from './command.ts'
 import { type CrawlCommandOptions, resolvePages } from './pages.ts'
 
 export const OUTPUT_FORMATS = ['console', 'json', 'sarif', 'html'] as const
@@ -37,6 +37,12 @@ export interface AuditCommandOptions extends CrawlCommandOptions {
   output?: string
   /** Audit in real Chromium instead of jsdom. Needs the playwright peer. */
   browser?: boolean
+  /**
+   * Skip the rules the browserless engine cannot decide, rather than running
+   * them and throwing the answer away. Trades the element lists for those
+   * rules for about a sixth of the run; no effect under `--browser`.
+   */
+  fast?: boolean
   /**
    * Worker threads the browserless engine may use. Defaults to what the page
    * count and the machine's core count justify; 1 audits in this process.
@@ -76,6 +82,12 @@ export async function runAuditCommand(
   dir: string | undefined,
   options: AuditCommandOptions = {},
 ): Promise<AuditCommandResult> {
+  if (options.fast && options.browser) {
+    // Silently ignoring it would leave somebody believing they had traded
+    // detail for speed when they had done neither.
+    warn('--fast has no effect with --browser: a real browser can decide those rules.')
+  }
+
   const resolved = await resolvePages(dir, options)
   if (!resolved) return { audits: [], exitCode: 2 }
   const { pages, origin, label, cleanup, directory, completeness: collection } = resolved
@@ -96,6 +108,10 @@ export async function runAuditCommand(
       ...(baseUrl === undefined ? {} : { baseUrl }),
       ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
       ...(options.browser ? { browser: true } : {}),
+      // Only for the browserless engine. A browser can see layout and CSS, so
+      // there is nothing here it cannot decide, and disabling those rules
+      // there would throw away real verdicts rather than wasted work.
+      ...(options.fast && !options.browser ? { fast: true } : {}),
       ...(options.concurrency === undefined ? {} : { concurrency: options.concurrency }),
       // The directory the pages were actually read from, not the one the
       // caller typed: under auto-detection nobody typed one, and passing
@@ -201,7 +217,10 @@ async function describeEngine(
 
   const { plannedWorkers } = await import('../audit/runners/pool.ts')
   const workers = options.concurrency ?? plannedWorkers(pages)
-  return workers > 1 ? ` across ${workers} threads` : ''
+  const threads = workers > 1 ? ` across ${workers} threads` : ''
+  // Said out loud, because it changes what the report can tell you: the rules
+  // it skips are still reported as unevaluated, but without the elements.
+  return options.fast ? `${threads}, skipping what this engine cannot decide` : threads
 }
 
 /**
@@ -257,7 +276,7 @@ async function renderReport(
       const { buildHtmlReport } = await import('../audit/report/html.ts')
       const framework = await detectedFramework(options.cwd ?? process.cwd())
       return buildHtmlReport(audits, {
-        ...(await sourceLookups(options.cwd ?? process.cwd())),
+        ...(await sourceLookups(options.cwd ?? process.cwd(), audits)),
         directory: dir,
         failOn,
         completeness,
@@ -268,7 +287,7 @@ async function renderReport(
     case 'console': {
       const framework = await detectedFramework(options.cwd ?? process.cwd())
       return `${formatConsoleReport(audits, {
-        ...(await sourceLookups(options.cwd ?? process.cwd())),
+        ...(await sourceLookups(options.cwd ?? process.cwd(), audits)),
         dir,
         failOn,
         completeness,
@@ -294,16 +313,39 @@ async function detectedFramework(cwd: string): Promise<string | undefined> {
   return (await detectFramework(cwd, await readPackageJson(cwd)))?.framework.id
 }
 
-async function sourceLookups(cwd: string): Promise<{
+async function sourceLookups(
+  cwd: string,
+  /** What the run found, which decides whether the component index is worth building. */
+  audits: readonly PageAudit[],
+): Promise<{
   sourceFor: (page: string) => string | undefined
   componentFor: (html: string) => ComponentLocation | undefined
 }> {
   const { buildRouteMap, sourceFor } = await import('../audit/routes.ts')
-  const { buildComponentIndex, componentFor } = await import('../audit/component.ts')
   const routes = await buildRouteMap(cwd)
+
+  // The component index reads the project's source — up to two thousand files —
+  // to answer one question: which file a failing element was written in. A run
+  // that found nothing to fix never asks it, and building it anyway cost every
+  // clean audit around 450 ms and 20-odd MB on a mid-size project, scaling with
+  // the source tree rather than with anything the run actually did.
+  //
+  // Both reports only reach for it from the issues view, which is built from
+  // violations and from baseline-accepted findings. No elements there, no
+  // lookups, nothing to index.
+  if (!hasElementsToAttribute(audits)) {
+    return { sourceFor: (page) => sourceFor(routes, page), componentFor: () => undefined }
+  }
+
+  const { buildComponentIndex, componentFor } = await import('../audit/component.ts')
   const components = await buildComponentIndex(cwd)
   return {
     sourceFor: (page) => sourceFor(routes, page),
     componentFor: (html) => componentFor(components, html),
   }
+}
+
+/** Whether any element will be listed, and so looked up against the source. */
+function hasElementsToAttribute(audits: readonly PageAudit[]): boolean {
+  return audits.some((audit) => audit.violations.length > 0 || (audit.accepted?.length ?? 0) > 0)
 }

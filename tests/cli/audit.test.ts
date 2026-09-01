@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
@@ -11,6 +11,9 @@ import { runAuditCommand } from '../../src/cli/audit.ts'
 
 const SITE = fileURLToPath(new URL('../fixtures/site', import.meta.url))
 const IMPACTS = fileURLToPath(new URL('../fixtures/impacts', import.meta.url))
+
+/** Temporary projects, removed after each case. */
+const dirs: string[] = []
 
 let stdout: string[]
 let stderr: string[]
@@ -28,8 +31,9 @@ beforeEach(() => {
   })
 })
 
-afterEach(() => {
+afterEach(async () => {
   vi.restoreAllMocks()
+  await Promise.all(dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })))
 })
 
 describe('--fail-on', () => {
@@ -259,6 +263,84 @@ describe('runAuditCommand', () => {
 
 /** See the note in tests/audit/runners/pool.ts: threads need a longer ceiling. */
 const THREAD_TIMEOUT_MS = 30_000
+
+describe('--fast', () => {
+  it('exits the same way and reports the same violations', async () => {
+    const normal = await runAuditCommand(SITE, { format: 'json' })
+    stdout.length = 0
+    const fast = await runAuditCommand(SITE, { format: 'json', fast: true })
+
+    expect(fast.exitCode).toBe(normal.exitCode)
+    expect(fast.audits.map((a) => a.violations.map((v) => v.ruleId).sort())).toEqual(
+      normal.audits.map((a) => a.violations.map((v) => v.ruleId).sort()),
+    )
+  }, 120_000)
+
+  it('says it is skipping rules, so the report is not silently thinner', async () => {
+    await runAuditCommand(SITE, { include: ['about/**'], fast: true })
+
+    expect(stderr.join('')).toContain('skipping what this engine cannot decide')
+  }, 60_000)
+
+  it('warns that it does nothing under --browser rather than pretending', async () => {
+    // A real browser can decide those rules, so disabling them there would
+    // throw away verdicts instead of wasted work. Ignoring the flag silently
+    // would leave somebody believing they had traded detail for speed when
+    // they had done neither.
+    await runAuditCommand(SITE, { include: ['about/**'], fast: true, browser: true })
+
+    expect(stderr.join('')).toContain('--fast has no effect with --browser')
+  }, 120_000)
+})
+
+describe('naming the source a failing element was written in', () => {
+  /**
+   * The index reads the project's source to answer one question: which file a
+   * failing element came from. A run that found nothing never asks it, so
+   * building it anyway spent ~450 ms and ~20 MB of a clean audit on a mid-size
+   * project — scaling with the source tree rather than with anything the run
+   * did. It is now built only when there is an element to attribute, which
+   * these two cases pin from both sides.
+   */
+  async function project(pageHtml: string): Promise<string> {
+    const dir = await mkdtemp(path.join(tmpdir(), 'eaa-kit-attrib-'))
+    dirs.push(dir)
+    await mkdir(path.join(dir, 'src'), { recursive: true })
+    await mkdir(path.join(dir, 'dist'), { recursive: true })
+    await writeFile(path.join(dir, 'package.json'), '{"name":"s","private":true}', 'utf8')
+    await writeFile(
+      path.join(dir, 'src', 'Logo.tsx'),
+      'export function Logo() {\n  return <img src="/brand/logo-mark.svg" />\n}\n',
+      'utf8',
+    )
+    await writeFile(path.join(dir, 'dist', 'index.html'), pageHtml, 'utf8')
+    return dir
+  }
+
+  it('still names it when there is a violation to attribute', async () => {
+    const dir = await project(
+      '<!doctype html><html lang="en"><head><title>T</title></head>' +
+        '<body><h1>H</h1><img src="/brand/logo-mark.svg"></body></html>',
+    )
+
+    await runAuditCommand(path.join(dir, 'dist'), { cwd: dir })
+
+    expect(stdout.join('')).toContain('src/Logo.tsx')
+  })
+
+  it('says nothing about source on a run with nothing to fix', async () => {
+    // Not merely absent from the output — the index behind it is never built.
+    const dir = await project(
+      '<!doctype html><html lang="en"><head><title>T</title></head>' +
+        '<body><main><h1>H</h1><p>All fine.</p></main></body></html>',
+    )
+
+    const { exitCode } = await runAuditCommand(path.join(dir, 'dist'), { cwd: dir })
+
+    expect(exitCode).toBe(0)
+    expect(stdout.join('')).not.toContain('written in')
+  })
+})
 
 describe('--concurrency', { timeout: THREAD_TIMEOUT_MS }, () => {
   it('audits across threads and reports the same findings as one thread', async () => {

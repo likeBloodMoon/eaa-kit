@@ -1,3 +1,4 @@
+import { enableCompileCache } from 'node:module'
 import { parentPort, workerData } from 'node:worker_threads'
 import type { CollectedPage } from '../collect.ts'
 import { auditPage, type JsdomRunnerOptions } from './jsdom.ts'
@@ -18,6 +19,16 @@ import { auditPage, type JsdomRunnerOptions } from './jsdom.ts'
  * something catastrophic — the thread running out of memory — reaches the
  * pool's error handler instead.
  */
+
+// Each worker compiles its own copy of jsdom and axe-core, which is most of
+// what a short audit costs. The cache is per-thread, so enabling it in the CLI
+// entry does not reach here. Best-effort: a cache that cannot be written makes
+// the run slower and nothing else.
+try {
+  enableCompileCache()
+} catch {
+  // Slower, and correct.
+}
 
 const port = parentPort
 if (!port) {

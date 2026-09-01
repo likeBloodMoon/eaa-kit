@@ -3,6 +3,16 @@ import type { AxeResults, ImpactValue, NodeResult, Result, RunOptions } from 'ax
 import axe from 'axe-core'
 import type { CollectedPage } from './collect.ts'
 
+/**
+ * Per-page ceiling for an audit, in milliseconds.
+ *
+ * Lives here rather than in the jsdom runner because the worker pool needs it
+ * to set its own deadline, and the pool deliberately does not import jsdom —
+ * loading 630 ms of dependency to supervise threads that each load their own
+ * would be pure overhead. The same reason ENGINE_BLIND_RULES sits here.
+ */
+export const DEFAULT_PAGE_TIMEOUT_MS = 30_000
+
 /** WCAG 2.2 AA and everything it builds on. Best-practice rules stay off. */
 export const DEFAULT_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] as const
 
@@ -223,7 +233,10 @@ export function ruleOutcomes(audit: PageAudit): RuleOutcome[] {
   ]
 }
 
-export function runOptions(tags: readonly string[]): RunOptions {
+export function runOptions(
+  tags: readonly string[],
+  options: { skipBlindRules?: boolean } = {},
+): RunOptions {
   return {
     runOnly: { type: 'tag', values: [...tags] },
     // Full node detail only where it is actually shown to the user.
@@ -233,7 +246,33 @@ export function runOptions(tags: readonly string[]): RunOptions {
     // 10s timeout; a real 300-node page took 10.4s with preload on and 654ms
     // with it off, for identical findings.
     preload: false,
+    ...(options.skipBlindRules ? { rules: disabledBlindRules() } : {}),
   }
+}
+
+/**
+ * The rules this engine cannot decide, switched off rather than run.
+ *
+ * Normally they are run and their verdict discarded: axe-core computes colour
+ * contrast against a stylesheet jsdom never fetched, and `shapeResults` throws
+ * the answer away as untrustworthy. The work is wasted either way, and it is
+ * not a small amount — measured at 14-19% of a page, since colour contrast is
+ * the most expensive rule axe-core has.
+ *
+ * What is lost is the element list. A rule that runs reports *which* elements
+ * it could not decide, and those are the elements a person has to check by
+ * hand; a rule that never runs cannot name them. That is the whole trade, and
+ * it is why this is behind a flag rather than the default.
+ *
+ * What does not change is the verdict. `shapeResults` already has a pass for
+ * rules axe-core skipped entirely — the preload-dependent ones arrive that way
+ * — and files them as unevaluated with the same reason. A criterion this run
+ * could not reach still reads as unreached.
+ */
+function disabledBlindRules(): NonNullable<RunOptions['rules']> {
+  const rules: NonNullable<RunOptions['rules']> = {}
+  for (const ruleId of Object.keys(ENGINE_BLIND_RULES)) rules[ruleId] = { enabled: false }
+  return rules
 }
 
 export interface ShapeResultOptions {
