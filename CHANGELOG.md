@@ -29,6 +29,25 @@ consumers must ignore what they do not recognise.
   is not a violation, and failing builds on it would break every pipeline already running
   this tool.
 
+- **Four more build-time integrations**: `eaa-kit/eleventy`, `eaa-kit/docusaurus`,
+  `eaa-kit/webpack` and `eaa-kit/nuxt`. Each is a thin adapter over the decision function the
+  Astro integration and the Vite plugin already share, and each describes its host
+  structurally, so none of them adds a dependency and installing eaa-kit in a project with no
+  webpack still typechecks.
+
+  Two earn their place by knowing something the Vite plugin cannot. The **Nuxt** module
+  audits in `close` rather than when Vite finishes, because Nitro prerenders afterwards — a
+  Vite hook would read the build before the pages it exists to audit had been written — and
+  it refuses to pass a `nuxt build` that prerendered nothing rather than reporting success
+  over an empty directory. The **webpack** plugin skips watch rebuilds, since auditing a
+  whole site on every keystroke would make a dev server unusable, and skips a build that
+  already failed, since reporting its missing pages as accessibility findings would send
+  somebody after defects nothing measured.
+
+  There is deliberately no Next.js plugin, and the docs now say why: Next has no hook that
+  fires after `output: 'export'` writes `out/`, so a config wrapper would audit stale output
+  or none. `next build && eaa-kit audit ./out` is the honest answer.
+
 - **What to do about a finding, not just what is wrong with it.** axe-core says "images must
   have alternative text" and links to a page about the rule; neither is the fix, and the gap
   between a report and a corrected line of code is where an accessibility tool either earns
@@ -212,6 +231,11 @@ consumers must ignore what they do not recognise.
   would send somebody off installing a browser they already have.
 
 ### Testing
+
+- **Every subpath export is now imported from a real packaged install**, not merely checked
+  for existence on disk. A file that ships and does not load fails inside somebody's build
+  rather than in this repository, which is exactly how the browser-mode bugs of 0.2.x reached
+  users.
 
 - **The packaged CLI is now run the way an install runs it**, by `pnpm test:packaged` and
   on every CI job. Three browser-mode bugs reached users through this path in 0.2.1 and

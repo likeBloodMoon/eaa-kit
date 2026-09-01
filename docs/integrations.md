@@ -1,6 +1,13 @@
 # Integrations
 
-Two ways to run eaa-kit as part of a build rather than by hand.
+Ways to run eaa-kit as part of a build rather than by hand. Every one of them reaches the
+same point — a finished build in a directory that has to be judged before the build may
+proceed — and shares one decision function, so they cannot drift into disagreeing about
+what a passing build is. Only the hook name and the logger differ.
+
+None of them adds a dependency: each describes the shape of its host structurally, so
+installing eaa-kit in a project that has no Astro, no webpack and no Nuxt costs nothing and
+still typechecks.
 
 ## Astro integration
 
@@ -53,6 +60,93 @@ A build the audit could not complete — no HTML in the output, a page nothing c
 baseline that is not there — fails the build too, but says so in those words. It is not a
 failing audit; it is a build that was never checked, and reporting it as violations would
 send somebody looking for defects that were never measured.
+
+## Eleventy plugin
+
+```js
+// eleventy.config.js
+import eaaKit from 'eaa-kit/eleventy'
+
+export default function (eleventyConfig) {
+  eleventyConfig.addPlugin(eaaKit)
+  // or, configured:
+  // eleventyConfig.addPlugin(eaaKit, { failOn: 'moderate' })
+}
+```
+
+Audits in `eleventy.after`, which fires once the files are written and hands over the output
+directory — worth having here more than for most builders, since Eleventy's is configurable
+and the audit would otherwise be guessing at `_site`.
+
+## Docusaurus plugin
+
+```js
+// docusaurus.config.js
+export default {
+  plugins: [['eaa-kit/docusaurus', { failOn: 'serious' }]],
+}
+```
+
+Audits in `postBuild`, which runs when the whole site is on disk and is given `outDir`. A
+documentation site is an unusually good case for this: docs are where an organisation's own
+accessibility claims usually live, they are generated from Markdown by machinery nobody on
+the team wrote, and nobody opens every page.
+
+## webpack plugin
+
+```js
+// webpack.config.js
+const EaaKitPlugin = require('eaa-kit/webpack').default
+
+module.exports = {
+  plugins: [new EaaKitPlugin({ failOn: 'serious' })],
+}
+```
+
+Audits in `afterEmit`, the first hook at which every file is on disk. Watch rebuilds are
+skipped: auditing a whole site on every keystroke would make a dev server unusable, and a
+failing audit there cannot stop anything being shipped anyway. A build that already failed
+is skipped too — it has no output worth judging, and reporting missing pages as
+accessibility findings would send somebody after defects nothing ever measured.
+
+Worth having even though webpack is not a site generator: it is what Create React App,
+ejected setups and a long tail of bespoke pipelines run, and none of them is covered by the
+Vite plugin.
+
+## Nuxt module
+
+```ts
+// nuxt.config.ts
+export default defineNuxtConfig({
+  modules: [['eaa-kit/nuxt', { failOn: 'serious' }]],
+})
+```
+
+Nuxt builds on Vite, so [the Vite plugin](#vite-plugin) already works in a Nuxt project.
+This module exists for the two things it cannot get right on its own.
+
+**When.** Vite's `closeBundle` fires when Vite has finished, and in Nuxt that is well before
+Nitro has prerendered anything — the pages the audit exists to read are written afterwards,
+by a different part of the build. The module audits in `close`, the end of the whole thing.
+
+**What.** `nuxt build` produces a server, not browsable HTML; only `nuxt generate` writes
+pages to `.output/public`. A run that prerendered nothing fails with that in words rather
+than passing an audit that read no pages, which would be the worst outcome available. Pass
+`allowServerBuild: true` where a server build is expected and the audit should stand down.
+
+## Not Next.js
+
+There is deliberately no Next.js plugin. Next has no hook that fires after `output: 'export'`
+has written `out/` — webpack's compiler hooks all run before it — so a `withEaaKit()` wrapper
+would either audit nothing or audit the previous build, and a plugin that silently audits
+stale output is worse than none. Run it as a script instead:
+
+```json
+{ "scripts": { "build": "next build && eaa-kit audit ./out" } }
+```
+
+For a Next.js app that renders on a server and never exports, `--url` is the answer:
+`eaa-kit audit --url http://localhost:3000`.
 
 ## Vite plugin
 
