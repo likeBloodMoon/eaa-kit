@@ -18,6 +18,13 @@ export interface IntegrationOptions {
   baseUrl?: string
   /** Audit in real Chromium. Needs the playwright peer. */
   browser?: boolean
+  /**
+   * Skip the rules the browserless engine cannot decide rather than running
+   * them and discarding the answer. The verdict does not move — those rules are
+   * still reported as not evaluated — so what a build gives up is the list of
+   * elements a person would check by hand. No effect under `browser`.
+   */
+  fast?: boolean
   concurrency?: number
   baseline?: string
   format?: OutputFormat
