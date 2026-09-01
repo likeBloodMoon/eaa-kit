@@ -526,3 +526,51 @@ describe('the coverage section', () => {
     expect(report).toContain('<div class="scroll">')
   })
 })
+
+describe('the remediation block', () => {
+  it('says who a barrier stops and what to change', () => {
+    const readable = text(report)
+
+    expect(readable).toContain('screen reader')
+    expect(readable).toContain('Fix.')
+  })
+
+  it('shows the corrected form of the markup that actually failed', () => {
+    const withImage = [blank({ violations: [finding()] })]
+
+    // The failing element is <img src="/logo.svg"> with no alt. Quotes are
+    // left alone by escapeText, which only has to make the markup safe between
+    // tags.
+    expect(build(withImage)).toContain('class="suggested"')
+    expect(build(withImage)).toContain('alt="What this image shows"')
+  })
+
+  it('gives the framework-specific fix when the project names one', () => {
+    const withLang = [
+      blank({
+        violations: [
+          finding({
+            ruleId: 'html-has-lang',
+            help: '<html> element must have a lang attribute',
+            nodes: [{ html: '<html>', target: ['html'] }],
+          }),
+        ],
+      }),
+    ]
+
+    expect(text(build(withLang, { framework: 'astro' }))).toContain('src/layouts')
+    expect(text(build(withLang))).not.toContain('src/layouts')
+  })
+})
+
+describe('the source location of a failing element', () => {
+  it('names the line as well as the file, so an editor can open it', () => {
+    const withImage = [blank({ violations: [finding()] })]
+
+    const html = build(withImage, {
+      componentFor: () => ({ file: 'src/components/Header.astro', line: 12, column: 5 }),
+    })
+
+    expect(text(html)).toContain('src/components/Header.astro:12')
+  })
+})

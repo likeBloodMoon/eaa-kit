@@ -29,6 +29,30 @@ consumers must ignore what they do not recognise.
   is not a violation, and failing builds on it would break every pipeline already running
   this tool.
 
+- **What to do about a finding, not just what is wrong with it.** axe-core says "images must
+  have alternative text" and links to a page about the rule; neither is the fix, and the gap
+  between a report and a corrected line of code is where an accessibility tool either earns
+  its place in a build or becomes something people mute. Each finding now carries who the
+  barrier stops, what to change, and the corrected form of the markup that actually failed —
+  the user's own element, because a textbook snippet is a second thing to translate.
+
+  Where the fix genuinely differs by framework it is given in that idiom: where `lang` lives
+  in a Next.js, Nuxt, Astro, SvelteKit or Remix project is not the same question as which
+  attribute is missing. Where it does not differ — which is most rules — the same advice is
+  given whatever built the site, because emitting fourteen near-identical snippets would be
+  churn pretending to be coverage. An overlay states only what changes and inherits the
+  rest, so a framework-specific fix cannot silently lose the corrected snippet along with it.
+
+  Deterministic and offline: no model, no API key, no network. This sits beside a document
+  with legal weight, and a plausible fix that is wrong is a worse failure than no fix at
+  all — somebody would paste it, the report would go green, and the barrier would still be
+  there.
+
+- **Findings name the line as well as the file.** `componentFor` already had to find the
+  literal in the source to know which file contained it; recording where it found it costs
+  one more scan of one string, and `src/components/Header.astro:12` opens an editor where
+  `src/components/Header.astro` starts a search.
+
 - **How much of WCAG a run actually reaches, with the standard as the denominator.** The
   tool refuses to divide passes by failures and is right to — only `passes` is evidence,
   and the two summed would make an empty page look compliant — but refusing that number

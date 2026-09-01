@@ -2,10 +2,12 @@ import axe from 'axe-core'
 import { collapse, count, escapeAttribute, escapeText, standardsReference } from '../../text.ts'
 import { TOOL_VERSION } from '../../version.ts'
 import { discoveryLabel, missedParts, type RunCompleteness } from '../completeness.ts'
+import { type ComponentLocation, componentPath } from '../component.ts'
 import { buildCoverage, type CriterionCoverage } from '../coverage.ts'
 import { countAtOrAbove, type ImpactLevel, impactLabel, impactRank } from '../impact.ts'
 import { blindRules, coverageParts, groupIssues, isShared } from '../issues.ts'
 import { manualCheckFor, understandingUrl } from '../manual.ts'
+import { remediationFor } from '../remediation.ts'
 import type { Finding, IncompleteFinding, PageAudit } from '../runners/jsdom.ts'
 import { buildSummary } from './json.ts'
 
@@ -39,7 +41,7 @@ export interface HtmlReportOptions {
   /** Maps an audited page to the source file that produced it, when known. */
   sourceFor?: (pagePath: string) => string | undefined
   /** Maps a failing element to the source file it was written in. */
-  componentFor?: (html: string) => string | undefined
+  componentFor?: (html: string) => ComponentLocation | undefined
   /** Build directory the audit ran against. */
   directory: string
   /** Lowest impact that fails the run. */
@@ -56,6 +58,11 @@ export interface HtmlReportOptions {
    * one; the CLI always supplies it.
    */
   completeness?: RunCompleteness
+  /**
+   * Registry id of the framework this project uses, so the advice can be given
+   * in its idiom where that differs.
+   */
+  framework?: string
   baseUrl?: string
   /** Injectable so tests and snapshots are not time-dependent. */
   now?: Date
@@ -542,6 +549,10 @@ p.standards, p.coverage, .reason, li.more, p.accepted-heading, ul.accepted { col
 p.coverage { margin-top: 0.5rem; }
 ul.nodes { list-style: none; padding-left: 0; }
 ul.unreachable { padding-left: 1.25rem; }
+.remediation { border-left: 3px solid #c9c9c9; padding: 0.1rem 0 0.1rem 0.75rem; margin: 0.5rem 0; }
+.remediation .why { margin: 0.3rem 0; opacity: 0.85; }
+.remediation .fix { margin: 0.3rem 0; }
+pre.suggested { background: #eef7ee; border-left: 3px solid #216e39; padding: 0.5rem; overflow-x: auto; }
 .scroll { overflow-x: auto; }
 table.coverage { border-collapse: collapse; width: 100%; font-size: 0.95em; }
 table.coverage th, table.coverage td { text-align: left; padding: 0.3rem 0.6rem; border-bottom: 1px solid #e3e3e3; vertical-align: top; }
@@ -596,6 +607,8 @@ ul.page-list { margin: 0.35rem 0 0; padding-left: 1.25rem; }
   .verdict.partial { background: #2b2310; border-color: #ffd28a; }
   table.coverage th, table.coverage td { border-bottom-color: #333; }
   table.coverage tr.evaluated td:last-child { color: #7ee2a8; }
+  .remediation { border-left-color: #555; }
+  pre.suggested { background: #10240f; border-left-color: #7ee2a8; }
   .tile.critical { background: #2b1111; border-color: #ff9d9d; color: #ffc9c9; }
   .tile.serious { background: #2b1d11; border-color: #ffb98a; color: #ffd7bd; }
   .tile.moderate { background: #2b2610; border-color: #f0d264; color: #f5e3a4; }
@@ -701,6 +714,7 @@ function issueSection(
   return `<li class="issue">
 <h3><span class="badge ${impact}">${impact}</span> <code>${escapeText(issue.ruleId)}</code> ${criteria}</h3>
 <p class="help">${escapeText(issue.help)}</p>
+${remediationBlock(issue.ruleId, issue.elements[0]?.html, options)}
 ${issue.elements
   .slice(0, MAX_NODES)
   .map((element) => issueElement(element, options))
@@ -711,6 +725,32 @@ ${
     : ''
 }
 </li>`
+}
+
+/**
+ * What to do about the rule, beside the finding rather than behind a link.
+ *
+ * The corrected line is built from the element that actually failed. A textbook
+ * snippet is a second thing to translate before anybody can use it, and this
+ * document is read by people who did not run the audit and may not write the
+ * code either — the closer it gets to the line as it should have been, the less
+ * of that translation is left to them.
+ */
+function remediationBlock(
+  ruleId: string,
+  html: string | undefined,
+  options: HtmlReportOptions,
+): string {
+  const remediation = remediationFor(ruleId, options.framework)
+  if (remediation === undefined) return ''
+
+  const example = html === undefined ? undefined : remediation.example?.(html)
+
+  return `<div class="remediation">
+<p class="why">${escapeText(remediation.why)}</p>
+<p class="fix"><strong>Fix.</strong> ${escapeText(remediation.fix)}</p>
+${example === undefined ? '' : `<pre class="suggested"><code>${escapeText(collapse(example, MAX_SNIPPET))}</code></pre>`}
+</div>`
 }
 
 function issueElement(
@@ -736,7 +776,7 @@ function issueElement(
 
   return `<div class="element">
 <pre><code>${escapeText(collapse(element.html, MAX_SNIPPET))}</code></pre>
-${component === undefined ? '' : `<p class="written-in">Written in <code>${escapeText(component)}</code></p>`}
+${component === undefined ? '' : `<p class="written-in">Written in <code>${escapeText(componentPath(component))}</code></p>`}
 ${element.selector === '' ? '' : `<p class="selector"><code>${escapeText(element.selector)}</code></p>`}
 <p class="reach">Found on ${count(element.pages.length, 'page')}.${
     isShared(element) ? ' <strong>Identical on each — likely one shared component.</strong>' : ''

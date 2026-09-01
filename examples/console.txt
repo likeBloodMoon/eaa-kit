@@ -6,18 +6,34 @@ Issues
 
   ✗ image-alt critical, WCAG 1.1.1
       Images must have alternative text
+      A screen reader announces this image by its filename, or skips it
+      entirely.
+      Fix: Astro's <Image /> requires alt. Give it one describing what the
+      image conveys, or alt="" where it repeats adjacent text.
+      → <img src="/assets/logo.svg" alt="What this image shows">
       <img src="/assets/logo.svg">
         on 1 page:
           index.html
 
   ✗ html-has-lang serious, WCAG 3.1.1
       <html> element must have a lang attribute
+      A screen reader reads the page in whatever language it defaults to, so
+      German content is read with English pronunciation rules and is close to
+      unintelligible.
+      Fix: Set lang on the <html> element in your layout under src/layouts,
+      not in the individual page.
+      → <html lang="de">
       <html><head> <title>Startseite</title> </head> <body> <img src="/assets/l…
         on 1 page:
           index.html
 
   ✗ link-name serious, WCAG 2.4.4 4.1.2
       Links must have discernible text
+      A screen reader announces this as "link" with nothing after it, so where
+      it goes is unknowable without following it.
+      Fix: Give the link text. Where the design calls for an icon alone, keep
+      the visible icon and add a visually hidden label or an aria-label.
+      → <a href="/about/">Where this link goes</a>
       <a href="/about/"></a>
         on 1 page:
           index.html

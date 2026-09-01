@@ -373,6 +373,34 @@ code. **Eleventy and Jekyll** let a page set its own URL in front matter, so the
 is not the route; mapping their default convention alone would be right until somebody used
 the feature, and quietly wrong after that.
 
+## What to do about a finding
+
+axe-core says what is wrong and links to a page explaining the rule. Neither is the fix, so
+each finding carries three more things: who the barrier stops, what to change, and the
+corrected form of **the markup that actually failed** rather than a textbook example.
+
+```
+  ✗ image-alt critical, WCAG 1.1.1
+      Images must have alternative text
+      A screen reader announces this image by its filename, or skips it entirely.
+      Fix: Add alt text describing what the image conveys. If it is decorative and
+      repeats adjacent text, use alt="" so it is skipped deliberately.
+      → <img src="/assets/logo.svg" alt="What this image shows">
+```
+
+Where the fix genuinely differs by framework, it is given in that framework's idiom — where
+`lang` actually lives in a Next.js, Nuxt, Astro, SvelteKit or Remix project is not the same
+question as which attribute is missing. For most rules it does not differ, and the same
+advice is given whatever built the site: a missing `alt` is a missing `alt` everywhere.
+
+**Deterministic and offline.** No model, no API key, no network call. This tool sits next to
+a document with legal weight, and a plausible fix that is wrong is a worse failure here than
+no fix at all — somebody would paste it, the report would go green, and the barrier would
+still be there.
+
+Findings also name the source file **and line** where the element was written, so
+`src/components/Header.astro:12` opens an editor rather than starting a search.
+
 ## How much of WCAG a run reaches
 
 WCAG 2.2 has **55 success criteria** at Levels A and AA. axe-core has rules touching **23**

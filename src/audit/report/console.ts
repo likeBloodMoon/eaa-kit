@@ -1,6 +1,7 @@
 import pc from 'picocolors'
 import { collapse, count, plural } from '../../text.ts'
 import { discoveryLabel, missedParts, type RunCompleteness } from '../completeness.ts'
+import { type ComponentLocation, componentPath } from '../component.ts'
 import { buildCoverage, type Coverage, coverageSummary } from '../coverage.ts'
 import {
   countAtOrAbove,
@@ -11,6 +12,7 @@ import {
 } from '../impact.ts'
 import { blindRules, coverageParts, groupIssues, type IssueElement, isShared } from '../issues.ts'
 import { manualCheckFor, understandingUrl } from '../manual.ts'
+import { remediationFor } from '../remediation.ts'
 import type { Finding, IncompleteFinding, PageAudit } from '../runners/jsdom.ts'
 
 export interface ConsoleReportOptions {
@@ -30,7 +32,7 @@ export interface ConsoleReportOptions {
    * Maps a failing element to the source file it was written in. Where route
    * mapping names the page, this names the component the page only renders.
    */
-  componentFor?: (html: string) => string | undefined
+  componentFor?: (html: string) => ComponentLocation | undefined
   /**
    * List every page and its result, under the issues. Off by default: on a
    * fifty-page site it is a wall, and what somebody needs first is what is
@@ -59,6 +61,12 @@ export interface ConsoleReportOptions {
    * the part that changes how the report reads.
    */
   coverage?: boolean
+  /**
+   * Registry id of the framework this project uses, so the advice can be given
+   * in its idiom where that differs. Undefined falls back to the generic fix,
+   * which for most rules is the same one.
+   */
+  framework?: string
 }
 
 const DEFAULT_MAX_NODES = 3
@@ -110,9 +118,10 @@ interface Context {
   maxNodes: number
   failOn: ImpactLevel
   sourceFor: (pagePath: string) => string | undefined
-  componentFor: (html: string) => string | undefined
+  componentFor: (html: string) => ComponentLocation | undefined
   manual: boolean
   coverage: boolean
+  framework: string | undefined
   c: ReturnType<typeof pc.createColors>
   symbol: (kind: 'violation' | 'review' | 'blind' | 'clean' | 'error') => string
   completeness: RunCompleteness | undefined
@@ -132,6 +141,7 @@ function context(options: ConsoleReportOptions): Context {
     componentFor: options.componentFor ?? (() => undefined),
     manual: options.manual ?? false,
     coverage: options.coverage ?? false,
+    framework: options.framework,
     completeness: options.completeness,
     c,
     symbol: (kind) => {
@@ -583,6 +593,7 @@ function issuesSection(audits: readonly PageAudit[], ctx: Context): string[] {
       ]),
     )
     lines.push(line(ctx, `      ${issue.help}`, ctx.c.dim))
+    lines.push(...remediationLines(issue.ruleId, issue.elements[0]?.html, ctx))
 
     for (const element of issue.elements.slice(0, ctx.maxNodes)) {
       lines.push(line(ctx, `      ${collapse(element.html)}`))
@@ -597,6 +608,34 @@ function issuesSection(audits: readonly PageAudit[], ctx: Context): string[] {
   return lines
 }
 
+/**
+ * What to do about the rule, under the finding rather than in a link.
+ *
+ * axe-core's help text says what is wrong; this says who it stops and what to
+ * change. The corrected line is built from the element that actually failed,
+ * because a textbook snippet is a second thing to translate before anybody can
+ * use it.
+ */
+function remediationLines(ruleId: string, html: string | undefined, ctx: Context): string[] {
+  const remediation = remediationFor(ruleId, ctx.framework)
+  if (remediation === undefined) return []
+
+  const indent = '      '
+  const width = ctx.width - indent.length - 2
+  const lines = [
+    ...wrap(remediation.why, width).map((text) => line(ctx, `${indent}${text}`, ctx.c.dim)),
+    ...wrap(`Fix: ${remediation.fix}`, width).map((text) => line(ctx, `${indent}${text}`)),
+  ]
+
+  const example = html === undefined ? undefined : remediation.example?.(html)
+  if (example !== undefined) {
+    lines.push(
+      render(ctx, [{ text: `${indent}→ `, paint: ctx.c.green }, { text: collapse(example) }]),
+    )
+  }
+  return lines
+}
+
 /** Where one element appears, and what that says about where the fix goes. */
 function whereLines(element: IssueElement, ctx: Context): string[] {
   const shown = element.pages.slice(0, ctx.maxNodes)
@@ -608,7 +647,12 @@ function whereLines(element: IssueElement, ctx: Context): string[] {
   const lines =
     component === undefined
       ? []
-      : [render(ctx, [{ text: '        written in ', paint: ctx.c.dim }, { text: component }])]
+      : [
+          render(ctx, [
+            { text: '        written in ', paint: ctx.c.dim },
+            { text: componentPath(component) },
+          ]),
+        ]
 
   lines.push(line(ctx, `        on ${count(element.pages.length, 'page')}:`, ctx.c.dim))
 

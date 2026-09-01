@@ -15,6 +15,7 @@ import { count } from '../text.ts'
 
 import type { CollectedPage } from '../audit/collect.ts'
 import { type RunCompleteness, runCompleteness } from '../audit/completeness.ts'
+import type { ComponentLocation } from '../audit/component.ts'
 import { advise, emitDocument, fail, note, runEngine } from './command.ts'
 import { type CrawlCommandOptions, resolvePages } from './pages.ts'
 
@@ -247,15 +248,18 @@ async function renderReport(
     }
     case 'html': {
       const { buildHtmlReport } = await import('../audit/report/html.ts')
+      const framework = await detectedFramework(options.cwd ?? process.cwd())
       return buildHtmlReport(audits, {
         ...(await sourceLookups(options.cwd ?? process.cwd())),
         directory: dir,
         failOn,
         completeness,
+        ...(framework === undefined ? {} : { framework }),
         ...(options.baseUrl ? { baseUrl: options.baseUrl } : {}),
       })
     }
     case 'console': {
+      const framework = await detectedFramework(options.cwd ?? process.cwd())
       return `${formatConsoleReport(audits, {
         ...(await sourceLookups(options.cwd ?? process.cwd())),
         dir,
@@ -264,6 +268,7 @@ async function renderReport(
         ...(options.perPage ? { perPage: true } : {}),
         ...(options.manual ? { manual: true } : {}),
         ...(options.coverage ? { coverage: true } : {}),
+        ...(framework === undefined ? {} : { framework }),
         ...(toFile ? { color: false } : {}),
       })}\n`
     }
@@ -275,9 +280,16 @@ async function renderReport(
  * so. Best-effort: a project using no convention this recognises gets the
  * report it always got, with no source named.
  */
+/** The registry id of whatever built this project, for framework-shaped advice. */
+async function detectedFramework(cwd: string): Promise<string | undefined> {
+  const { detectFramework } = await import('../audit/frameworks.ts')
+  const { readPackageJson } = await import('../audit/project.ts')
+  return (await detectFramework(cwd, await readPackageJson(cwd)))?.framework.id
+}
+
 async function sourceLookups(cwd: string): Promise<{
   sourceFor: (page: string) => string | undefined
-  componentFor: (html: string) => string | undefined
+  componentFor: (html: string) => ComponentLocation | undefined
 }> {
   const { buildRouteMap, sourceFor } = await import('../audit/routes.ts')
   const { buildComponentIndex, componentFor } = await import('../audit/component.ts')

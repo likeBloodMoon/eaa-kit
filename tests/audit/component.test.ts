@@ -61,7 +61,7 @@ describe('componentFor', () => {
       }),
     )
 
-    expect(componentFor(index, '<img src="/logo.png">')).toBe('components/Header.jsx')
+    expect(componentFor(index, '<img src="/logo.png">')?.file).toBe('components/Header.jsx')
   })
 
   it('names nothing when two files could be it', async () => {
@@ -85,7 +85,7 @@ describe('componentFor', () => {
       }),
     )
 
-    expect(componentFor(index, '<img src="/logo.png" id="brand-mark">')).toBe('b.jsx')
+    expect(componentFor(index, '<img src="/logo.png" id="brand-mark">')?.file).toBe('b.jsx')
   })
 
   it('names nothing when the markup is nowhere in the source', async () => {
@@ -110,7 +110,29 @@ describe('componentFor', () => {
     async (file) => {
       const index = await buildComponentIndex(await project({ [file]: '<img src="/logo.png">' }))
 
-      expect(componentFor(index, '<img src="/logo.png">')).toBe(file)
+      expect(componentFor(index, '<img src="/logo.png">')?.file).toBe(file)
     },
   )
+})
+
+describe('where in the file', () => {
+  it('reports the line and column the literal was found on', async () => {
+    const dir = await project({
+      'components/Header.jsx':
+        'export default () => (\n  <header>\n    <img src="/logo.png" />\n  </header>\n)\n',
+    })
+    const index = await buildComponentIndex(dir)
+
+    const location = componentFor(index, '<img src="/logo.png">')
+
+    expect(location).toMatchObject({ file: 'components/Header.jsx', line: 3 })
+    expect(location?.column).toBeGreaterThan(1)
+  })
+
+  it('reports line 1 for a literal in the first line', async () => {
+    const dir = await project({ 'a.jsx': '<img src="/logo.png" />\n' })
+    const index = await buildComponentIndex(dir)
+
+    expect(componentFor(index, '<img src="/logo.png">')?.line).toBe(1)
+  })
 })

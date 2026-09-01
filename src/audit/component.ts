@@ -112,24 +112,62 @@ export function searchTermsFor(html: string): string[] {
   return terms
 }
 
+/** Where an element was written: the file, and where in it. */
+export interface ComponentLocation {
+  /** Project-relative path, POSIX separators. */
+  file: string
+  /** 1-based line the matched literal sits on. */
+  line: number
+  /** 1-based column. */
+  column: number
+}
+
 /**
  * The one source file this element was written in, if exactly one claims it.
  *
  * Returns undefined when nothing matches and when more than one does. The
  * second case is the important one: naming a file that merely happens to
  * contain the same path sends somebody to edit the wrong component.
+ *
+ * The position comes free. The search already has to find the literal to know
+ * the file contains it, so recording where it found it costs one more scan of
+ * one string — and a report that says `Header.astro:12` opens an editor where a
+ * report that says `Header.astro` starts a search.
  */
-export function componentFor(index: ComponentIndex, html: string): string | undefined {
+export function componentFor(index: ComponentIndex, html: string): ComponentLocation | undefined {
   for (const term of searchTermsFor(html)) {
-    const matches: string[] = []
+    const matches: Array<{ file: string; offset: number }> = []
     for (const [file, source] of index.files) {
-      if (source.includes(term)) {
-        matches.push(file)
+      const offset = source.indexOf(term)
+      if (offset !== -1) {
+        matches.push({ file, offset })
         // Two is already ambiguous; counting the rest buys nothing.
         if (matches.length > 1) break
       }
     }
-    if (matches.length === 1) return matches[0]
+    const only = matches.length === 1 ? matches[0] : undefined
+    if (only !== undefined) {
+      const source = index.files.get(only.file) as string
+      return { file: only.file, ...positionOf(source, only.offset) }
+    }
   }
   return undefined
+}
+
+/** 1-based line and column of a byte offset in a source file. */
+function positionOf(source: string, offset: number): { line: number; column: number } {
+  let line = 1
+  let lineStart = 0
+  for (let i = 0; i < offset; i += 1) {
+    if (source[i] === '\n') {
+      line += 1
+      lineStart = i + 1
+    }
+  }
+  return { line, column: offset - lineStart + 1 }
+}
+
+/** `components/Header.astro:12`, as both reports name a component. */
+export function componentPath(location: ComponentLocation): string {
+  return `${location.file}:${location.line}`
 }
