@@ -51,6 +51,12 @@ export interface JsdomRunnerOptions {
    * its real URL instead of a file:// one.
    */
   baseUrl?: string
+  /**
+   * Skip the rules this engine structurally cannot decide instead of running
+   * them and discarding the answer. Faster, and it costs the element lists for
+   * those rules — see `runOptions`.
+   */
+  fast?: boolean
 }
 
 /**
@@ -92,7 +98,7 @@ export async function auditPage(
     // axe-core was evaluated into the window, so it is not on jsdom's type.
     const { axe: pageAxe } = dom.window as unknown as { axe: typeof axe }
     const results = await withTimeout(
-      pageAxe.run(dom.window.document, runOptions(tags)),
+      pageAxe.run(dom.window.document, runOptions(tags, { skipBlindRules: options.fast === true })),
       options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
     )
     return shapeResults(results, {

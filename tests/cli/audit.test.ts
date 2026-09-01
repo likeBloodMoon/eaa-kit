@@ -264,6 +264,35 @@ describe('runAuditCommand', () => {
 /** See the note in tests/audit/runners/pool.ts: threads need a longer ceiling. */
 const THREAD_TIMEOUT_MS = 30_000
 
+describe('--fast', () => {
+  it('exits the same way and reports the same violations', async () => {
+    const normal = await runAuditCommand(SITE, { format: 'json' })
+    stdout.length = 0
+    const fast = await runAuditCommand(SITE, { format: 'json', fast: true })
+
+    expect(fast.exitCode).toBe(normal.exitCode)
+    expect(fast.audits.map((a) => a.violations.map((v) => v.ruleId).sort())).toEqual(
+      normal.audits.map((a) => a.violations.map((v) => v.ruleId).sort()),
+    )
+  }, 120_000)
+
+  it('says it is skipping rules, so the report is not silently thinner', async () => {
+    await runAuditCommand(SITE, { include: ['about/**'], fast: true })
+
+    expect(stderr.join('')).toContain('skipping what this engine cannot decide')
+  }, 60_000)
+
+  it('warns that it does nothing under --browser rather than pretending', async () => {
+    // A real browser can decide those rules, so disabling them there would
+    // throw away verdicts instead of wasted work. Ignoring the flag silently
+    // would leave somebody believing they had traded detail for speed when
+    // they had done neither.
+    await runAuditCommand(SITE, { include: ['about/**'], fast: true, browser: true })
+
+    expect(stderr.join('')).toContain('--fast has no effect with --browser')
+  }, 120_000)
+})
+
 describe('naming the source a failing element was written in', () => {
   /**
    * The index reads the project's source to answer one question: which file a

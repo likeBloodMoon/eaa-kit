@@ -183,6 +183,7 @@ chatter coming along.
 | `--output <path>` | stdout | Write the report to a file; parent directories are created |
 | `--browser` | off | Audit in real Chromium instead of jsdom |
 | `--concurrency <n>` | from page and core count | Pages to audit at once — threads without `--browser`, tabs with it; `1` turns both off |
+| `--fast` | off | Skip the rules the browserless engine cannot decide, rather than running them and discarding the answer |
 | `--baseline <path>` | — | Accept the violations recorded in this file; fail only on new ones |
 
 Dot directories such as build caches are skipped by default. `--include` and `--exclude`
@@ -263,6 +264,41 @@ eaa-kit audit ./dist                                      # console, to the term
 eaa-kit audit ./dist --format json --output a11y.json     # JSON, to a file
 eaa-kit audit ./dist --format sarif --output a11y.sarif   # SARIF, for code scanning
 eaa-kit audit ./dist --format html --output a11y.html     # a report you can send someone
+```
+
+### `--fast`
+
+The browserless engine runs every rule and then throws some of the answers away.
+Colour contrast is computed against a stylesheet jsdom never fetched, target size against
+boxes that are all 0x0, and
+[what this engine cannot tell you](#what-the-browserless-engine-can-and-cannot-tell-you)
+explains why those verdicts are discarded rather than reported. `--fast` switches those
+rules off instead of running them.
+
+They are not cheap. Colour contrast is the most expensive rule axe-core has, and skipping
+the set is 14-19% of the work on a page — 8-10% of a whole run, once the fixed cost of
+starting up is counted in.
+
+**What does not change** is the verdict. Every skipped rule is still reported as *not
+evaluated*, with the same reason, and every WCAG criterion still lands in the same bucket:
+a criterion this run could not reach still reads as unreached, and a skipped rule never
+becomes a pass. The tests assert the coverage view is criterion-for-criterion identical.
+
+**What you lose** is the element list. A rule that runs can say *which* elements it could
+not decide — the paragraphs whose contrast needs checking, the controls whose size does —
+and those are exactly the elements a person has to look at by hand. A rule that never ran
+cannot name them. If you use the report to drive manual checks, that list is the point,
+and `--fast` is not for you.
+
+So: worth it on a run whose job is to fail a build on real violations, and not worth it on
+a run somebody is going to read.
+
+It has no effect with `--browser`, which can decide those rules for real, and says so
+rather than ignoring the flag quietly.
+
+```bash
+eaa-kit audit ./dist --fast          # a CI gate
+eaa-kit audit ./dist                 # a report somebody will read
 ```
 
 ### `--concurrency <n>`

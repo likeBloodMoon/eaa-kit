@@ -152,6 +152,10 @@ program
   .option('--output <path>', 'write the report to a file instead of stdout')
   .option('--browser', 'audit in real Chromium, covering the rules jsdom cannot evaluate')
   .option(
+    '--fast',
+    'skip the rules the browserless engine cannot decide anyway, losing their element lists',
+  )
+  .option(
     '--concurrency <n>',
     'pages to audit at once, or 1 for none (default: from the page and core count)',
     parseConcurrency,

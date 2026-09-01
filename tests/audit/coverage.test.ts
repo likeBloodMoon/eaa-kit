@@ -200,6 +200,22 @@ describe('buildCoverage', () => {
     expect(contrast?.status).toBe('not-evaluated')
   })
 
+  it('reads the same under --fast, which only skips work', async () => {
+    // The flag trades element detail for time. If it also moved a criterion
+    // between buckets it would be trading away the report's meaning, and the
+    // coverage view is where that would show first.
+    const { runJsdomAudit } = await import('../../src/audit/runners/jsdom.ts')
+    const pages = await collectPages(SITE)
+
+    const fast = buildCoverage(await runJsdomAudit(pages, { fast: true }))
+
+    const shape = (c: Coverage) => c.criteria.map((one) => `${one.number}=${one.status}`)
+    expect(shape(fast)).toEqual(shape(coverage))
+    expect(fast.evaluated).toBe(coverage.evaluated)
+    expect(fast.notEvaluated).toBe(coverage.notEvaluated)
+    expect(fast.nothingToCheck).toBe(coverage.nothingToCheck)
+  }, 120_000)
+
   it('never claims a browser would answer a criterion no rule covers', () => {
     for (const criterion of coverage.criteria) {
       if (criterion.status === 'no-automated-rule') {

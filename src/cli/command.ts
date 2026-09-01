@@ -42,6 +42,12 @@ export interface EngineOptions {
   /** Audit in real Chromium instead of jsdom. Needs the playwright peer. */
   browser?: boolean
   /**
+   * Skip the rules the browserless engine cannot decide rather than running
+   * them and discarding the answer. No effect under `--browser`, which can
+   * decide them.
+   */
+  fast?: boolean
+  /**
    * Pages audited at once: worker threads for the browserless engine, open
    * tabs for the browser one. 1 turns both off.
    */
@@ -73,6 +79,7 @@ export async function runEngine(
     const { runPooledAudit } = await import('../audit/runners/pool.ts')
     return runPooledAudit(pages, {
       ...runnerOptions,
+      ...(options.fast ? { fast: true } : {}),
       ...(options.concurrency === undefined ? {} : { concurrency: options.concurrency }),
     })
   }

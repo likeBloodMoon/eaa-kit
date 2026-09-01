@@ -137,6 +137,36 @@ consumers must ignore what they do not recognise.
   pulling 630 ms of jsdom into a module that deliberately avoids it — the same move
   `ENGINE_BLIND_RULES` already made.
 
+## Unreleased
+
+### Added
+
+- **`--fast`**, which skips the rules the browserless engine cannot decide rather than
+  running them and discarding the answer. Colour contrast is computed against a stylesheet
+  jsdom never fetched and target size against boxes that are all 0x0; both verdicts are
+  thrown away as untrustworthy, and the work to produce them is not cheap — colour contrast
+  is the most expensive rule axe-core has. Skipping the set is 14-19% of a page and 8-10%
+  of a whole run once start-up is counted.
+
+  The verdict does not move. Every skipped rule is still reported as not evaluated with the
+  same reason, no skipped rule ever becomes a pass, and the coverage view is
+  criterion-for-criterion identical — all three asserted. What is given up is the element
+  list: a rule that ran can name the elements it could not decide, which are the ones a
+  person then checks by hand, and a rule that never ran cannot. That is the whole of the
+  trade, which is why it is a flag and not the default. No effect under `--browser`, which
+  can decide those rules for real, and it says so rather than ignoring the flag quietly.
+
+### Changed
+
+- **Compiled bytecode is reused between runs.** Importing jsdom is ~700 ms and axe-core
+  another ~130 ms to import and compile, and V8 paid to compile both from source on every
+  invocation of a CLI that build scripts run over and over against unchanged code. Node's
+  compile cache is enabled in the CLI entry and again in the audit worker, since the cache
+  is per-thread and each worker compiles its own copy. A one-page audit goes 1397 ms to
+  1256 ms; a fifty-page one is unchanged, which is the expected shape for a fixed cost.
+  Best-effort: a read-only or sandboxed cache directory makes a run slightly slower and
+  nothing else.
+
 ## 0.4.0 — 2026-09-01
 
 ### Added
