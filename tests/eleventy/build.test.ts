@@ -3,6 +3,7 @@ import { access, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 
@@ -63,7 +64,11 @@ async function project(page: string, pluginOptions = '{}', output = '_site'): Pr
   await writeFile(path.join(dir, 'src/index.html'), page, 'utf8')
   await writeFile(
     path.join(dir, 'eleventy.config.mjs'),
-    `import eaaKit from ${JSON.stringify(ENTRY)}\n` +
+    // A file: URL, not the path: Eleventy loads this config with import(), and
+    // a bare Windows absolute path (D:\\a\\eaa-kit\\dist\\eleventy\\index.js) is not a
+    // valid ESM specifier — Node rejects it as an unsupported 'd:' scheme. The
+    // Astro fixture resolves the same way, for the same reason.
+    `import eaaKit from ${JSON.stringify(pathToFileURL(ENTRY).href)}\n` +
       `export default function (eleventyConfig) {\n` +
       `  eleventyConfig.addPlugin(eaaKit, ${pluginOptions})\n` +
       `  return { dir: { input: 'src', output: ${JSON.stringify(output)} } }\n` +
