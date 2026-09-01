@@ -186,6 +186,32 @@ try {
   // is a subpath export nothing else in the suite imports the published copy
   // of, and a broken one fails inside somebody's build rather than here —
   // which is exactly how the browser-mode bugs of 0.2.x reached users.
+  // Every integration is loadable both ways. The hosts differ: a Nuxt or Astro
+  // config is ESM, while webpack, Docusaurus and Eleventy configs are very often
+  // CommonJS, and `require` of a subpath with no `require` condition fails
+  // outright with ERR_PACKAGE_PATH_NOT_EXPORTED — which is what the documented
+  // webpack usage did before this was checked. Node's require(esm) covers it on
+  // every version in `engines`, but only for a module graph with no top-level
+  // await; adding one later would break CommonJS consumers silently, so it is
+  // asserted here rather than discovered in somebody's build.
+  for (const subpath of ['astro', 'vite', 'eleventy', 'docusaurus', 'webpack', 'nuxt']) {
+    const required = spawnSync(
+      process.execPath,
+      [
+        '-e',
+        `const m = require(${JSON.stringify(`eaa-kit/${subpath}`)})
+         if (typeof m.default !== 'function') throw new Error('no default export')
+         console.log('ok')`,
+      ],
+      { cwd: installed, encoding: 'utf8' },
+    )
+    check(
+      `the ${subpath} entry loads from a CommonJS config`,
+      required.status === 0,
+      `${required.stdout}${required.stderr}`.trim(),
+    )
+  }
+
   for (const subpath of ['astro', 'vite', 'eleventy', 'docusaurus', 'webpack', 'nuxt']) {
     const file = path.join(installed, 'dist', subpath, 'index.js')
     const loaded = spawnSync(

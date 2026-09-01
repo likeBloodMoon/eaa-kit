@@ -9,6 +9,24 @@ move: the JSON report's `schemaVersion` and the baseline file's. Both are bumped
 a field is removed, renamed, or changes meaning — new fields may appear without one, so
 consumers must ignore what they do not recognise.
 
+## Unreleased
+
+### Fixed
+
+- **The integrations could not be loaded from a CommonJS config**, which is the shape most
+  of their hosts use. `webpack.config.js`, `docusaurus.config.js` and `.eleventy.js` are
+  ordinarily CommonJS, and every subpath export named only an `import` condition — so the
+  `require('eaa-kit/webpack')` line printed in the docs failed outright with
+  `ERR_PACKAGE_PATH_NOT_EXPORTED`. A documented integration that cannot be loaded as
+  documented.
+
+  Each subpath now names a `require` condition alongside `import`, pointing at the same
+  file: Node's `require(esm)` loads it on every version this package supports, so nothing
+  is compiled twice and the package stays ESM-only. The one thing that would break it again
+  is a top-level `await` anywhere in a module graph an integration pulls in, so the packaged
+  harness now loads all six entries with `require` as well as `import` — a future one fails
+  there instead of in somebody's build.
+
 ## 0.4.0 — 2026-09-01
 
 ### Added
