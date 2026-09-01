@@ -83,6 +83,16 @@ inputs:
     required: false
     default: ''
 
+  fast:
+    description: >-
+      Skip the rules the browserless engine cannot decide, rather than running
+      them and discarding the answer. Those rules are still reported as not
+      evaluated, so the verdict does not move; what is given up is the list of
+      elements under each, which are the ones somebody checks by hand. No effect
+      on a browser run.
+    required: false
+    default: 'false'
+
   version:
     description: Version of eaa-kit to run, as an npm dist-tag or version.
     required: false
@@ -129,6 +139,7 @@ runs:
         EAA_BASE_URL: ${{ inputs.base-url }}
         EAA_VERSION: ${{ inputs.version }}
         EAA_CONCURRENCY: ${{ inputs.concurrency }}
+        EAA_FAST: ${{ inputs.fast }}
         EAA_BASELINE: ${{ inputs.baseline }}
       run: |
         set -o pipefail
@@ -159,6 +170,9 @@ runs:
         fi
         if [ -n "$EAA_CONCURRENCY" ]; then
           args+=(--concurrency "$EAA_CONCURRENCY")
+        fi
+        if [ "$EAA_FAST" = "true" ]; then
+          args+=(--fast)
         fi
         if [ -n "$EAA_BASELINE" ]; then
           args+=(--baseline "$EAA_BASELINE")

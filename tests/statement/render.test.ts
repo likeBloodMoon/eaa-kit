@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { Country, EaaConfigInput } from '../../src/config/define.ts'
+import type { Country, EaaConfigInput, StatementLocale } from '../../src/config/define.ts'
 import { parseConfig } from '../../src/config/define.ts'
 import type { AuditFinding, AuditSummary } from '../../src/statement/findings.ts'
 import { renderStatement, StatementError } from '../../src/statement/render.ts'
@@ -92,15 +92,28 @@ describe('template selection', () => {
     expect(statement.markdown).not.toContain('BaFG')
   })
 
-  it('refuses a country whose template does not exist yet, naming what does', async () => {
-    // The cast stands in for a country added to COUNTRIES before its template is
-    // written. Rendering a placeholder as somebody's legal document would be far
-    // worse than failing.
-    const missing = { country: 'FR' as Country }
+  it('refuses a language a country does not have, naming the ones it does', async () => {
+    // The matrix is sparse: France's statement exists in French and English,
+    // and a German rendering of it is not a thing anybody wrote. Falling back
+    // to another language would hand somebody a legal document in a language
+    // their readers may not have, and do it quietly.
+    const missing = { country: 'FR' as Country, locale: 'de' as StatementLocale }
 
     await expect(renderStatement(config(), missing)).rejects.toThrow(StatementError)
     await expect(renderStatement(config(), missing)).rejects.toThrow(
-      /Available: at\.de, at\.en, ch\.de, ch\.en, de\.de, de\.en/,
+      /No FR statement in de\. FR has: en, fr/,
+    )
+  })
+
+  it('refuses a country whose template does not exist yet, naming what does', async () => {
+    // The cast stands in for a country added to COUNTRIES before its templates
+    // are written. Rendering a placeholder as somebody's legal document would be
+    // far worse than failing.
+    const missing = { country: 'JP' as Country }
+
+    await expect(renderStatement(config(), missing)).rejects.toThrow(StatementError)
+    await expect(renderStatement(config(), missing)).rejects.toThrow(
+      /Available: at\.de, at\.en, ch\.de, ch\.en, de\.de, de\.en, es\.en/,
     )
   })
 })

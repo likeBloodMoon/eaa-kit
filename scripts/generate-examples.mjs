@@ -24,6 +24,12 @@ const statements = [
   { args: ['--lang', 'de'], file: 'examples/statement.de.md' },
   { args: ['--lang', 'en'], file: 'examples/statement.en.md' },
   { args: ['--lang', 'de'], file: 'examples/statement.de.html' },
+  // One country whose statement is not the Austrian one, so the shape of a
+  // non-DACH template is visible without running anything. One rather than
+  // four: the other three differ from this in their statute and their
+  // enforcement section, and four near-identical documents in the diff of
+  // every release would be paid for on every release.
+  { args: ['--country', 'FR', '--lang', 'fr'], file: 'examples/statement.fr.md' },
   {
     args: ['--lang', 'de', '--audit', 'examples/report.json'],
     file: 'examples/statement.audit.de.md',

@@ -99,7 +99,7 @@ describe('parseConfig', () => {
   it.each([
     ['a missing contact address', { provider: { legalName: 'X' } }, 'provider.email'],
     ['an unroutable site url', { site: { ...VALID.site, url: 'not-a-url' } }, 'site.url'],
-    ['an unknown country', { enforcement: { country: 'FR' } }, 'enforcement.country'],
+    ['an unknown country', { enforcement: { country: 'JP' } }, 'enforcement.country'],
     [
       'a status outside the three the regime recognises',
       { compliance: { ...VALID.compliance, status: 'mostly-fine' } },

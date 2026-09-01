@@ -1,8 +1,9 @@
 # The statement command
 
-Generates an accessibility statement (Barrierefreiheitserklärung) from a config file and,
-optionally, from an audit report — in German or English, as Markdown or HTML, with the
-statute and supervisory body of the country you name.
+Generates an accessibility statement — a Barrierefreiheitserklärung, a déclaration
+d'accessibilité, whatever the country you name calls it — from a config file and,
+optionally, from an audit report. Markdown or HTML, in that country's language or in
+English, naming its statute and supervisory body.
 
 ```bash
 eaa-kit statement                                   # to stdout
@@ -15,8 +16,8 @@ eaa-kit statement --audit a11y.json                 # list what the audit found
 | Flag | Default | Meaning |
 | --- | --- | --- |
 | `--config <path>` | searched for | Path to the config file |
-| `--lang <locale>` | from `site.locale` | `de` or `en` |
-| `--country <code>` | from `enforcement.country` | `AT`, `CH` or `DE` |
+| `--lang <locale>` | from `site.locale` | `de`, `en`, `es`, `fr`, `it` or `nl` — see the table below for which countries have which |
+| `--country <code>` | from `enforcement.country` | `AT`, `CH`, `DE`, `ES`, `FR`, `IT` or `NL` |
 | `--audit <path>` | — | A report from `eaa-kit audit --format json`; its violations are listed as non-accessible content |
 | `--format <format>` | from `--output` | `markdown` or `html` |
 | `--output <path>` | stdout | Write to a file; parent directories are created |
@@ -66,6 +67,10 @@ generator emitting an inaccessible statement has failed at the one job it has.
 directory. TypeScript configs are read directly — Node strips the types, so there is no
 build step and no loader dependency.
 
+The same file can carry an [`audit` block](audit.md#defaults-from-eaaconfig) of defaults
+for `eaa-kit audit`. Nothing in it reaches the statement, and nothing here reaches an
+audit; they share a file, not a meaning.
+
 ```ts
 import { defineConfig } from 'eaa-kit'
 
@@ -100,7 +105,7 @@ export default defineConfig({
     ],
   },
   enforcement: {
-    country: 'AT',   // AT, CH or DE
+    country: 'AT',   // AT, CH, DE, ES, FR, IT or NL
   },
 })
 ```
@@ -139,6 +144,45 @@ Sozialministeriumservice wenden. …
 The `AT` template names the Barrierefreiheitsgesetz and the Sozialministeriumservice; the
 `DE` template names the Barrierefreiheitsstärkungsgesetz and the Marktüberwachungsstelle
 der Länder (MLBF). Both statutes transpose Directive (EU) 2019/882.
+
+## The countries, and what each template names
+
+Each country's statement is a document under its own law, written in the language that law
+is administered in, plus English. It is not a translation of another country's: `--lang fr`
+is the French statement, and there is no French rendering of the Austrian one.
+
+| Country | Languages | Statute | Enforcement named |
+| --- | --- | --- | --- |
+| `AT` | `de`, `en` | Barrierefreiheitsgesetz (BaFG) | Sozialministeriumservice |
+| `DE` | `de`, `en` | Barrierefreiheitsstärkungsgesetz (BFSG) | Marktüberwachungsstelle der Länder (MLBF) |
+| `CH` | `de`, `en` | Behindertengleichstellungsgesetz (BehiG) — [not an EAA transposition](#switzerland-is-not-the-eu) | the courts; there is no supervisory body |
+| `ES` | `es`, `en` | [Ley 11/2023, de 8 de mayo](https://www.boe.es/buscar/act.php?id=BOE-A-2023-11022) | the competent market surveillance authority, usually your autonomous community's consumer body |
+| `FR` | `fr`, `en` | Ordonnance n° 2023-859 du 6 septembre 2023, and art. 47 of loi n° 2005-102 | the Défenseur des droits, and [Arcom](https://www.arcom.fr) |
+| `IT` | `it`, `en` | D.lgs. 27 maggio 2022, n. 82, amending the legge Stanca (l. 4/2004) | [AgID](https://www.agid.gov.it) |
+| `NL` | `nl`, `en` | Implementatiewet toegankelijkheidsvoorschriften producten en diensten | [ACM](https://www.acm.nl) for services, RDI for products |
+
+Asking for a language a country does not have is an error naming the ones it does, rather
+than a fall back to another language: a legal document silently published in a language
+your readers may not have is worse than a run that stops.
+
+### Three regimes ask for more than this document
+
+Where a country's own regime prescribes a declaration with a form of its own, the template
+says so rather than letting a generated file look like it discharges the obligation.
+
+- **France.** An online public service, or a company whose average French turnover over the
+  last three closed financial years exceeds €250 million, falls under art. 47 of loi
+  n° 2005-102: the declaration must follow the RGAA model, rest on an RGAA audit, and come
+  with a multi-year accessibility plan. Arcom supervises this, with fines of up to €50,000
+  per non-compliant service and €25,000 for the documentary failings.
+- **Italy.** Private providers of public-facing services with average turnover above
+  €500 million over the last three years file a *dichiarazione di accessibilità* on AgID's
+  own model, by 23 September each year.
+- **Spain.** Public-sector websites and apps are governed by Real Decreto 1112/2018, whose
+  accessibility statement has content of its own.
+
+In each case the generated statement is the document you publish beside the service, not
+the one you file.
 
 ## Switzerland is not the EU
 

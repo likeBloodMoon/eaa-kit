@@ -2,6 +2,7 @@ import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { createInterface } from 'node:readline/promises'
 import pc from 'picocolors'
+import { DEFAULT_FAIL_ON } from '../audit/impact.ts'
 import { COUNTRIES, type Country } from '../config/define.ts'
 import { CONFIG_FILENAMES } from '../config/load.ts'
 import { exists } from '../fs.ts'
@@ -56,6 +57,10 @@ const COUNTRY_LOCALES: Record<Country, string> = {
   AT: 'de-AT',
   DE: 'de-DE',
   CH: 'de-CH',
+  ES: 'es-ES',
+  FR: 'fr-FR',
+  IT: 'it-IT',
+  NL: 'nl-NL',
 }
 
 /**
@@ -167,6 +172,11 @@ export async function runInitCommand(options: InitCommandOptions = {}): Promise<
       knownIssues: [],
     },
     enforcement: { country },
+    // Defaults for `eaa-kit audit`, so a project says once what every
+    // invocation would otherwise repeat. This one restates the built-in
+    // threshold rather than changing anything: it is here to be found and
+    // edited, since a block nobody knows about is a feature nobody has.
+    audit: { failOn: DEFAULT_FAIL_ON },
   }
 
   try {
