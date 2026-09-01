@@ -51,7 +51,7 @@ export async function runBaselineCommand(
 
   const resolved = await resolvePages(path.resolve(cwd, dir), { ...options, label: dir })
   if (!resolved) return { entries: 0, exitCode: 2 }
-  const { pages, origin, label } = resolved
+  const { pages, origin, label, directory } = resolved
 
   note(`Auditing ${count(pages.length, 'page')} in ${label}…`)
 
@@ -62,7 +62,9 @@ export async function runBaselineCommand(
     ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
     ...(options.browser ? { browser: true } : {}),
     ...(options.concurrency === undefined ? {} : { concurrency: options.concurrency }),
-    ...(options.url === undefined ? { directory: path.resolve(cwd, dir) } : {}),
+    // Where the pages were read from, as the collection stage resolved it.
+    // Undefined for a crawl, whose pages are audited at their own URL.
+    ...(directory === undefined ? {} : { directory }),
   })
   if (!audits) return { entries: 0, exitCode: 2 }
 

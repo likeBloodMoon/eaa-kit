@@ -28,7 +28,7 @@ import { type ImpactLevel, impactRank, isImpactLevel } from './impact.ts'
  */
 
 /** Reports older than this cannot be compared. */
-export const SUPPORTED_REPORT_SCHEMA = 1
+export const SUPPORTED_REPORT_SCHEMA = 2
 
 export class DiffError extends Error {
   override readonly name = 'DiffError'
@@ -268,7 +268,8 @@ export async function readReport(file: string, cwd = process.cwd()): Promise<Par
 
   if (result.data.schemaVersion !== SUPPORTED_REPORT_SCHEMA) {
     throw new DiffError(
-      `${file} is schemaVersion ${result.data.schemaVersion}; this version of eaa-kit reads ${SUPPORTED_REPORT_SCHEMA}`,
+      `${file} is schemaVersion ${result.data.schemaVersion}; this version of eaa-kit reads ${SUPPORTED_REPORT_SCHEMA}.\n` +
+        '  Write both reports with the same version of eaa-kit before comparing them.',
     )
   }
 

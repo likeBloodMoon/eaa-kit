@@ -210,7 +210,11 @@ function toResults(
  * combines the fingerprint with the location itself.
  */
 function fingerprint(ruleId: string, selector: string, html: string): Record<string, string> {
-  return { 'eaaKit/v1': elementFingerprint(ruleId, selector, html) }
+  // v2: the fingerprint stopped hashing the element's descendants, so a
+  // document-level alert survives an edit elsewhere on the page instead of
+  // being closed and reopened. The version in the key is what tells code
+  // scanning these are a different scheme rather than moved defects.
+  return { 'eaaKit/v2': elementFingerprint(ruleId, selector, html) }
 }
 
 /** Every rule the run knows about, so the catalogue is complete in GitHub. */

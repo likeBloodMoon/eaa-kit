@@ -9,6 +9,78 @@ move: the JSON report's `schemaVersion` and the baseline file's. Both are bumped
 a field is removed, renamed, or changes meaning — new fields may appear without one, so
 consumers must ignore what they do not recognise.
 
+## Unreleased
+
+### Fixed
+
+- **`audit --browser` audited nothing at all unless it was given a directory.** The
+  runner takes the build directory so it can serve the pages over loopback; passing
+  nothing is how a caller says these pages came off a running site and already have
+  somewhere to be fetched from. The audit command passed the directory *the user typed* —
+  which under auto-detection is nothing, because auto-detection is the thing that works it
+  out. So `eaa-kit audit --browser`, the form the README leads with, skipped the server and
+  navigated Chromium to `/home/you/site/dist/index.html`: a filesystem path, not a URL.
+  Every page came back `Cannot navigate to invalid URL`.
+
+  The collection stage now reports the directory it settled on, and both commands pass that
+  along. A real crawl still passes nothing, because serving a crawled page back out of a
+  copy on disk would audit the markup with the server that produced it cut out of the
+  picture. `--browser` with an explicit directory was never affected, which is why the
+  suite did not see it: every browser test named one.
+
+- **A run where every page failed reported "No violations".** The count in that sentence was
+  of pages attempted, not pages audited, so a run that could read none of them opened its
+  summary with a clean result in green — the exact fail-open the rest of the tool is built
+  to refuse — with the error line beneath it. It now says nothing was audited, and where
+  only some pages failed the counts are over the pages that were actually read, so
+  "no violations across 2 pages" cannot describe a run that opened one.
+
+- **A baseline stopped suppressing a barrier when anything else on the page changed**, and
+  `diff` reported that same untouched barrier as **fixed**. The identity of a violating
+  element hashed the element's whole outer markup, and for the document-level rules —
+  `html-has-lang`, `document-title`, and every other rule that fails against `<html>` — the
+  element's outer markup is the entire page. Adding one paragraph gave them a new identity,
+  and all three consumers of that identity believed it: the build went red on barriers a
+  team had accepted, `diff` announced a missing `<title>` as fixed while the page still had
+  none, and SARIF churned its fingerprints so code scanning closed an alert and opened an
+  identical one on every edit.
+
+  The hash now covers the element's opening tag and not its descendants. Where two elements
+  share an opening tag, axe-core's selector already tells them apart — it qualifies an
+  ambiguous match with `:nth-child(…)` — so nothing that could be distinguished before
+  stops being distinguishable, and a barrier that is genuinely fixed still changes identity.
+  This moves both file contracts; see **Changed**.
+
+- **A browser run reported criteria as unevaluable and advised `--browser`.** The coverage
+  view consulted the table of rules jsdom is structurally blind to without asking which
+  engine had run, so a report produced in real Chromium said colour contrast and target
+  size were beyond it, and closed by suggesting the flag that run had been given. It now
+  believes a browser run's own results: a rule reaches no verdict there only if that run
+  said so.
+
+- **A filter that excluded every page was reported as an empty build directory**, together
+  with framework advice naming another directory to audit — a fix for a path that was never
+  wrong. `--include`/`--exclude` matching nothing now says so, and echoes the patterns it
+  was given.
+
+- One unreachable page was counted in the singular and conjugated in the plural: "1 page
+  could not be reached, and were not audited".
+
+### Changed
+
+- **The baseline file's `schemaVersion` moves to 2** and the JSON report's to 2, because
+  `fingerprint` changed meaning in both. Neither is read across the boundary: a baseline
+  written by 0.4.0 records identities under the old rule, and matching them against the new
+  one would suppress nothing while looking as though it had, so it is refused with the
+  command that rewrites it. `diff` likewise refuses to compare a 0.4.0 report against a
+  newer one — that comparison is precisely the one that reports every document-level
+  barrier as both new and fixed. SARIF's partial fingerprint key moves to `eaaKit/v2` for
+  the same reason, which is what tells code scanning these are a new scheme rather than
+  defects that moved.
+
+  Re-record a baseline with `eaa-kit baseline`, and read the new file before committing it:
+  it lists what this run found, which is not necessarily what the old one accepted.
+
 ## 0.4.0 — 2026-09-01
 
 ### Added

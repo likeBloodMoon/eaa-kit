@@ -2,6 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { SCHEMA_VERSION } from '../../src/audit/report/json.ts'
 import { runDiffCommand } from '../../src/cli/diff.ts'
 
 const dirs: string[] = []
@@ -42,7 +43,7 @@ async function reports(
   dirs.push(dir)
 
   const document = (violations: Violation[], pages: string[]): unknown => ({
-    schemaVersion: 1,
+    schemaVersion: SCHEMA_VERSION,
     generatedAt: '2026-08-20T18:00:00.000Z',
     target: { source: './dist' },
     completeness: { complete: true, audited: pages.length },

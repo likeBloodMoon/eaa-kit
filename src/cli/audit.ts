@@ -78,7 +78,7 @@ export async function runAuditCommand(
 ): Promise<AuditCommandResult> {
   const resolved = await resolvePages(dir, options)
   if (!resolved) return { audits: [], exitCode: 2 }
-  const { pages, origin, label, cleanup, completeness: collection } = resolved
+  const { pages, origin, label, cleanup, directory, completeness: collection } = resolved
   // try/finally rather than a call before each return: auto-detection may have
   // started the project's server, and leaving it running would hold the process
   // open after the report is written.
@@ -97,9 +97,16 @@ export async function runAuditCommand(
       ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
       ...(options.browser ? { browser: true } : {}),
       ...(options.concurrency === undefined ? {} : { concurrency: options.concurrency }),
-      // No directory when the pages were crawled: they are audited at the URL
+      // The directory the pages were actually read from, not the one the
+      // caller typed: under auto-detection nobody typed one, and passing
+      // undefined told the browser runner these pages had been crawled. It
+      // then skipped the loopback server and navigated Chromium to a bare
+      // filesystem path, which is not a URL — so `eaa-kit audit --browser`
+      // with no directory argument failed every page it was given.
+      //
+      // Still undefined for a real crawl: those pages are audited at the URL
       // they came from, not served back out of a copy on disk.
-      ...(options.url === undefined && dir !== undefined ? { directory: dir } : {}),
+      ...(directory === undefined ? {} : { directory }),
     })
     if (!audits) return { audits: [], exitCode: 2 }
 

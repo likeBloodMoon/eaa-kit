@@ -25,7 +25,7 @@ interface PageSpec {
 /** A JSON report with only the fields a diff reads. */
 function report(pages: PageSpec[], overrides: Record<string, unknown> = {}): unknown {
   return {
-    schemaVersion: 1,
+    schemaVersion: SCHEMA_VERSION,
     generatedAt: '2026-08-20T18:00:00.000Z',
     target: { source: './dist' },
     completeness: { complete: true, audited: pages.filter((p) => !p.error).length },
@@ -149,7 +149,7 @@ describe('diffReports', () => {
     // A rule can fail with nothing attached. Getting this wrong would make such
     // failures invisible to a diff while still visible to the baseline.
     const withNoNodes = {
-      schemaVersion: 1,
+      schemaVersion: SCHEMA_VERSION,
       generatedAt: '2026-08-20T18:00:00.000Z',
       pages: [{ path: 'index.html', violations: [{ ruleId: 'html-has-lang', nodes: [] }] }],
     }
@@ -183,9 +183,9 @@ describe('diffReports', () => {
 
 describe('readReport', () => {
   it('refuses a schema version it was not written against', async () => {
-    await expect(parsed(report([{ path: 'index.html' }], { schemaVersion: 2 }))).rejects.toThrow(
-      DiffError,
-    )
+    await expect(
+      parsed(report([{ path: 'index.html' }], { schemaVersion: SCHEMA_VERSION + 1 })),
+    ).rejects.toThrow(DiffError)
   })
 
   it('refuses a file that is not a report', async () => {

@@ -50,13 +50,13 @@ to become one.
 
 ```jsonc
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "createdOn": "2026-08-27",
   "entries": [
     {
       "page": "index.html",
       "ruleId": "image-alt",
-      "fingerprint": "f0e17d2582e9a5b3",   // rule + selector + markup, not the path
+      "fingerprint": "f0e17d2582e9a5b3",   // rule + selector + opening tag, not the path
       "selector": "img",                    // the rest is for whoever reads the file
       "help": "Images must have alternative text",
       "impact": "critical",
@@ -70,8 +70,16 @@ to become one.
 
 The fingerprint deliberately excludes the page path — it is the same one SARIF uses — so
 moving a page does not invalidate the entry's identity, though the `page` field does have
-to match. Entries are sorted, so the file diffs cleanly and two people regenerating it get
-the same result.
+to match. It also excludes anything nested inside the failing element, so an entry for a
+document-level rule such as `html-has-lang` survives an edit elsewhere on the page.
+Entries are sorted, so the file diffs cleanly and two people regenerating it get the same
+result.
+
+A baseline written by an earlier version is refused rather than read: `schemaVersion` 1
+recorded fingerprints under the old rule, and matching them against the new one would
+suppress nothing while looking as though it had. Record it again with `eaa-kit baseline`,
+then read the new file before committing it — it lists what this run found, which is not
+necessarily what the old one accepted.
 
 ## In code scanning
 

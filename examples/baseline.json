@@ -1,11 +1,11 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "createdOn": "2026-09-01",
   "entries": [
     {
       "page": "index.html",
       "ruleId": "html-has-lang",
-      "fingerprint": "4c2a13ab4c8c0365",
+      "fingerprint": "b6128eff391a4be6",
       "selector": "html",
       "help": "<html> element must have a lang attribute",
       "impact": "serious",
@@ -23,7 +23,7 @@
     {
       "page": "index.html",
       "ruleId": "link-name",
-      "fingerprint": "e444708c0ffb67e0",
+      "fingerprint": "3943063f55791bff",
       "selector": "a",
       "help": "Links must have discernible text",
       "impact": "serious",

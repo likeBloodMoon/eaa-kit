@@ -142,3 +142,44 @@ describe('runBrowserAudit', () => {
     expect(audit?.violations).toEqual([])
   }, 120_000)
 })
+
+describe('audit --browser, end to end', () => {
+  /**
+   * The headline invocation: no directory argument, so auto-detection finds the
+   * build. It used to hand the browser runner no directory at all, which is the
+   * runner's signal that these pages came off a running site and already have
+   * somewhere to be fetched from — so it skipped the loopback server and
+   * navigated Chromium to `/tmp/…/index.html`, a filesystem path and not a URL.
+   * Every page errored, and the summary opened with "No violations".
+   */
+  it('audits the build it found rather than failing every page', async () => {
+    const { runAuditCommand } = await import('../../../src/cli/audit.ts')
+    const project = await mkdtemp(path.join(tmpdir(), 'eaa-kit-browser-cli-'))
+    await writeFile(path.join(project, 'package.json'), '{"name":"site","private":true}', 'utf8')
+    await mkdir(path.join(project, 'dist'), { recursive: true })
+    await mkdir(path.join(project, 'dist', 'assets'), { recursive: true })
+    await writeFile(path.join(project, 'dist', 'assets', 'site.css'), STYLES, 'utf8')
+    await writeFile(path.join(project, 'dist', 'index.html'), PAGE, 'utf8')
+
+    const writes = { stdout: process.stdout.write, stderr: process.stderr.write }
+    process.stdout.write = (() => true) as typeof process.stdout.write
+    process.stderr.write = (() => true) as typeof process.stderr.write
+    try {
+      const { audits } = await runAuditCommand(undefined, {
+        cwd: project,
+        browser: true,
+        noBuild: true,
+      })
+
+      expect(audits).toHaveLength(1)
+      expect(audits[0]?.error).toBeUndefined()
+      // Served over loopback, so the stylesheet loaded and the rule that needs
+      // it reached a verdict — the whole point of passing the directory along.
+      expect(audits[0]?.violations.map((finding) => finding.ruleId)).toContain('color-contrast')
+    } finally {
+      process.stdout.write = writes.stdout
+      process.stderr.write = writes.stderr
+      await rm(project, { recursive: true, force: true })
+    }
+  }, 180_000)
+})

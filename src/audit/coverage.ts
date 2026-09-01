@@ -196,6 +196,16 @@ export function buildCoverage(
   const byCriterion = rulesByCriterion(tags)
   const decided = decidedRules(audits)
   const blinded = blindedRules(audits)
+  // ENGINE_BLIND_RULES is a fact about jsdom, not about auditing. Consulting it
+  // for a run that used real Chromium made the browser report contradict
+  // itself: colour contrast and target size came back as "this engine could not
+  // evaluate it", and the summary advised re-running with --browser — the flag
+  // that run was already using. A browser sees layout and CSS, so the only
+  // rules it reached no verdict on are the ones its own results said so about,
+  // which `blinded` already holds.
+  // An empty run keeps the table: there is no browser result to argue it away.
+  const jsdomBlindApplies =
+    audits.length === 0 || audits.some((audit) => audit.engine !== 'browser')
 
   const criteria: CriterionCoverage[] = WCAG22_AA_CRITERIA.map((criterion) => {
     const rules = byCriterion.get(criterion.number) ?? []
@@ -212,7 +222,7 @@ export function buildCoverage(
     // and matched nothing — different facts with different remedies, so they
     // are not folded together.
     const engineBlind = rules.filter(
-      (rule) => blinded.has(rule) || ENGINE_BLIND_RULES[rule] !== undefined,
+      (rule) => blinded.has(rule) || (jsdomBlindApplies && ENGINE_BLIND_RULES[rule] !== undefined),
     )
 
     // One blind rule is enough. Requiring all of them was wrong on the one

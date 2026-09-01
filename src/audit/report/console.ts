@@ -313,23 +313,38 @@ function summary(audits: readonly PageAudit[], ctx: Context): string[] {
   )
   const reviewCount = countRules(audits, 'needs-review')
   const pages = count(audits.length, 'page')
+  // A page that errored produced no findings because nothing read it, so it is
+  // not one of the pages a "no violations" sentence can be counted over.
+  const audited = audits.length - errored.length
 
   const lines = [line(ctx, 'Summary', ctx.c.bold), ...completenessLines(ctx)]
 
-  if (ruleCount === 0) {
+  if (ruleCount === 0 && audited === 0 && errored.length > 0) {
+    // Every page this run was given failed. "No violations" here would be a
+    // pass handed back for markup nothing ever opened, so the count is not
+    // printed as a verdict at all and the error line below carries the result.
+    // A run with no pages is a different thing and keeps its own wording: there
+    // was nothing to fail.
+    lines.push(line(ctx, '  Nothing was audited: no page could be read.', ctx.c.red))
+  } else if (ruleCount === 0) {
     // Qualified rather than plain when the run did not see the whole site: "no
     // violations" over a fraction of the pages is not the sentence it looks
     // like, and the completeness lines above have just said which fraction.
-    const clean =
-      ctx.completeness && !ctx.completeness.complete
-        ? `  No violations across the ${pages} that were audited.`
-        : `  No violations across ${pages}.`
+    // The count is of pages actually audited, not of pages attempted: saying
+    // "no violations across 2 pages" when one of them errored claims a verdict
+    // on a page nothing looked at.
+    const incomplete = errored.length > 0 || (ctx.completeness && !ctx.completeness.complete)
+    const clean = incomplete
+      ? `  No violations across the ${count(audited, 'page')} that were audited.`
+      : `  No violations across ${pages}.`
     lines.push(line(ctx, clean, ctx.c.green))
   } else {
     lines.push(
       render(ctx, [
         {
-          text: `  ${count(ruleCount, 'violation')} on ${withViolations.length} of ${pages}`,
+          // Out of the pages audited, not the pages attempted: "on 1 of 2
+          // pages" reads as one clean page when the other one errored.
+          text: `  ${count(ruleCount, 'violation')} on ${withViolations.length} of ${count(audited, 'page')}`,
           paint: ctx.c.red,
         },
         { text: ` (${count(elementCount, 'element')})`, paint: ctx.c.dim },
@@ -441,10 +456,11 @@ function completenessLines(ctx: Context): string[] {
 
   if (completeness.unreachable.length > 0) {
     const noun = plural(completeness.unreachable.length, 'page')
+    const verb = completeness.unreachable.length === 1 ? 'was' : 'were'
     lines.push(
       line(
         ctx,
-        `  ${completeness.unreachable.length} ${noun} could not be reached, and were not audited`,
+        `  ${completeness.unreachable.length} ${noun} could not be reached, and ${verb} not audited`,
         ctx.c.yellow,
       ),
     )

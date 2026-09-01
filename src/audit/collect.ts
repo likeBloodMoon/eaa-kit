@@ -95,6 +95,29 @@ export async function collectPages(
   return pages
 }
 
+/**
+ * Whether the directory holds any HTML at all, ignoring include and exclude.
+ *
+ * Asked when a run collected nothing, to tell two different mistakes apart: a
+ * build directory with no pages in it, and a directory full of pages that the
+ * caller's own filters excluded. The advice for the first is wrong for the
+ * second — it names another directory to audit — so the question has to be
+ * answered before it is given.
+ *
+ * Globs rather than collecting: this only needs to know whether one file
+ * exists, and reading every page of a large build to answer that on a path that
+ * is about to print a warning and stop would be work for nothing.
+ */
+export async function holdsHtml(dir: string): Promise<boolean> {
+  const found = await glob([...DEFAULT_INCLUDE], {
+    cwd: path.resolve(dir),
+    ignore: [...DEFAULT_EXCLUDE],
+    onlyFiles: true,
+    dot: false,
+  })
+  return found.length > 0
+}
+
 async function assertDirectory(root: string, original: string): Promise<void> {
   let stats: Awaited<ReturnType<typeof stat>>
   try {

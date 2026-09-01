@@ -18,7 +18,7 @@ async function fixture(): Promise<Record<string, unknown>> {
 /** The smallest document the reader accepts, to build invalid ones from. */
 function report(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
-    schemaVersion: 1,
+    schemaVersion: SUPPORTED_REPORT_SCHEMA,
     generatedAt: '2026-08-21T09:30:00.000Z',
     summary: { pages: 1, needsReview: 0, notEvaluated: 0 },
     rules: {
@@ -192,8 +192,12 @@ describe('summariseAuditReport', () => {
   })
 
   it('rejects a schema version it does not know how to read', () => {
-    expect(() => summariseAuditReport(report({ schemaVersion: 2 }))).toThrow(
-      /schemaVersion 2; this version of eaa-kit reads 1/,
+    expect(() =>
+      summariseAuditReport(report({ schemaVersion: SUPPORTED_REPORT_SCHEMA + 1 })),
+    ).toThrow(
+      new RegExp(
+        `schemaVersion ${SUPPORTED_REPORT_SCHEMA + 1}; this version of eaa-kit reads ${SUPPORTED_REPORT_SCHEMA}`,
+      ),
     )
   })
 
