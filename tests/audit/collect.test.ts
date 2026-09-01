@@ -1,4 +1,4 @@
-import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -258,14 +258,38 @@ describe('emptyDirectoryHint', () => {
 })
 
 /**
- * Root bypasses the mode bits entirely, so a file chmodded to 000 is still
- * readable and there is no way to provoke the failure. CI runs as an ordinary
- * user, where these do exercise; skipping is honest about that rather than
- * asserting something the run never checked.
+ * Whether this platform and user can make a file unreadable at all.
+ *
+ * Two environments cannot, for unrelated reasons: root bypasses the mode bits,
+ * and Windows' chmod only toggles a read-only flag that does not stop a read.
+ * Both would make these cases assert against a file the process can happily
+ * open, so both have to be skipped — and enumerating them by name is how the
+ * first attempt got it wrong, since `process.getuid` does not exist on Windows
+ * and a root check silently passed there.
+ *
+ * So it is measured rather than guessed: write a file, deny it, try to read it.
+ * That is exactly the precondition, and it stays right on a platform nobody
+ * thought about.
  */
-const asRoot = process.getuid?.() === 0
+const canDenyReads = await (async (): Promise<boolean> => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'eaa-collect-probe-'))
+  try {
+    const file = path.join(dir, 'denied')
+    await writeFile(file, 'x')
+    await chmod(file, 0o000)
+    try {
+      await readFile(file, 'utf8')
+      return false
+    } catch {
+      return true
+    }
+  } finally {
+    await chmod(path.join(dir, 'denied'), 0o644).catch(() => {})
+    await rm(dir, { recursive: true, force: true })
+  }
+})()
 
-describe.skipIf(asRoot)('a file that cannot be read', () => {
+describe.skipIf(!canDenyReads)('a file that cannot be read', () => {
   async function siteWithUnreadableFile(): Promise<string> {
     const dir = await mkdtemp(path.join(tmpdir(), 'eaa-collect-'))
     tempDirs.push(dir)
