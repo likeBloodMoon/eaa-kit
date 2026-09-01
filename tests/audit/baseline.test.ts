@@ -12,7 +12,6 @@ import {
   serialiseBaseline,
   writeBaseline,
 } from '../../src/audit/baseline.ts'
-import { elementFingerprint } from '../../src/audit/fingerprint.ts'
 import type { Finding, PageAudit } from '../../src/audit/result.ts'
 
 const TODAY = new Date('2026-08-27T10:00:00.000Z')
@@ -265,7 +264,7 @@ describe('applyBaseline', () => {
   })
 
   it('accepts nothing from an empty baseline', () => {
-    const empty: Baseline = { schemaVersion: 1, createdOn: '', entries: [] }
+    const empty: Baseline = { schemaVersion: BASELINE_SCHEMA_VERSION, createdOn: '', entries: [] }
 
     const outcome = applyBaseline(audits, empty, { today: TODAY })
 
@@ -301,7 +300,9 @@ describe('the file', () => {
 
   it('declares its schema version', () => {
     expect(baselineFor([]).schemaVersion).toBe(BASELINE_SCHEMA_VERSION)
-    expect(serialiseBaseline(baselineFor([]))).toContain('"schemaVersion": 1')
+    expect(serialiseBaseline(baselineFor([]))).toContain(
+      `"schemaVersion": ${BASELINE_SCHEMA_VERSION}`,
+    )
   })
 
   it('says how to make one when it is not there', async () => {
@@ -336,27 +337,5 @@ describe('the file', () => {
     )
 
     await expect(readBaseline('b.json', dir)).rejects.toThrow(/schemaVersion 99/)
-  })
-})
-
-describe('elementFingerprint', () => {
-  it('is stable for the same element', () => {
-    expect(elementFingerprint('image-alt', 'img', '<img>')).toBe(
-      elementFingerprint('image-alt', 'img', '<img>'),
-    )
-  })
-
-  it('changes when the rule, the selector or the markup changes', () => {
-    const base = elementFingerprint('image-alt', 'img', '<img>')
-
-    expect(elementFingerprint('link-name', 'img', '<img>')).not.toBe(base)
-    expect(elementFingerprint('image-alt', 'img.x', '<img>')).not.toBe(base)
-    expect(elementFingerprint('image-alt', 'img', '<img alt="">')).not.toBe(base)
-  })
-
-  it('does not depend on the page, so a moved page keeps its baseline', () => {
-    // The same promise SARIF relies on: moving a file must not close one alert
-    // and open an identical one.
-    expect(elementFingerprint('image-alt', 'img', '<img>')).toHaveLength(16)
   })
 })

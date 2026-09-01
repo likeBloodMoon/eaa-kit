@@ -28,8 +28,18 @@ import { type Finding, type FindingNode, findingElements, type PageAudit } from 
  *   anything. Nothing here is permanent unless somebody keeps deciding it is.
  */
 
-/** Bumped only when an existing field is removed, renamed, or changes meaning. */
-export const BASELINE_SCHEMA_VERSION = 1
+/**
+ * Bumped only when an existing field is removed, renamed, or changes meaning.
+ *
+ * 2: `fingerprint` changed meaning. It used to hash the failing element's whole
+ * outerHTML, which for the document-level rules is the entire page — so every
+ * entry for `html-has-lang` or `document-title` stopped matching the moment
+ * anybody edited the page it was on, and the build went red on barriers that
+ * had been accepted. Entries written under 1 cannot be matched against 2, and
+ * silently accepting the file would suppress nothing while looking as though it
+ * had, so it is refused with the command that rewrites it.
+ */
+export const BASELINE_SCHEMA_VERSION = 2
 
 /** Default filename, used by the CLI when no path is given. */
 export const DEFAULT_BASELINE_FILE = 'eaa-baseline.json'
@@ -261,7 +271,10 @@ export async function readBaseline(file: string, cwd = process.cwd()): Promise<B
   }
   if (result.data.schemaVersion !== BASELINE_SCHEMA_VERSION) {
     throw new BaselineError(
-      `${path.basename(target)} has schemaVersion ${result.data.schemaVersion}; this version of eaa-kit reads ${BASELINE_SCHEMA_VERSION}`,
+      `${path.basename(target)} has schemaVersion ${result.data.schemaVersion}; this version of eaa-kit reads ${BASELINE_SCHEMA_VERSION}.\n` +
+        `  Record it again on the current build: eaa-kit baseline\n` +
+        '  Read the new file before committing it: it lists what this run found, which is\n' +
+        '  not necessarily what the old one accepted.',
     )
   }
 

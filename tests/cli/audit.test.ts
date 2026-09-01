@@ -6,6 +6,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { IMPACT_LEVELS, type ImpactLevel } from '../../src/audit/impact.ts'
+import { SCHEMA_VERSION } from '../../src/audit/report/json.ts'
 import { runAuditCommand } from '../../src/cli/audit.ts'
 
 const SITE = fileURLToPath(new URL('../fixtures/site', import.meta.url))
@@ -99,7 +100,7 @@ describe('--format and --output', () => {
     await runAuditCommand(IMPACTS, { include: ['critical.html'], format: 'json' })
 
     const document = JSON.parse(stdout.join(''))
-    expect(document.schemaVersion).toBe(1)
+    expect(document.schemaVersion).toBe(SCHEMA_VERSION)
     expect(document.pages[0].path).toBe('critical.html')
     expect(stdout.join('')).not.toContain('eaa-kit audit')
   }, 60_000)
@@ -115,7 +116,7 @@ describe('--format and --output', () => {
       })
 
       const written = JSON.parse(await readFile(target, 'utf8'))
-      expect(written.schemaVersion).toBe(1)
+      expect(written.schemaVersion).toBe(SCHEMA_VERSION)
       expect(written.summary.violations).toBe(1)
       expect(stdout.join('')).toBe('')
       expect(stderr.join('')).toContain('Report written to')
@@ -228,6 +229,19 @@ describe('runAuditCommand', () => {
     expect(exitCode).toBe(2)
     expect(stderr.join('')).toContain('could not be audited')
   }, 60_000)
+
+  it('says the filters excluded everything, not that the build is empty', async () => {
+    // The directory is full of HTML; --include is what left nothing. Saying it
+    // "holds no HTML files" is false, and the advice that follows that
+    // sentence names another directory to audit — sending somebody to fix a
+    // path that was never wrong.
+    const { exitCode } = await runAuditCommand(SITE, { include: ['nope/**'] })
+
+    expect(exitCode).toBe(2)
+    expect(stderr.join('')).toContain('matched the filters')
+    expect(stderr.join('')).toContain('--include nope/**')
+    expect(stderr.join('')).not.toContain('holds no HTML')
+  })
 
   it('exits 2 when the directory holds no HTML', async () => {
     const empty = await mkdtemp(path.join(tmpdir(), 'eaa-kit-cli-'))

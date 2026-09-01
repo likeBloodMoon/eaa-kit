@@ -300,6 +300,44 @@ describe('the completeness lines', () => {
     expect(report).toContain('2 pages could not be reached')
   })
 
+  it('counts one unreachable page in the singular', () => {
+    const report = summaryOf({ unreachable: [{ location: '/a', reason: '404' }] })
+
+    expect(report).toContain('1 page could not be reached, and was not audited')
+  })
+
+  it('does not count an errored page among the pages it found nothing on', () => {
+    // "No violations across 2 pages" over a run where one page could not be
+    // read hands back a verdict on markup nothing opened. The count is of what
+    // was audited; the error line beneath it says what was not.
+    const pages = [clean(), { ...clean(), relativePath: 'broken.html', error: 'boom' }]
+
+    const report = formatConsoleReport(pages, {
+      color: false,
+      width: 80,
+      completeness: runCompleteness(pages, completeCollection('directory', 2)),
+    })
+
+    expect(report).toContain('No violations across the 1 page that were audited.')
+    expect(report).not.toContain('No violations across 2 pages')
+  })
+
+  it('refuses to call a run clean when every page failed', () => {
+    // The shape `audit --browser` produced when it navigated to a filesystem
+    // path instead of a URL: every page errored, nothing was read, and the
+    // summary opened with "No violations" in green.
+    const pages = [
+      { ...clean(), relativePath: 'a.html', error: 'boom' },
+      { ...clean(), relativePath: 'b.html', error: 'boom' },
+    ]
+
+    const report = formatConsoleReport(pages, { color: false, width: 80 })
+
+    expect(report).toContain('Nothing was audited: no page could be read.')
+    expect(report).not.toContain('No violations')
+    expect(report).toContain('2 pages could not be audited')
+  })
+
   it('leaves the errored count to the summary rather than double-reporting it', () => {
     const pages = [clean(), { ...clean(), relativePath: 'broken.html', error: 'boom' }]
     const report = formatConsoleReport(pages, {

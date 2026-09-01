@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { readBaseline } from '../../src/audit/baseline.ts'
+import { BASELINE_SCHEMA_VERSION, readBaseline } from '../../src/audit/baseline.ts'
+import { SCHEMA_VERSION } from '../../src/audit/report/json.ts'
 import { runAuditCommand } from '../../src/cli/audit.ts'
 import { runBaselineCommand } from '../../src/cli/baseline.ts'
 
@@ -56,7 +57,9 @@ describe('runBaselineCommand', () => {
 
     expect(exitCode).toBe(0)
     expect(entries).toBe(3)
-    expect(await readBaseline('eaa-baseline.json', dir)).toMatchObject({ schemaVersion: 1 })
+    expect(await readBaseline('eaa-baseline.json', dir)).toMatchObject({
+      schemaVersion: BASELINE_SCHEMA_VERSION,
+    })
   })
 
   it('says the file is a list of barriers, not a way to switch the tool off', async () => {
@@ -106,13 +109,27 @@ describe('runBaselineCommand', () => {
     expect(stderr.join('')).toContain('Build directory not found')
   })
 
-  it('exits 2 when there is no HTML to audit', async () => {
+  it('exits 2 when the filters leave nothing to audit, and says so', async () => {
+    // The build is full of HTML; --include is what left none of it. Reporting
+    // that the directory "holds no HTML" would be false, and the framework
+    // advice that follows it names a different directory to try — a fix for a
+    // path that was never wrong.
     const dir = await site()
 
     const { exitCode } = await runBaselineCommand('dist', { cwd: dir, include: ['**/*.xhtml'] })
 
     expect(exitCode).toBe(2)
-    expect(stderr.join('')).toContain('holds no HTML')
+    expect(stderr.join('')).toContain('matched the filters')
+    expect(stderr.join('')).not.toContain('holds no HTML')
+  })
+
+  it('exits 2 when the directory really does hold no HTML', async () => {
+    const dir = await site()
+    await writeFile(path.join(dir, 'empty.txt'), '', 'utf8')
+
+    const { exitCode } = await runBaselineCommand('.', { cwd: dir, include: ['nothing/**'] })
+
+    expect(exitCode).toBe(2)
   })
 })
 
@@ -227,7 +244,7 @@ describe('audit --baseline', () => {
     })
 
     expect(JSON.parse(await readFile(path.join(dir, 'reports/a11y.json'), 'utf8'))).toMatchObject({
-      schemaVersion: 1,
+      schemaVersion: SCHEMA_VERSION,
     })
   })
 

@@ -10,7 +10,7 @@ import { StatementError } from './error.ts'
  * axe-core and the statement path deliberately does not. A test asserts the two
  * stay in step.
  */
-export const SUPPORTED_REPORT_SCHEMA = 1
+export const SUPPORTED_REPORT_SCHEMA = 2
 
 /**
  * Only the fields the statement reads. Everything else in the report — node

@@ -4,6 +4,7 @@ import {
   type CollectedPage,
   collectPages,
   emptyDirectoryHint,
+  holdsHtml,
 } from '../audit/collect.ts'
 import type { Collection, Unmeasured } from '../audit/completeness.ts'
 import { count } from '../text.ts'
@@ -52,6 +53,18 @@ export interface ResolvePagesOptions extends CrawlCommandOptions {
 
 export interface ResolvedPages {
   pages: CollectedPage[]
+  /**
+   * Directory the pages were read off disk from, absolute or as the caller
+   * gave it. Undefined for a crawl, whose pages have a server of their own.
+   *
+   * Carried rather than left to the caller's own argument, because under
+   * auto-detection there is no argument: the caller passed undefined and this
+   * stage worked the directory out. A caller that reached for its own `dir`
+   * got undefined there and treated a build on disk as though it had been
+   * crawled — which is exactly what the browser runner uses to decide whether
+   * to serve the pages over loopback or navigate to them directly.
+   */
+  directory?: string
   /** Stops anything auto-detection started, once the report is written. */
   cleanup?: () => Promise<void>
   /**
@@ -129,6 +142,21 @@ export async function resolvePages(
   }
 
   if (pages.length === 0) {
+    // A build directory full of HTML that the globs excluded is not the same
+    // mistake as one with no HTML in it, and the framework advice for the
+    // second is actively wrong for the first: it names another directory to
+    // audit when the directory was never the problem. So the filters are
+    // checked before that advice is offered.
+    const filtered =
+      (options.include !== undefined || options.exclude !== undefined) &&
+      (await holdsHtml(directory as string))
+    if (filtered) {
+      warn(`No page in ${shown} matched the filters, so nothing was audited.`)
+      if (options.include !== undefined) note(`  --include ${options.include.join(' ')}`)
+      if (options.exclude !== undefined) note(`  --exclude ${options.exclude.join(' ')}`)
+      note('  Patterns are relative to the audited directory, with POSIX separators.')
+      return undefined
+    }
     warn(await emptyDirectoryHint(shown, cwd))
     return undefined
   }
@@ -144,6 +172,7 @@ export async function resolvePages(
 
   return {
     pages,
+    directory: directory as string,
     label: shown,
     completeness: {
       discovery: 'directory',

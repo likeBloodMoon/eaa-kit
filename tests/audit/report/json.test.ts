@@ -48,7 +48,6 @@ beforeAll(async () => {
 describe('document envelope', () => {
   it('declares a schema version', () => {
     expect(report.schemaVersion).toBe(SCHEMA_VERSION)
-    expect(report.schemaVersion).toBe(1)
   })
 
   it('names the tool, its version and the axe-core it wrapped', () => {
@@ -260,7 +259,7 @@ describe('stability of the contract', () => {
     const serialised = serialiseJsonReport(report)
 
     expect(serialised.endsWith('}\n')).toBe(true)
-    expect(serialised).toContain('\n  "schemaVersion": 1')
+    expect(serialised).toContain(`\n  "schemaVersion": ${SCHEMA_VERSION}`)
     expect(JSON.parse(serialised)).toEqual(report)
   })
 
@@ -305,7 +304,7 @@ describe('the target block', () => {
     expect(report.target).toMatchObject({ source: 'http://localhost:3000', kind: 'url' })
   })
 
-  it('keeps schemaVersion 1, because no v1 report could have looked different', () => {
+  it('does not move the version for a nullable directory, an added-field change', () => {
     // Adding fields does not move the version. `directory` becoming nullable
     // only shows up for crawls, which did not exist under v1 at all, so every
     // report shape a v1 consumer could already receive is unchanged.
@@ -317,7 +316,7 @@ describe('the target block', () => {
       now: NOW,
     })
 
-    expect(report.schemaVersion).toBe(1)
+    expect(report.schemaVersion).toBe(SCHEMA_VERSION)
   })
 })
 
@@ -361,6 +360,5 @@ describe('the completeness block', () => {
 
   it('does not move the schema version, being an added field', () => {
     expect(report.schemaVersion).toBe(SCHEMA_VERSION)
-    expect(SCHEMA_VERSION).toBe(1)
   })
 })

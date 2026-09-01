@@ -11,8 +11,15 @@ import type { Finding, IncompleteFinding, PageAudit } from '../runners/jsdom.ts'
  * Bumped only when an existing field is removed, renamed, or changes meaning.
  * Adding a new field does not bump it, so consumers must ignore fields they do
  * not know. See the JSON report contract in the README.
+ *
+ * 2: `fingerprint` changed meaning. It used to hash the failing element's whole
+ * outerHTML, which for `<html>` is the entire page, so every document-level
+ * violation changed identity whenever anybody edited the page it was on.
+ * `diff` matches on this field, and comparing a report written under 1 against
+ * one written under 2 would report every such barrier as both new and fixed —
+ * the reading the version check exists to refuse.
  */
-export const SCHEMA_VERSION = 1
+export const SCHEMA_VERSION = 2
 
 export type ReportEngine = 'jsdom' | 'browser'
 

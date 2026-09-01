@@ -4,6 +4,7 @@ import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { runStatementCommand } from '../../src/cli/statement.ts'
 import type { Country } from '../../src/config/define.ts'
+import { SUPPORTED_REPORT_SCHEMA } from '../../src/statement/findings.ts'
 
 /**
  * Stands in for a country added to COUNTRIES before its template is written.
@@ -179,7 +180,7 @@ describe('runStatementCommand --audit', () => {
     await writeFile(
       path.join(dir, 'clean.json'),
       JSON.stringify({
-        schemaVersion: 1,
+        schemaVersion: SUPPORTED_REPORT_SCHEMA,
         generatedAt: '2026-08-21T09:30:00.000Z',
         summary: { pages: 1, needsReview: 0, notEvaluated: 0 },
         rules: {},

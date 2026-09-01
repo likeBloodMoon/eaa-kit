@@ -199,7 +199,7 @@ describe('results', () => {
 
   it('fingerprints results so alerts survive a file move', () => {
     for (const result of log.runs[0]?.results ?? []) {
-      expect(result.partialFingerprints['eaaKit/v1']).toMatch(/^[0-9a-f]{16}$/)
+      expect(result.partialFingerprints['eaaKit/v2']).toMatch(/^[0-9a-f]{16}$/)
     }
   })
 

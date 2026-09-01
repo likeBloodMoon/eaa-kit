@@ -10,7 +10,7 @@ shareable ones.
 
 ### Compatibility
 
-- `schemaVersion` is an integer, currently `1`.
+- `schemaVersion` is an integer, currently `2`.
 - It is bumped only when a field is **removed, renamed, or changes meaning**.
 - New fields may be added without a bump, so **consumers must ignore fields they do not
   recognise**.
@@ -33,7 +33,7 @@ A complete generated document is checked in at
 
 ```jsonc
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "tool": {
     "name": "eaa-kit",
     "version": "0.1.0",
@@ -182,18 +182,25 @@ at its limit. A tool deciding whether a clean report means anything should read 
 fetched; an errored one was fetched and then could not be audited. They are different
 failures with different fixes, and summing them would name neither.
 
-`completeness` was added after `schemaVersion` 1 and does not move it: new fields may
+`completeness` was added without moving `schemaVersion`: new fields may
 appear without a bump, and consumers must ignore what they do not recognise. A consumer
-written against version 1 that has never seen this field should treat its absence as
-unknown rather than as a complete run.
+written against an earlier version that has never seen this field should treat its absence
+as unknown rather than as a complete run.
 
 ### `fingerprint`
 
 Each node carries the same identity the baseline file records and SARIF sends as a partial
-fingerprint: a hash of the rule, the selector and the element's own markup, and deliberately
-not of the page it was found on. Two consumers already depended on it agreeing — SARIF, so
-that moving a page does not close one code-scanning alert and open an identical one, and
-the baseline, so an accepted violation stays accepted when the surrounding page changes.
+fingerprint: a hash of the rule, the selector and the element's own opening tag, and
+deliberately not of the page it was found on. Two consumers already depended on it
+agreeing — SARIF, so that moving a page does not close one code-scanning alert and open an
+identical one, and the baseline, so an accepted violation stays accepted when the
+surrounding page changes.
+
+The tag, not the element's whole markup. axe-core reports the failing element's outerHTML,
+which for `<html>` — the element every document-level rule fails against — is the entire
+page. Hashing that made `html-has-lang` and `document-title` change identity on any edit
+to the page they were on, which is precisely what these two consumers exist to survive.
+Where two elements share an opening tag, axe-core's selector already tells them apart.
 
 It is emitted so a third does not have to reimplement the hash and risk disagreeing with
 them. `eaa-kit diff` matches on it.
@@ -213,7 +220,7 @@ the site — which is the same mistake as adding `inapplicable` to `passes`, and
 `notEvaluated` criteria a `--browser` run would decide. The remainder need a person
 whatever engine runs.
 
-Added after `schemaVersion` 1 and does not move it.
+Added without moving `schemaVersion`.
 
 ## Comparing two runs
 
@@ -285,7 +292,7 @@ Real results from the fixture run above, abbreviated:
               }
             }
           ],
-          "partialFingerprints": { "eaaKit/v1": "4c2a13ab4c8c0365" }
+          "partialFingerprints": { "eaaKit/v2": "b6128eff391a4be6" }
         },
         {
           "ruleId": "image-alt",
@@ -300,7 +307,7 @@ Real results from the fixture run above, abbreviated:
               }
             }
           ],
-          "partialFingerprints": { "eaaKit/v1": "f0e17d2582e9a5b3" }
+          "partialFingerprints": { "eaaKit/v2": "f0e17d2582e9a5b3" }
         }
       ],
       "invocations": [{ "executionSuccessful": true, "toolExecutionNotifications": [] }],

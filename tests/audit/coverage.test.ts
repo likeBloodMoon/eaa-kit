@@ -133,6 +133,73 @@ describe('buildCoverage', () => {
     expect(contradicted.map((criterion) => criterion.number)).toEqual([])
   })
 
+  it("does not hold jsdom's blind spots against a run that used a browser", () => {
+    // ENGINE_BLIND_RULES describes jsdom, which has no layout. Applying it to a
+    // browser run made the report contradict itself and then give advice it had
+    // already taken: colour contrast came back as "this engine could not
+    // evaluate it" from a run in real Chromium, under a summary telling the
+    // reader to re-run with --browser.
+    // What a browser run looks like: it can see layout, so it force-reports
+    // nothing as unevaluable and its incomplete list carries no
+    // engine-limitation at all.
+    const browserRun = audits.map((audit) => ({
+      ...audit,
+      engine: 'browser' as const,
+      incomplete: audit.incomplete.filter((finding) => finding.reason !== 'engine-limitation'),
+    }))
+
+    const browserCoverage = buildCoverage(browserRun)
+    const contrast = browserCoverage.criteria.find((criterion) => criterion.number === '1.4.3')
+
+    expect(contrast?.status).not.toBe('not-evaluated')
+    expect(contrast?.browserWouldAnswer).toBe(false)
+    expect(browserCoverage.browserWouldAnswer).toBe(0)
+  })
+
+  it('still holds them against a run that used jsdom', () => {
+    // The other direction: the advice is worth giving to the engine it applies
+    // to, and switching it off everywhere would have been the easier fix and
+    // the wrong one.
+    expect(coverage.browserWouldAnswer).toBeGreaterThan(0)
+  })
+
+  it('believes a browser run that says a rule reached no verdict', () => {
+    // A browser can still fail to decide a rule — axe-core reports it as
+    // incomplete — and that is a fact about the run rather than about jsdom, so
+    // it survives.
+    const [first, ...rest] = audits
+    if (first === undefined) throw new Error('fixture produced no audits')
+    const browserRun = [
+      {
+        ...first,
+        engine: 'browser' as const,
+        passes: first.passes.filter((outcome) => outcome.ruleId !== 'color-contrast'),
+        violations: first.violations.filter((finding) => finding.ruleId !== 'color-contrast'),
+        incomplete: [
+          {
+            ruleId: 'color-contrast',
+            help: 'Elements must meet minimum colour contrast ratio thresholds',
+            helpUrl: '',
+            impact: 'serious' as const,
+            successCriteria: ['1.4.3'],
+            enClauses: [],
+            tags: ['wcag2aa', 'wcag143'],
+            reason: 'engine-limitation' as const,
+            reasonDetail: 'could not resolve a background colour',
+            nodes: [],
+          },
+        ],
+      },
+      ...rest.map((audit) => ({ ...audit, engine: 'browser' as const })),
+    ]
+
+    const contrast = buildCoverage(browserRun).criteria.find(
+      (criterion) => criterion.number === '1.4.3',
+    )
+
+    expect(contrast?.status).toBe('not-evaluated')
+  })
+
   it('never claims a browser would answer a criterion no rule covers', () => {
     for (const criterion of coverage.criteria) {
       if (criterion.status === 'no-automated-rule') {

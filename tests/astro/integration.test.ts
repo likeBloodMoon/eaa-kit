@@ -9,6 +9,7 @@ import eaaKit, {
   type AstroIntegrationLike,
   type AstroLoggerLike,
 } from '../../src/astro/index.ts'
+import { SCHEMA_VERSION } from '../../src/audit/report/json.ts'
 
 /**
  * The structural types in src/astro are a stand-in for Astro's own, so that the
@@ -192,7 +193,7 @@ describe('auditing the build', () => {
     await run(eaaKit({ format: 'json', output }), dir, recorder().logger).catch(() => undefined)
 
     const doc = JSON.parse(await readFile(output, 'utf8'))
-    expect(doc.schemaVersion).toBe(1)
+    expect(doc.schemaVersion).toBe(SCHEMA_VERSION)
     expect(doc.summary.violations).toBeGreaterThan(0)
   })
 
