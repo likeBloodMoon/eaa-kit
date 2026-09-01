@@ -21,7 +21,14 @@ config with every optional field filled in:
 | [`statement.de.md`](statement.de.md) | `eaa-kit statement --lang de` |
 | [`statement.en.md`](statement.en.md) | `… --lang en` |
 | [`statement.de.html`](statement.de.html) | `… --lang de --output …html` |
+| [`statement.fr.md`](statement.fr.md) | `… --country FR --lang fr` |
 | [`statement.audit.de.md`](statement.audit.de.md) | `… --audit examples/report.json` |
+
+The French one is generated from the same Austrian config, which is why a French
+document lists barriers written in German: the prose belongs to whoever wrote the
+config, and the template never translates it. `statement.en.md` has the same
+property. What changes with the country is the statute, the enforcement section
+and the language of everything the template itself says.
 
 The last one lists the barriers from the audit report next to it, in the form the
 statement gives them — English rule text and all, which is exactly why it is

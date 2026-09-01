@@ -1,8 +1,9 @@
 # The statement command
 
-Generates an accessibility statement (Barrierefreiheitserklärung) from a config file and,
-optionally, from an audit report — in the language of the country you name or in English,
-as Markdown or HTML, with that country's statute and supervisory body.
+Generates an accessibility statement — a Barrierefreiheitserklärung, a déclaration
+d'accessibilité, whatever the country you name calls it — from a config file and,
+optionally, from an audit report. Markdown or HTML, in that country's language or in
+English, naming its statute and supervisory body.
 
 ```bash
 eaa-kit statement                                   # to stdout

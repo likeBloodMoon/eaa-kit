@@ -3,15 +3,17 @@
 [![CI](https://github.com/likeBloodMoon/eaa-kit/actions/workflows/ci.yml/badge.svg)](https://github.com/likeBloodMoon/eaa-kit/actions/workflows/ci.yml)
 
 Build-time WCAG 2.2 AA auditor and EU accessibility statement generator for static sites,
-aimed at freelancers and small agencies in the DACH region who have to comply with the
-European Accessibility Act (in force since 28 June 2025), the BFSG in Germany and the BaFG
-in Austria.
+built for the freelancers and small agencies who have to comply with the European
+Accessibility Act (in force since 28 June 2025) without an accessibility budget. It started
+in the DACH region — the BFSG in Germany, the BaFG in Austria — and the statement now names
+the statute and supervisory body of **seven countries**: Austria, Germany, Switzerland,
+Spain, France, Italy and the Netherlands, each in its own language as well as English.
 
 ```bash
 npx eaa-kit audit                 # WCAG 2.2 AA report; finds your build itself
 npx eaa-kit diff a.json b.json    # what a change made worse, and what it fixed
 npx eaa-kit init                  # write an eaa.config.json
-npx eaa-kit statement             # Barrierefreiheitserklärung from that config
+npx eaa-kit statement             # accessibility statement, in one of seven countries
 ```
 
 > **Not legal advice.** eaa-kit reports what an automated engine can and cannot determine
@@ -33,7 +35,9 @@ supported here either.
 **Audits your build.** Globs the HTML out of `./dist`, parses it with jsdom and runs
 axe-core against it. No Chromium download, fast enough for CI, and it never fetches
 anything or executes your site's JavaScript. `--browser` swaps in real Chromium for the
-rules that need layout and CSS.
+rules that need layout and CSS; `--fast` goes the other way and skips the rules the
+browserless engine cannot decide anyway, rather than running them and discarding the
+answer.
 
 ```bash
 eaa-kit audit ./dist --fail-on serious
@@ -46,14 +50,20 @@ export, Nuxt, SvelteKit, anything behind a CMS — are audited running instead:
 eaa-kit audit --url http://localhost:3000
 ```
 
-**Writes the statement.** A Barrierefreiheitserklärung from one config file, as Markdown or
-HTML, naming the statute and supervisory body of Austria, Germany, Switzerland, Spain,
-France, Italy or the Netherlands — in that country's language or in English — and
-optionally listing the barriers a real audit found.
+**Writes the statement.** A Barrierefreiheitserklärung, a déclaration d'accessibilité, a
+dichiarazione di accessibilità — whatever the country calls it — from one config file, as
+Markdown or HTML, naming that country's statute and supervisory body, and optionally
+listing the barriers a real audit found.
 
 ```bash
 eaa-kit statement --output src/content/a11y.md
+eaa-kit statement --country FR --lang fr    # or ES, IT, NL, AT, DE, CH
 ```
+
+Each country's statement is a document under its own law rather than a translation of
+another's, so where a national regime asks for more than this — France's RGAA declaration,
+Italy's filing with AgID — the text says so instead of letting a generated file look like
+it settles the matter.
 
 **Fails only on what is new.** The first run on a site that already exists finds
 everything at once. A baseline records what is already wrong so the build fails on
@@ -97,6 +107,16 @@ fetch forty URLs, no longer produces a report that looks like a complete one.
 SARIF for GitHub code scanning, and a self-contained HTML page for the client whose site
 it is.
 
+**Says it once.** The flags a project runs on every build belong in the project, not in the
+build script that repeats them. `eaa.config` — the same file the statement reads — takes an
+[`audit` block](docs/audit.md#defaults-from-eaaconfig) of defaults, and `baseline` reads the
+keys that mean the same thing to it. A flag you type still wins, so a one-off `--browser`
+check needs no edit to a committed file.
+
+```jsonc
+{ "audit": { "dir": "build", "failOn": "critical", "browser": true } }
+```
+
 **Runs in your build**: a [Vite plugin](docs/integrations.md#vite-plugin) covering SvelteKit
 and Remix too, and integrations for
 [Astro](docs/integrations.md#astro-integration),
@@ -118,7 +138,8 @@ eaa-kit audit --url http://localhost:8000 --sitemap /sitemap_index.xml
 | | |
 | --- | --- |
 | [Auditing a build](docs/audit.md) | The `audit` command, both engines, exit codes, and what an automated run can and cannot tell you |
-| [The statement command](docs/statement.md) | The config file, the three countries, and filling a statement from audit results |
+| [Defaults from eaa.config](docs/audit.md#defaults-from-eaaconfig) | Writing the flags down once, and what still overrides them |
+| [The statement command](docs/statement.md) | The config file, the seven countries, and filling a statement from audit results |
 | [Baselines](docs/baseline.md) | Adopting the tool on a site that already has violations |
 | [Comparing two runs](docs/reports.md#comparing-two-runs) | The `diff` command, and what it refuses to call fixed |
 | [Coverage of WCAG](docs/audit.md#how-much-of-wcag-a-run-reaches) | What an automated engine can reach at all, and what it cannot |
