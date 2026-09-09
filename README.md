@@ -182,7 +182,10 @@ you](docs/audit.md#what-the-browserless-engine-can-and-cannot-tell-you).
 
 The same applies to the statement: it says what you told it. eaa-kit cannot check whether
 those claims are true, and a statement claiming full conformance for a site that is not
-conformant is worse than no statement at all.
+conformant is worse than no statement at all — which is why, given evidence, it now refuses
+to write that particular one. `statement --audit` will not claim full conformance over a
+report listing barriers, and `--review` will not claim it over criteria somebody recorded as
+not met.
 
 ## Changelog
 

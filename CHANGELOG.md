@@ -65,6 +65,30 @@ consumers must ignore what they do not recognise.
   indistinguishable, and expired entries are kept and reported rather than swept up: an
   expiry date is a decision somebody made, not a barrier that went away.
 
+- **The statement refuses to contradict the evidence beside it.** The README has said since
+  0.1 that a statement claiming full conformance for a site that is not conformant is worse
+  than no statement at all, and the tool did nothing about it: the claim came out of the
+  config file, the report came in through `--audit`, and nothing ever put the two in the same
+  room. A run could print a document claiming full conformance directly above the list of
+  barriers that disproves it.
+
+  Two claims are now refused, with exit 2 and no file written: `compliant` while the audit
+  report lists barriers, and `compliant` while a review record passed to the new `--review`
+  has criteria recorded as `not-met`. Refused rather than warned about, because this is the
+  one output of this tool published under somebody's name — the failure mode is a false
+  statement on a website rather than a wrong number in a terminal — and the message names the
+  fix, since `partially-compliant` is the ordinary answer and does not read that way to
+  somebody filling in a config for the first time.
+
+  Four things warn instead, with the document still written: an `assessedOn` in the future or
+  more than a year old, an audit that ran after the date the statement gives as its
+  assessment, and a report more than a year old. An old date is not a false claim; it is a
+  document nobody has revisited, and only the publisher knows whether the site has moved.
+
+  Nothing is checked without evidence — `eaa-kit statement` on its own behaves exactly as it
+  did. `--review` is read for this check alone and reaches none of the text. The check is
+  exported as `checkStatementEvidence` for anything driving the renderer directly.
+
 ### Changed
 
 - **The reports derive the run's numbers once.** The console report counted violations,

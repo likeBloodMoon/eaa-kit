@@ -268,6 +268,10 @@ program
   )
   .option('--audit <path>', 'list the barriers from an eaa-kit audit --format json report')
   .option(
+    '--review <path>',
+    'check the conformance claim against a review record; nothing from it is published',
+  )
+  .option(
     '--format <format>',
     `output format (${STATEMENT_FORMATS.join('|')}), otherwise from the --output extension`,
     parseStatementFormat,

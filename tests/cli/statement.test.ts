@@ -298,3 +298,71 @@ describe('runStatementCommand --format', () => {
     expect(result).toMatchObject({ document: '', format: 'html', exitCode: 2 })
   })
 })
+
+describe('the claim against the evidence', () => {
+  it('refuses to write a statement claiming full conformance over a failing audit', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'eaa-kit-statement-'))
+    dirs.push(dir)
+    await writeFile(
+      path.join(dir, 'eaa.config.json'),
+      JSON.stringify({ ...CONFIG, compliance: { status: 'compliant', assessedOn: '2026-08-21' } }),
+      'utf8',
+    )
+    await copyFile(AUDIT_FIXTURE, path.join(dir, 'a11y.json'))
+
+    const { exitCode, document } = await runStatementCommand({
+      cwd: dir,
+      audit: 'a11y.json',
+      output: 'statement.md',
+    })
+
+    expect(exitCode).toBe(2)
+    expect(document).toBe('')
+    expect(stderr.join('')).toContain('claims full conformance')
+    // Nothing on disk: a false statement must not exist as a file somebody can
+    // publish by accident.
+    await expect(readFile(path.join(dir, 'statement.md'), 'utf8')).rejects.toThrow()
+  })
+
+  it('writes the statement when the claim and the evidence agree', async () => {
+    const dir = await projectWithAudit()
+
+    const { exitCode, document } = await runStatementCommand({ cwd: dir, audit: 'a11y.json' })
+
+    expect(exitCode).toBe(0)
+    expect(document).toContain('Barrierefreiheit')
+  })
+
+  it('refuses when a review record contradicts the claim', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'eaa-kit-statement-'))
+    dirs.push(dir)
+    await writeFile(
+      path.join(dir, 'eaa.config.json'),
+      JSON.stringify({ ...CONFIG, compliance: { status: 'compliant', assessedOn: '2026-08-21' } }),
+      'utf8',
+    )
+    await writeFile(
+      path.join(dir, 'eaa-review.json'),
+      JSON.stringify({
+        schemaVersion: 1,
+        criteria: { '1.3.2': { result: 'not-met', reviewedOn: '2026-09-01' } },
+      }),
+      'utf8',
+    )
+
+    const { exitCode } = await runStatementCommand({ cwd: dir, review: 'eaa-review.json' })
+
+    expect(exitCode).toBe(2)
+    expect(stderr.join('')).toContain('1.3.2')
+  })
+
+  it('stops rather than crashing when the review record cannot be read', async () => {
+    const dir = await project()
+    await writeFile(path.join(dir, 'eaa-review.json'), '{ not json', 'utf8')
+
+    const { exitCode } = await runStatementCommand({ cwd: dir, review: 'eaa-review.json' })
+
+    expect(exitCode).toBe(2)
+    expect(stderr.join('')).toContain('not valid JSON')
+  })
+})

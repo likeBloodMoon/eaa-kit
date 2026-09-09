@@ -264,6 +264,44 @@ The statement never repeats the audit's verdict on your behalf either: `--audit`
 touch `compliance.status`. Declaring the site partially or fully conformant stays a
 decision you make in the config.
 
+## The claim is checked against the evidence
+
+The README has always said that a statement claiming full conformance for a site that is not
+conformant is worse than no statement at all. Now the tool acts on it. Give it evidence and
+the claim in your config is checked against it before anything is written:
+
+```bash
+eaa-kit statement --audit report.json                     # against what the audit found
+eaa-kit statement --audit report.json --review eaa-review.json
+```
+
+**Two claims are refused outright**, with exit 2 and no file written:
+
+| | |
+| --- | --- |
+| `status: "compliant"` while the audit report lists barriers | Fix them and audit again, or say `partially-compliant` |
+| `status: "compliant"` while the [review record](review.md) has criteria recorded as `not-met` | Somebody checked those and wrote down that the site does not meet them |
+
+Refused rather than warned about, because this is the one output of this tool that gets
+published under your name: the failure mode is not a wrong number in a terminal but a false
+statement on a website. `partially-compliant` is the ordinary answer for most sites, and the
+one that carries the obligation to list what is missing — which the statement then does, from
+the same report.
+
+**Four things are warnings**, printed to stderr with the document still written: an
+`assessedOn` in the future, an `assessedOn` more than a year old, an audit that ran *after*
+the date the statement gives as its assessment, and a report more than a year old. A date
+being old is not a false claim — it is a document nobody has revisited, and only you know
+whether the site has moved since.
+
+Nothing is checked without evidence. `eaa-kit statement` on its own behaves exactly as it
+always did: the tool cannot audit what it was not shown, and refusing there would be an
+accusation rather than a finding.
+
+`--review` is read for this check alone. Nothing from the record reaches the text of the
+statement — wiring a manual review into legal wording is a separate piece of work, in six
+languages, and it is not done.
+
 ## Read it before you publish it
 
 **The generated statement is a draft, not legal advice, and it says so in its own last

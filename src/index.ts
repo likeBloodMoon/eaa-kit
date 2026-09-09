@@ -31,6 +31,8 @@ export {
 export type { LoadConfigOptions, LoadedConfig } from './config/load.ts'
 export { CONFIG_FILENAMES, findConfigFile, loadConfig } from './config/load.ts'
 export { StatementError } from './statement/error.ts'
+export type { EvidenceInput, EvidenceProblem, EvidenceSeverity } from './statement/evidence.ts'
+export { checkStatementEvidence, refuses } from './statement/evidence.ts'
 export type { AuditFinding, AuditSummary } from './statement/findings.ts'
 export { readAuditReport, summariseAuditReport } from './statement/findings.ts'
 export type { HtmlDocumentOptions } from './statement/html.ts'
