@@ -103,6 +103,13 @@ export async function runAuditCommand(
   const resolved = await resolvePages(dir, options)
   if (!resolved) return { audits: [], exitCode: 2 }
   const { pages, origin, label, cleanup, directory, completeness: collection } = resolved
+
+  // A credential handed to a run that never makes a request is not a credential
+  // anybody needed, and silently ignoring it would leave somebody believing a
+  // protected site had been audited when a directory of files was.
+  if (options.headers !== undefined && directory !== undefined && !options.browser) {
+    warn('--header and --basic-auth apply to pages that are fetched; this run read files.')
+  }
   // try/finally rather than a call before each return: auto-detection may have
   // started the project's server, and leaving it running would hold the process
   // open after the report is written.
@@ -117,6 +124,7 @@ export async function runAuditCommand(
 
     let audits = await runEngine(pages, {
       cwd: options.cwd ?? process.cwd(),
+      ...(options.headers === undefined ? {} : { headers: options.headers }),
       ...(baseUrl === undefined ? {} : { baseUrl }),
       ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
       ...(options.browser ? { browser: true } : {}),

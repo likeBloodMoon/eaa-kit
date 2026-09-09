@@ -44,6 +44,12 @@ export interface BrowserRunnerOptions {
    * after another as this runner used to.
    */
   concurrency?: number
+  /**
+   * Extra request headers, for a site behind a login or preview protection.
+   * Set on the browser context, so every tab and every asset it fetches carries
+   * them. Credentials: never recorded in a report.
+   */
+  headers?: Record<string, string>
 }
 
 /** Desktop-ish default; large enough that nothing collapses to a mobile layout. */
@@ -114,7 +120,14 @@ export async function runBrowserAudit(
     // otherwise refuse the injected axe-core as an inline script and every page
     // would come back unaudited. Observed on a real build the first time this
     // ran outside the fixtures.
-    const context = await browser.newContext({ viewport, bypassCSP: true })
+    // Credentials for a staging site or a preview deployment, on the context so
+    // every tab carries them: a protected site protects its assets too, and a
+    // page audited without its stylesheet is a page audited wrong.
+    const context = await browser.newContext({
+      viewport,
+      bypassCSP: true,
+      ...(options.headers === undefined ? {} : { extraHTTPHeaders: options.headers }),
+    })
 
     // Indexed by position rather than pushed in completion order: the pages
     // finish in whatever order the server answers them, and two runs of one
@@ -246,6 +259,7 @@ interface BrowserLike {
   newContext(options?: {
     viewport?: { width: number; height: number }
     bypassCSP?: boolean
+    extraHTTPHeaders?: Record<string, string>
   }): Promise<BrowserContextLike>
   close(): Promise<void>
 }

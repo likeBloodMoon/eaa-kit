@@ -34,6 +34,11 @@ export interface CrawlCommandOptions {
   maxDepth?: number
   /** Per-request timeout, shared with the audit runners. */
   timeoutMs?: number
+  /**
+   * Extra request headers, for a site behind a login or preview protection.
+   * Sent by the crawl and by the browser runner, and never written down.
+   */
+  headers?: Record<string, string>
 }
 
 export interface ResolvePagesOptions extends CrawlCommandOptions {
@@ -217,6 +222,7 @@ async function crawlPages(
     ...(options.maxPages === undefined ? {} : { maxPages: options.maxPages }),
     ...(options.maxDepth === undefined ? {} : { maxDepth: options.maxDepth }),
     ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
+    ...(options.headers === undefined ? {} : { headers: options.headers }),
   })
 
   if (result.pages.length === 0 && result.failures.length > 0) {

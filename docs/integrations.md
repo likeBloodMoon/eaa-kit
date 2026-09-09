@@ -277,6 +277,8 @@ watching is the wrong default for something whose job is to fail that build.
 | `upload-sarif` | `true` | Upload to GitHub code scanning |
 | `sitemap` | — | Where the site lists its pages, if not `/sitemap.xml`; with `url` only |
 | `baseline` | — | Path to a baseline file; fail only on violations it does not list |
+| `headers` | — | Extra request headers for a protected site, one `Name: value` per line. Read from `secrets` |
+| `basic-auth` | — | `user:password` for a site behind basic auth. Read from `secrets` |
 | `review` | — | Path to a [review record](review.md); carried in the SARIF run properties as counts, never as alerts |
 | `review-max-age` | — | Days after which a review entry stops counting; undated entries stop counting too |
 | `concurrency` | from page and core count | Worker threads for the browserless engine; `1` for none |

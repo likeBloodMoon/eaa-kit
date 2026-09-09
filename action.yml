@@ -78,6 +78,23 @@ inputs:
     required: false
     default: ''
 
+  headers:
+    description: >-
+      Extra request headers for a site behind a login or a preview protection,
+      one "Name: value" per line. Read these from `secrets`, never from the
+      workflow file: they are credentials, and everything else in a workflow is
+      public in a public repository. eaa-kit sends them on every request it
+      makes and writes none of them into any report.
+    required: false
+    default: ''
+
+  basic-auth:
+    description: >-
+      "user:password" for a site behind basic auth, sent as an Authorization
+      header. Read it from `secrets`.
+    required: false
+    default: ''
+
   review:
     description: >-
       Path to an eaa-kit review record: what a person checked, for the 34 WCAG
@@ -159,6 +176,8 @@ runs:
         EAA_CONCURRENCY: ${{ inputs.concurrency }}
         EAA_FAST: ${{ inputs.fast }}
         EAA_BASELINE: ${{ inputs.baseline }}
+        EAA_HEADERS: ${{ inputs.headers }}
+        EAA_BASIC_AUTH: ${{ inputs.basic-auth }}
         EAA_REVIEW: ${{ inputs.review }}
         EAA_REVIEW_MAX_AGE: ${{ inputs.review-max-age }}
       run: |
@@ -196,6 +215,18 @@ runs:
         fi
         if [ -n "$EAA_BASELINE" ]; then
           args+=(--baseline "$EAA_BASELINE")
+        fi
+        if [ -n "$EAA_BASIC_AUTH" ]; then
+          args+=(--basic-auth "$EAA_BASIC_AUTH")
+        fi
+        # One header per line. Read with IFS cleared and -r so a value keeps its
+        # spaces and its backslashes; blank lines are skipped so a trailing
+        # newline in a secret is not sent as a header.
+        if [ -n "$EAA_HEADERS" ]; then
+          while IFS= read -r line; do
+            [ -z "$line" ] && continue
+            args+=(--header "$line")
+          done <<< "$EAA_HEADERS"
         fi
         if [ -n "$EAA_REVIEW" ]; then
           args+=(--review "$EAA_REVIEW")

@@ -81,6 +81,14 @@ export interface CrawlOptions {
    * response over it is recorded as a failure rather than buffered.
    */
   maxBodyBytes?: number
+  /**
+   * Extra request headers, for a site behind a login or a preview protection.
+   * Sent on every request the crawl makes — pages, robots.txt and the sitemap —
+   * because a site that needs credentials needs them for all three.
+   *
+   * Credentials. Never recorded in a report, and never logged.
+   */
+  headers?: Record<string, string>
   /** Injectable for tests. Defaults to global fetch. */
   fetchImpl?: typeof fetch
   /** Called as pages arrive, for progress reporting. */
@@ -213,6 +221,7 @@ async function fetchPage(
   /** Origin the crawl is confined to. A redirect that leaves it is refused. */
   origin: string,
   maxBodyBytes: number,
+  headers: Record<string, string> | undefined,
 ): Promise<{ ok: true; value: Fetched } | { ok: false; reason: string }> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
@@ -220,7 +229,12 @@ async function fetchPage(
     const response = await impl(url.href, {
       signal: controller.signal,
       redirect: 'follow',
-      headers: { accept: 'text/html,application/xhtml+xml', 'user-agent': 'eaa-kit' },
+      // Caller's headers last: somebody who sets a user-agent means it.
+      headers: {
+        accept: 'text/html,application/xhtml+xml',
+        'user-agent': 'eaa-kit',
+        ...headers,
+      },
     })
     if (!response.ok) return { ok: false, reason: `HTTP ${response.status}` }
 
@@ -349,6 +363,7 @@ async function fetchSiteFile(
   name: string,
   timeoutMs: number,
   maxBodyBytes: number,
+  headers: Record<string, string> | undefined,
 ): Promise<string | undefined> {
   // These two requests are made before any page is fetched, and they used to be
   // the only ones in the crawler with no timeout on them. A server that accepts
@@ -361,6 +376,7 @@ async function fetchSiteFile(
     const response = await impl(new URL(name, entry).href, {
       redirect: 'follow',
       signal: controller.signal,
+      ...(headers === undefined ? {} : { headers }),
     })
     if (!response.ok) return undefined
 
@@ -400,7 +416,7 @@ export async function crawlSite(entry: URL, options: CrawlOptions = {}): Promise
   // Paths the site's own robots.txt puts off limits.
   const robots = options.ignoreRobots
     ? undefined
-    : await fetchSiteFile(entry, impl, '/robots.txt', timeoutMs, maxBodyBytes)
+    : await fetchSiteFile(entry, impl, '/robots.txt', timeoutMs, maxBodyBytes, options.headers)
   const blocked = robots === undefined ? [] : disallowedPaths(robots)
 
   const allowed = (url: URL): boolean => !blocked.some((path) => url.pathname.startsWith(path))
@@ -427,6 +443,7 @@ export async function crawlSite(entry: URL, options: CrawlOptions = {}): Promise
     options.sitemap ?? '/sitemap.xml',
     timeoutMs,
     maxBodyBytes,
+    options.headers,
   )
   const listed = sitemap === undefined ? [] : urlsFromSitemap(sitemap, entry)
   if (listed.length > 0) {
@@ -442,7 +459,14 @@ export async function crawlSite(entry: URL, options: CrawlOptions = {}): Promise
     const results = await Promise.all(
       batch.map(async (item) => ({
         item,
-        result: await fetchPage(item.url, impl, timeoutMs, entry.origin, maxBodyBytes),
+        result: await fetchPage(
+          item.url,
+          impl,
+          timeoutMs,
+          entry.origin,
+          maxBodyBytes,
+          options.headers,
+        ),
       })),
     )
 

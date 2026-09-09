@@ -2,6 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import pc from 'picocolors'
 import type { CollectedPage } from '../audit/collect.ts'
+import { requestHeaders } from '../audit/headers.ts'
 import type { PageAudit } from '../audit/runners/jsdom.ts'
 import type { AuditConfig } from '../config/define.ts'
 import type { AuditCommandOptions } from './audit.ts'
@@ -57,6 +58,12 @@ export interface EngineOptions {
   concurrency?: number
   /** Build directory to serve the pages from, or undefined for crawled pages. */
   directory?: string
+  /**
+   * Extra request headers. The browserless engine never fetches, so these
+   * matter to the crawl that collected the pages and to the browser, which
+   * navigates to each URL itself.
+   */
+  headers?: Record<string, string>
 }
 
 /**
@@ -94,6 +101,10 @@ export async function runEngine(
     return await runBrowserAudit(options.directory, pages, {
       ...runnerOptions,
       ...(options.concurrency === undefined ? {} : { concurrency: options.concurrency }),
+      // Only the browser navigates for itself; the pooled engine audits markup
+      // the crawl has already fetched, with these headers, and never asks for
+      // anything of its own.
+      ...(options.headers === undefined ? {} : { headers: options.headers }),
     })
   } catch (cause) {
     if (cause instanceof BrowserUnavailableError) {
@@ -168,7 +179,11 @@ export async function auditDefaults(
  * the whole feature and the actions are the one part of this CLI a test cannot
  * call: commander owns them.
  */
-export type AuditFlags = Omit<AuditCommandOptions, 'noBuild' | 'cwd' | 'timeoutMs'> & {
+export type AuditFlags = Omit<AuditCommandOptions, 'noBuild' | 'cwd' | 'timeoutMs' | 'headers'> & {
+  /** `--header`, repeated. Turned into `headers` by the invocation below. */
+  header?: string[]
+  /** `--basic-auth user:password`, which becomes an Authorization header. */
+  basicAuth?: string
   /** commander's form of `--no-build`: true unless somebody typed the flag. */
   build?: boolean
   /** Where to read defaults from. Consumed before this point. */
@@ -180,8 +195,20 @@ export function auditInvocation(
   defaults: AuditConfig,
   flags: AuditFlags,
 ): { dir: string | undefined; options: AuditCommandOptions } {
-  const { build, config: _config, ...typed } = flags
-  const { dir: configDir, build: configBuild, ...fromConfig } = defaults
+  const { build, config: _config, header, basicAuth, ...typed } = flags
+  // `headers` is dropped from the config side rather than merely absent from
+  // the schema: the rule is that a credential never comes out of a committed
+  // file, and a rule worth having is worth holding here as well as there.
+  const {
+    dir: configDir,
+    build: configBuild,
+    headers: _fromFile,
+    ...fromConfig
+  } = defaults as AuditConfig & { headers?: never }
+  const headers = requestHeaders({
+    ...(header ? { header } : {}),
+    ...(basicAuth ? { basicAuth } : {}),
+  })
 
   return {
     // The positional argument wins, and neither one given still means "work it
@@ -194,11 +221,19 @@ export function auditInvocation(
       // it cannot be merged like the rest. Either source asking for no build is
       // asking for no build.
       ...(build === false || configBuild === false ? { noBuild: true } : {}),
+      // Two flags, one record. There is deliberately no config key behind this:
+      // eaa.config is committed, and a credential in it is a credential in the
+      // repository.
+      ...(headers === undefined ? {} : { headers }),
     },
   }
 }
 
-export type BaselineFlags = Omit<BaselineCommandOptions, 'cwd' | 'timeoutMs'> & { config?: string }
+export type BaselineFlags = Omit<BaselineCommandOptions, 'cwd' | 'timeoutMs' | 'headers'> & {
+  config?: string
+  header?: string[]
+  basicAuth?: string
+}
 
 /**
  * The same, for `baseline`, which reads the defaults that mean the same thing
@@ -214,17 +249,27 @@ export function baselineInvocation(
   defaults: AuditConfig,
   flags: BaselineFlags,
 ): { dir: string; options: BaselineCommandOptions } {
-  const { config: _config, ...typed } = flags
+  const { config: _config, header, basicAuth, ...typed } = flags
+  const headers = requestHeaders({
+    ...(header ? { header } : {}),
+    ...(basicAuth ? { basicAuth } : {}),
+  })
 
   return {
     // This command has no auto-detection, so something has to be named: the
     // argument, then the config file, then the directory most builds write to.
     dir: dir ?? defaults.dir ?? './dist',
-    options: { ...baselineDefaults(defaults), ...typed },
+    options: {
+      ...baselineDefaults(defaults),
+      ...typed,
+      ...(headers === undefined ? {} : { headers }),
+    },
   }
 }
 
 function baselineDefaults(config: AuditConfig) {
+  // The same list as ever, and deliberately without `headers`: see
+  // auditInvocation.
   return pick(config, [
     'include',
     'exclude',

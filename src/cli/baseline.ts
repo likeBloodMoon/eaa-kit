@@ -69,6 +69,7 @@ export async function runBaselineCommand(
   const baseUrl = options.baseUrl ?? origin
   const audits = await runEngine(pages, {
     cwd,
+    ...(options.headers === undefined ? {} : { headers: options.headers }),
     ...(baseUrl === undefined ? {} : { baseUrl }),
     ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
     ...(options.browser ? { browser: true } : {}),

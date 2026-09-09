@@ -65,6 +65,26 @@ consumers must ignore what they do not recognise.
   indistinguishable, and expired entries are kept and reported rather than swept up: an
   expiry date is a decision somebody made, not a barrier that went away.
 
+- **`--header` and `--basic-auth`, for a site behind a login or a preview protection.** The
+  two places small teams stage work were the two this tool could not reach: a preview
+  deployment, which every host protects by default, and a CMS staging site behind basic auth
+  or a session cookie. `--url` sent one fixed pair of headers with no way to add to it, so
+  auditing either meant putting the site on the public internet first.
+
+  `--header "Name: value"` is repeatable and `--basic-auth user:password` is sugar for the
+  header you would otherwise base64 by hand. They are sent on every request the crawl makes —
+  pages, `robots.txt` and the sitemap, because a site that needs credentials needs them for
+  all three — and under `--browser` they are set on the browser context, so a protected page
+  is not audited without its stylesheet. Also on `baseline`, which runs the same audit, and on
+  the GitHub Action as the `headers` and `basic-auth` inputs, which read from `secrets`.
+
+  These are credentials, and the tool writes none of them down: nothing reaches a report, a
+  baseline, a SARIF log or the completeness record, and a malformed `--header` is reported by
+  name rather than by echoing the value, since that case is a bad flag printing a token into
+  a CI log. There is deliberately no `headers` key in `eaa.config` — that file is committed,
+  and a token in it is a token in the repository — and the invocation drops the key even if
+  one appears, rather than resting on the schema to do it.
+
 - **The statement refuses to contradict the evidence beside it.** The README has said since
   0.1 that a statement claiming full conformance for a site that is not conformant is worse
   than no statement at all, and the tool did nothing about it: the claim came out of the

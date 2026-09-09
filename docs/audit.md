@@ -55,6 +55,34 @@ a crawl that stopped early says so.
 | `--allow-remote` | crawl a host that is not localhost |
 | `--ignore-robots` | crawl paths `robots.txt` disallows |
 
+### Sites behind a login or a preview protection
+
+The two places small teams actually stage work both refuse anonymous requests: a preview
+deployment, which every host protects by default, and a CMS staging site behind basic auth
+or a session cookie. Both are reachable:
+
+```bash
+eaa-kit audit --url https://preview.example.com --basic-auth user:password
+eaa-kit audit --url https://staging.example.com --header "Cookie: session=$SESSION"
+eaa-kit audit --url https://preview.example.com --header "X-Vercel-Protection-Bypass: $TOKEN"
+```
+
+`--header` may be repeated, and `--basic-auth user:password` is sugar for the `Authorization`
+header you would otherwise base64 by hand. They go on every request the run makes — pages,
+`robots.txt` and the sitemap — because a site that needs credentials needs them for all
+three, and a crawl that loses the sitemap quietly audits less. Under `--browser` they are set
+on the browser context, so stylesheets and images load too; a protected page audited without
+its CSS is a page audited wrong.
+
+**These are credentials, and the tool never writes one down.** Nothing reaches a report, a
+baseline, a SARIF log or the completeness record, and a malformed `--header` is reported by
+name rather than by echoing what you typed — a bad flag in CI would otherwise print a token
+into a log.
+
+**There is no `headers` key in `eaa.config`.** That file is committed, and a token in it is a
+token in the repository. Pass them as flags, letting the shell expand a variable, or use the
+GitHub Action's `headers` and `basic-auth` inputs, which read from `secrets`.
+
 **Only localhost, unless you say otherwise.** A tool that fails builds should not be one
 flag away from crawling production, or somebody else's site, out of CI, so a non-loopback
 host is refused until `--allow-remote` is passed. `robots.txt` is honoured either way
@@ -185,6 +213,8 @@ chatter coming along.
 | `--concurrency <n>` | from page and core count | Pages to audit at once — threads without `--browser`, tabs with it; `1` turns both off |
 | `--fast` | off | Skip the rules the browserless engine cannot decide, rather than running them and discarding the answer |
 | `--baseline <path>` | — | Accept the violations recorded in this file; fail only on new ones |
+| `--header <header>` | — | Send this header with every request, e.g. `"Authorization: Bearer …"`. Repeatable |
+| `--basic-auth <user:password>` | — | Send an `Authorization` header for basic auth |
 | `--review <path>` | — | [What a person checked](review.md), for the criteria no engine reaches |
 | `--review-max-age <days>` | — | Stop counting review entries older than this |
 | `--config <path>` | searched for | Take defaults from this config file rather than the one found by searching |

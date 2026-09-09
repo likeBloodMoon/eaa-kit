@@ -145,6 +145,16 @@ that instead — following the site's own sitemap, wherever it keeps it.
 eaa-kit audit --url http://localhost:8000 --sitemap /sitemap_index.xml
 ```
 
+**Reaches a site behind a login.** A preview deployment or a staging CMS refuses anonymous
+requests, which used to put both out of reach. `--basic-auth` and a repeatable `--header`
+cover them, on the crawl and in the browser, and the credentials are never written into a
+report, a baseline or a SARIF log — nor accepted from `eaa.config`, which is a committed
+file.
+
+```bash
+eaa-kit audit --url https://preview.example.com --basic-auth user:password
+```
+
 ## Documentation
 
 | | |

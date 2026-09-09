@@ -2,6 +2,7 @@
 import { enableCompileCache } from 'node:module'
 import { Command, InvalidArgumentError } from 'commander'
 import { DEFAULT_BASELINE_FILE } from '../audit/baseline.ts'
+import { basicAuth, parseHeader } from '../audit/headers.ts'
 import { DEFAULT_FAIL_ON, IMPACT_LEVELS } from '../audit/impact.ts'
 import { DEFAULT_REVIEW_FILE } from '../audit/review.ts'
 import {
@@ -116,6 +117,32 @@ const parsePositive = wholeNumber(1)
 const parseDepth = wholeNumber(0)
 const parseConcurrency = wholeNumber(1)
 
+/**
+ * `--header` repeated, collected into a list the command turns into a record.
+ *
+ * Validated here so a typo stops the run before a site is crawled with a
+ * malformed credential — and the error names the header rather than repeating
+ * the value, because a bad `--header` is exactly the case where the value is a
+ * token and the terminal is a CI log.
+ */
+function collectHeader(value: string, previous: string[] = []): string[] {
+  try {
+    parseHeader(value)
+  } catch (cause) {
+    throw new InvalidArgumentError(cause instanceof Error ? cause.message : String(cause))
+  }
+  return [...previous, value]
+}
+
+function parseBasicAuth(value: string): string {
+  try {
+    basicAuth(value)
+  } catch (cause) {
+    throw new InvalidArgumentError(cause instanceof Error ? cause.message : String(cause))
+  }
+  return value
+}
+
 const program = new Command()
 
 // Commander exits 1 on usage errors; this CLI reserves 1 for "violations found"
@@ -147,6 +174,16 @@ program
   .option('--sitemap <path>', 'where the site lists its pages, if not /sitemap.xml')
   .option('--max-pages <n>', 'stop the crawl after this many pages', parsePositive)
   .option('--max-depth <n>', 'how far from the entry URL to follow links', parseDepth)
+  .option(
+    '--header <header>',
+    'send this header with every request, e.g. "Authorization: Bearer …". Repeatable',
+    collectHeader,
+  )
+  .option(
+    '--basic-auth <user:password>',
+    'send an Authorization header for basic auth',
+    parseBasicAuth,
+  )
   // Neither of these carries a commander default any more. Commander writes a
   // default into the parsed options whether or not the flag was typed, and the
   // flags are merged over the config file's `audit` block — so a default here
@@ -197,6 +234,16 @@ program
   .option('--sitemap <path>', 'where the site lists its pages, if not /sitemap.xml')
   .option('--max-pages <n>', 'stop the crawl after this many pages', parsePositive)
   .option('--max-depth <n>', 'how far from the entry URL to follow links', parseDepth)
+  .option(
+    '--header <header>',
+    'send this header with every request, e.g. "Authorization: Bearer …". Repeatable',
+    collectHeader,
+  )
+  .option(
+    '--basic-auth <user:password>',
+    'send an Authorization header for basic auth',
+    parseBasicAuth,
+  )
   .option('--output <path>', `where to write it (default: ${DEFAULT_BASELINE_FILE})`)
   .option(
     '--prune',
