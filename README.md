@@ -173,7 +173,8 @@ conformant is worse than no statement at all.
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md).
+See [CHANGELOG.md](CHANGELOG.md), and [ROADMAP.md](ROADMAP.md) for what 0.6.0 is meant to
+add and what it deliberately will not.
 
 ## License
 
