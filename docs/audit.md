@@ -74,6 +74,26 @@ three, and a crawl that loses the sitemap quietly audits less. Under `--browser`
 on the browser context, so stylesheets and images load too; a protected page audited without
 its CSS is a page audited wrong.
 
+**A sign-in page in front of the site is caught rather than audited.** The dangerous shape
+is not the one that answers 401 — that fails loudly. It is the site whose unauthenticated
+requests are *redirected* to a login form, which answers 200: every request succeeds, and a
+tool that is not looking will audit the login page and report it as the site. When several
+requested URLs all answer at one address, or a whole crawl comes back as the single page it
+was redirected to, the run says so and records those URLs as pages it never reached — so the
+report cannot come back complete:
+
+```
+warning Every page requested answered at https://staging.example.com/login, which is not
+        where it was asked.
+  A sign-in page in front of the site looks like this.
+  If it is behind one, pass --basic-auth user:password or --header "Cookie: …".
+```
+
+Ordinary redirects are left alone: a locale prefix on the entry, trailing-slash
+normalisation, anything where each URL lands somewhere of its own. A redirect that leaves
+the origin — an identity provider, as Cloudflare Access uses — was already refused, since
+auditing somebody else's sign-in page is not auditing your site.
+
 **These are credentials, and the tool never writes one down.** Nothing reaches a report, a
 baseline, a SARIF log or the completeness record, and a malformed `--header` is reported by
 name rather than by echoing what you typed — a bad flag in CI would otherwise print a token

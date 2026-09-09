@@ -101,6 +101,15 @@ export interface CrawlResult {
   origin: string
   /** URLs that could not be fetched, with the reason. */
   failures: Array<{ url: string; reason: string }>
+  /**
+   * URLs that answered somewhere other than where they were asked.
+   *
+   * Recorded because a redirect is the one way a run can audit something other
+   * than what it was told to audit and still look like it succeeded. Most are
+   * ordinary — a trailing slash, a locale prefix — and the caller decides what
+   * to make of them; `collapsedOnto` names the case that is not ordinary.
+   */
+  redirects: Array<{ requested: string; landedOn: string }>
   /** True when the crawl stopped at maxPages rather than running out of links. */
   truncated: boolean
   /** How the pages were found. */
@@ -453,6 +462,7 @@ export async function crawlSite(entry: URL, options: CrawlOptions = {}): Promise
   enqueue(entry, 0)
 
   const pages: CollectedPage[] = []
+  const redirects: CrawlResult['redirects'] = []
 
   while (queue.length > 0 && pages.length < maxPages) {
     const batch = queue.splice(0, Math.min(REQUEST_CONCURRENCY, maxPages - pages.length))
@@ -476,6 +486,9 @@ export async function crawlSite(entry: URL, options: CrawlOptions = {}): Promise
         continue
       }
       const { url, html } = result.value
+      if (url.href !== item.url.href) {
+        redirects.push({ requested: item.url.href, landedOn: url.href })
+      }
       pages.push({
         // The URL is the identity here; there is no file on disk. absolutePath
         // is the page's own href so that anything reaching for it gets
@@ -499,11 +512,49 @@ export async function crawlSite(entry: URL, options: CrawlOptions = {}): Promise
     pages: byIdentity(pages),
     origin: entry.origin,
     failures,
+    redirects,
     // Anything still queued when the loop stopped is a page the caller asked
     // for and is not getting, which they have to be told about.
     truncated: queue.length > 0,
     discovery,
   }
+}
+
+/**
+ * The requested URLs that a login wall swallowed, or none.
+ *
+ * A redirect on its own says nothing: sites normalise trailing slashes and send
+ * `/` to `/en/` all day. What is not ordinary is *several* different URLs
+ * answering at one address, or a whole crawl coming back as the single page the
+ * entry was redirected to. Both are the shape of a sign-in page standing in
+ * front of the site, and both otherwise produce a report about a page nobody
+ * asked for that says it audited everything it set out to.
+ *
+ * Returns what was asked for and never reached, which is the one thing the run
+ * has to say out loud. Deliberately shy of naming the cause: a single-page site
+ * that redirects its entry looks identical from here, and being told where the
+ * run actually landed is useful either way.
+ */
+export function collapsedOnto(result: CrawlResult): Array<{ requested: string; landedOn: string }> {
+  if (result.redirects.length === 0) return []
+
+  const byDestination = new Map<string, string[]>()
+  for (const redirect of result.redirects) {
+    byDestination.set(redirect.landedOn, [
+      ...(byDestination.get(redirect.landedOn) ?? []),
+      redirect.requested,
+    ])
+  }
+
+  const collapsed: Array<{ requested: string; landedOn: string }> = []
+  for (const [landedOn, requested] of byDestination) {
+    // Two URLs answering at one address, or a crawl that came back as nothing
+    // but the page it was redirected to.
+    if (requested.length > 1 || result.pages.length === 1) {
+      for (const from of requested) collapsed.push({ requested: from, landedOn })
+    }
+  }
+  return collapsed
 }
 
 /**

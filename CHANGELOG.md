@@ -85,6 +85,21 @@ consumers must ignore what they do not recognise.
   and a token in it is a token in the repository — and the invocation drops the key even if
   one appears, rather than resting on the schema to do it.
 
+- **A sign-in page in front of the site is caught rather than audited.** Found by running
+  the credentials work above against reproductions of the four walls people actually meet:
+  htpasswd staging, Vercel preview protection, Cloudflare Access, and a form login. The
+  first three fail loudly — 401, or a redirect off the origin — and always did. The fourth
+  did not: a site that redirects unauthenticated requests to a login form answers 200 to
+  everything, so the crawl audited the login page, found a violation on its unlabelled
+  password field, and reported `complete: true` over a site it had never seen.
+
+  The crawl now records where a request actually answered. When several requested URLs
+  answer at one address, or a whole crawl comes back as the single page it was redirected
+  to, those URLs are recorded as pages the run never reached — which puts them in every
+  report's "what this run did not measure", takes `complete` to false, and prints the
+  credential flags to try. Ordinary redirects are untouched: a locale prefix, a trailing
+  slash, anything landing somewhere of its own, all still report a complete run.
+
 - **The statement refuses to contradict the evidence beside it.** The README has said since
   0.1 that a statement claiming full conformance for a site that is not conformant is worse
   than no statement at all, and the tool did nothing about it: the claim came out of the

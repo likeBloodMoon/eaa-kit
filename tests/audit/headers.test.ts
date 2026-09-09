@@ -1,7 +1,7 @@
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { crawlSite } from '../../src/audit/crawl.ts'
+import { collapsedOnto, crawlSite } from '../../src/audit/crawl.ts'
 import { basicAuth, HeaderError, parseHeader, requestHeaders } from '../../src/audit/headers.ts'
 
 describe('parsing one header', () => {
@@ -172,5 +172,106 @@ describe('crawling a protected site', () => {
     })
 
     expect(JSON.stringify(result)).not.toContain('letmein')
+  })
+})
+
+/**
+ * The wall that looks like a success: a site whose unauthenticated requests are
+ * redirected to a sign-in page, which answers 200 with a form. Every request
+ * succeeds, the crawl audits the login page, and without this the report says
+ * it measured the whole site.
+ */
+describe('a sign-in page standing in front of the site', () => {
+  let server: Server
+  let origin: string
+
+  beforeAll(async () => {
+    server = createServer((request, response) => {
+      const signedIn = (request.headers.cookie ?? '').includes('session=valid')
+      if (request.url === '/login') {
+        response.writeHead(200, { 'content-type': 'text/html' })
+        response.end(
+          '<!doctype html><html lang="en"><head><title>Sign in</title></head><body><main><form><input name="password"></form></main></body></html>',
+        )
+        return
+      }
+      if (!signedIn) {
+        response.writeHead(302, { location: '/login' })
+        response.end()
+        return
+      }
+      response.writeHead(200, { 'content-type': 'text/html' })
+      response.end(
+        `<!doctype html><html lang="en"><head><title>${request.url}</title></head><body><main><a href="/pricing/">Pricing</a><a href="/about/">About</a></main></body></html>`,
+      )
+    })
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+  })
+
+  afterAll(async () => {
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+  })
+
+  it('is reported as pages that were never reached, not as a clean run', async () => {
+    const result = await crawlSite(new URL(`${origin}/`), {})
+
+    // The crawl "succeeded": every request answered 200.
+    expect(result.pages).toHaveLength(1)
+    expect(result.failures).toHaveLength(0)
+    // And this is what stops the report claiming it audited the site.
+    const collapsed = collapsedOnto(result)
+    expect(collapsed.length).toBeGreaterThan(0)
+    expect(collapsed[0]?.landedOn).toBe(`${origin}/login`)
+  })
+
+  it('says nothing once the credentials are given', async () => {
+    const result = await crawlSite(new URL(`${origin}/`), {
+      headers: { Cookie: 'session=valid' },
+    })
+
+    expect(result.pages.length).toBeGreaterThan(1)
+    expect(collapsedOnto(result)).toEqual([])
+  })
+})
+
+describe('redirects that are nothing of the sort', () => {
+  let server: Server
+  let origin: string
+
+  beforeAll(async () => {
+    // A locale prefix on the entry and trailing-slash normalisation on links:
+    // both ordinary, and neither may be reported as an unreachable page.
+    server = createServer((request, response) => {
+      const path = request.url ?? '/'
+      if (path === '/') {
+        response.writeHead(302, { location: '/en/' })
+        response.end()
+        return
+      }
+      if (path === '/en/about' || path === '/en/pricing') {
+        response.writeHead(301, { location: `${path}/` })
+        response.end()
+        return
+      }
+      response.writeHead(200, { 'content-type': 'text/html' })
+      response.end(
+        `<!doctype html><html lang="en"><head><title>${path}</title></head><body><main><a href="/en/about">About</a><a href="/en/pricing">Pricing</a></main></body></html>`,
+      )
+    })
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+  })
+
+  afterAll(async () => {
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+  })
+
+  it('are recorded but never counted against the run', async () => {
+    const result = await crawlSite(new URL(`${origin}/`), {})
+
+    expect(result.pages.length).toBe(3)
+    expect(result.redirects.length).toBeGreaterThan(0)
+    expect(collapsedOnto(result)).toEqual([])
   })
 })
