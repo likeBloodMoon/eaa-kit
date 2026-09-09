@@ -3,6 +3,7 @@ import { enableCompileCache } from 'node:module'
 import { Command, InvalidArgumentError } from 'commander'
 import { DEFAULT_BASELINE_FILE } from '../audit/baseline.ts'
 import { DEFAULT_FAIL_ON, IMPACT_LEVELS } from '../audit/impact.ts'
+import { DEFAULT_REVIEW_FILE } from '../audit/review.ts'
 import {
   COUNTRIES,
   ConfigError,
@@ -12,6 +13,7 @@ import {
 import { TOOL_VERSION } from '../version.ts'
 import { OUTPUT_FORMATS, runAuditCommand } from './audit.ts'
 import { runBaselineCommand } from './baseline.ts'
+import type { ChecklistCommandOptions } from './checklist.ts'
 import {
   type AuditFlags,
   auditDefaults,
@@ -64,6 +66,7 @@ useCompileCache()
  * they occur: `--no-build`, which commander reports as `build`, and `--lang`,
  * which the statement command calls `locale`.
  */
+type ChecklistFlags = Omit<ChecklistCommandOptions, 'cwd'>
 type DiffFlags = Omit<DiffCommandOptions, 'cwd'>
 type StatementFlags = Omit<StatementCommandOptions, 'locale' | 'cwd'> & { lang?: StatementLocale }
 
@@ -171,6 +174,8 @@ program
     parseConcurrency,
   )
   .option('--baseline <path>', 'accept the violations recorded in this file; fail only on new ones')
+  .option('--review <path>', 'what a person checked, from eaa-kit checklist')
+  .option('--review-max-age <days>', 'stop counting review entries older than this', parseDepth)
   .option('--config <path>', 'take defaults from this config file, otherwise it is searched for')
   .action(async (dir: string | undefined, flags: AuditFlags) => {
     const defaults = await auditDefaults({ ...(flags.config ? { config: flags.config } : {}) })
@@ -202,6 +207,18 @@ program
     const defaults = await auditDefaults({ ...(flags.config ? { config: flags.config } : {}) })
     const invocation = baselineInvocation(dir, defaults, flags)
     const { exitCode } = await runBaselineCommand(invocation.dir, invocation.options)
+    process.exitCode = exitCode
+  })
+
+program
+  .command('checklist')
+  .description('Write the manual review: the 34 WCAG criteria no automated rule can reach')
+  .option('--record <path>', `where the answers live (default: ${DEFAULT_REVIEW_FILE})`)
+  .option('--output <path>', 'write the worksheet here instead of stdout')
+  .option('--reviewed-by <name>', 'who is carrying out the review')
+  .action(async (flags: ChecklistFlags) => {
+    const { runChecklistCommand } = await import('./checklist.ts')
+    const { exitCode } = await runChecklistCommand(flags)
     process.exitCode = exitCode
   })
 

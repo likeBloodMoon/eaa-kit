@@ -12,6 +12,13 @@ this engine cannot evaluate.
 | [`report.sarif`](report.sarif) | `… --format sarif` |
 | [`report.html`](report.html) | `… --format html` |
 | [`baseline.json`](baseline.json) | `eaa-kit baseline tests/fixtures/site` |
+| [`eaa-review.json`](eaa-review.json) | `eaa-kit checklist --record examples/eaa-review.json` |
+| [`review.md`](review.md) | `… --output examples/review.md` |
+
+The review record is the one example here that is not generated from nothing: four
+answers are written by hand, and `checklist` expands them to an entry for every
+criterion, which is what the command does to a record somebody is part way through.
+The worksheet beside it is generated from that record and is never read back.
 
 The statements come from [`eaa.config.json`](eaa.config.json), which is a complete
 config with every optional field filled in:

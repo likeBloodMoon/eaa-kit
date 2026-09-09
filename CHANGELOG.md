@@ -9,6 +9,68 @@ move: the JSON report's `schemaVersion` and the baseline file's. Both are bumped
 a field is removed, renamed, or changes meaning — new fields may appear without one, so
 consumers must ignore what they do not recognise.
 
+## Unreleased
+
+### Added
+
+- **`eaa-kit checklist`, and `audit --review`**: the manual review, written down where a
+  run can read it back. Of the 55 WCAG 2.2 A and AA success criteria, 34 have no automated
+  rule at all. Every report has said so since 0.3 and that is where it stopped — there was
+  nowhere to put the answer, so a site nobody had reviewed and a site audited by hand last
+  week produced identical coverage.
+
+  `checklist` writes two files from one list of criteria: `eaa-review.json`, the record the
+  tool reads back, and a Markdown worksheet with what each criterion requires and the check
+  to do by hand. Re-running keeps every answer already recorded and fills in only what is
+  missing, so a review done over three sittings survives; a record that exists and cannot be
+  parsed stops the command rather than being replaced, because it holds work no tool can
+  redo.
+
+  What a review is not allowed to do is the half that decides whether this was worth
+  shipping, and all four refusals are asserted. It never overrules the engine: a criterion
+  the run decided keeps its verdict, and an entry recorded against one is shown as not
+  counted, with the reason. It never moves the four coverage counts, which still partition
+  the standard by what the engine reached — what a person recorded is counted separately and
+  never added to them or divided into anything. It never counts `unreviewed`, because
+  generating the worksheet is not doing the review. And under `--review-max-age <days>` it
+  never counts an entry that has aged out, nor an undated one, since an undated review
+  cannot be shown to still hold.
+
+  A recorded result is a claim by a person, with the same standing as the claims in the
+  statement this tool writes: reported, never verified, and labelled as such wherever it
+  appears. `--review` and `--review-max-age` can be written down once in `eaa.config` as
+  `review` and `reviewMaxAge`. Two things it deliberately does not do yet: the statement
+  does not read the record, and staleness is by the calendar rather than by the pages the
+  review covers. Both are in [docs/review.md](docs/review.md).
+
+  The JSON report's `coverage` gains `reviewed`, `reviewedNotMet` and `reviewNotCounted`,
+  and each criterion an optional `review`. New fields, so `schemaVersion` does not move —
+  nothing existing changed meaning, and a run with no review produces the report it always
+  did, byte for byte apart from those three zeroes.
+
+### Changed
+
+- **The reports derive the run's numbers once.** The console report counted violations,
+  elements, pages and accepted elements with its own reduces while the HTML report computed
+  the same summary twice and the JSON report built it properly; all three now read the one
+  the JSON report builds. The rule catalogue JSON and SARIF each walked separately is one
+  function, as are the engine label all four repeated and the comparator two of them wrote
+  out. No output moved — `examples/` regenerates byte-identical — and three reports of one
+  run can no longer disagree about how many violations there were.
+
+  First pass of `ponytail`, a compaction skill checked in at
+  `.claude/skills/ponytail/SKILL.md`, which is now how this project keeps its own code in
+  shape: existing modules in scheduled passes, and new code before its pull request.
+  [ROADMAP.md](ROADMAP.md) says which modules are next.
+
+- **`examples/` is regenerated and diffed in CI.** Those files are generated output, checked
+  in so the formats can be read as whole documents, and nothing was making sure they still
+  matched the code. Regenerating them is now a test: a change to what the tool prints has to
+  show up in the diff and be explained, and a refactor claiming to change nothing has to
+  prove it. Two fields that moved on their own — the day a baseline records and the report
+  timestamp the German statement quotes back as prose — are frozen by the generator, which
+  is what made the check possible at all.
+
 ## 0.5.0 — 2026-09-01
 
 ### Added

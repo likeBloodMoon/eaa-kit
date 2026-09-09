@@ -581,7 +581,10 @@
     "nothingToCheck": 9,
     "noAutomatedRule": 34,
     "browserWouldAnswer": 5,
-    "total": 55
+    "total": 55,
+    "reviewed": 0,
+    "reviewedNotMet": 0,
+    "reviewNotCounted": 0
   },
   "rules": {
     "area-alt": {

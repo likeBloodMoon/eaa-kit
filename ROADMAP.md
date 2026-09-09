@@ -68,6 +68,12 @@ opened, so new code arrives compacted rather than getting a cleanup release late
 the whole point of it being a checked-in skill instead of a one-off refactor — the pass
 below ends, the practice does not.
 
+**Landed:** the skill, the drift check, and the first pass over `src/audit/report/` — where
+the tally three formats each recomputed became the one the JSON report builds, and the rule
+catalogue JSON and SARIF each walked became one function. The renderers lost 37 lines and
+the shared modules gained 58, most of it comments; the number that moved was not the line
+count but how many places compute a figure three reports print.
+
 Two supporting tasks land with it, because compaction without a tripwire is a guess:
 
 - **An examples drift check in CI.** `pnpm examples` followed by `git diff --exit-code
@@ -97,12 +103,27 @@ And the refusals, which are the part that decides whether this is worth shipping
 
 - A record can never turn an automated failure into a pass. It adds evidence about criteria
   the engine could not reach; it does not overrule the engine on criteria it did.
-- A review older than the pages it covers is reported as stale, with its date, rather than
-  silently counted. The audit already fingerprints pages; that is what tells it.
+- A review that has aged out is reported as such, with its date, rather than silently
+  counted.
 - An unreviewed criterion stays unreviewed. Generating the checklist is not doing the check,
   and no output will imply otherwise.
 - Unfilled entries in the record are not "in progress" — they are absent from the coverage
   view exactly as they are today.
+
+**Landed**, as `eaa-kit checklist`, `eaa-review.json`, and `audit --review` /
+`--review-max-age`, with all four refusals asserted. Two things are narrower than the
+paragraph above promised, and are written down in
+[docs/review.md](docs/review.md#what-it-does-not-reach-yet) rather than left to be
+discovered:
+
+- **Staleness is by the calendar, not by the pages.** `--review-max-age <days>` ages a
+  record; matching a review against the pages it covers would need the run to fingerprint
+  what it audited *and* the record to have recorded it, which is the page cache's problem
+  below and belongs with it. An undated entry does not count once a maximum age is asked
+  for, which is the honest reading of "cannot be shown to still hold".
+- **The statement does not read the record.** Its conformance claim still comes from the
+  config file. Putting a review into a legal document is the same class of work as adding a
+  country and gets the same care; it is not done in 0.6.0.
 
 ### 3. Auditing only what changed
 
@@ -135,15 +156,14 @@ country.
 
 ### 5. Baselines that expire
 
-A baseline is an amnesty for what a site already gets wrong. Nothing currently makes anyone
-look at one again, and an amnesty with no end date is a decision that gets made once and
-never revisited.
+**Corrected after reading the code**: most of this already shipped. Entries carry
+`acceptedOn`, `--expires-on` sets a date after which an entry suppresses nothing, expired
+entries are announced, and entries the run no longer matches are already reported as
+removable — with the care not to say that about pages a narrowed run never audited.
 
-Each entry records when it was accepted. `--max-age` fails a run on entries older than a
-period the project sets. `baseline --prune` removes entries the current build no longer
-produces, and the audit reports how many entries went unmatched — an accepted barrier that
-stopped appearing is either fixed or on a page the run never reached, and those are not the
-same thing.
+What is actually missing is smaller than the item claimed: a `baseline --prune` that
+rewrites the file without the entries the current build no longer produces, so acting on
+that advice is not a hand edit. Worth doing, not worth a headline.
 
 ### 6. Maintenance
 
@@ -166,12 +186,15 @@ same thing.
 
 ### Order of work
 
-1. `ponytail` and the examples drift check — everything after this is smaller for it.
-2. The `report/` compaction pass, before checklist and cache add fields to all four formats.
-3. `checklist` and the review record.
-4. The page cache.
-5. The four countries — independent of the rest, and can land at any point.
-6. Baseline expiry, then maintenance and release.
+1. ~~`ponytail` and the examples drift check~~ — done; everything after it is smaller for it.
+2. ~~The `report/` compaction pass~~ — done, before checklist added fields to all four formats.
+3. ~~`checklist` and the review record~~ — done, with the two narrowings noted above.
+4. The page cache. Next, and it carries the fingerprinting a content-based staleness check
+   would need.
+5. The four countries — independent of the rest, and can land at any point. Each needs its
+   statute and supervisory body established from primary sources first, which is the work,
+   not the template.
+6. `baseline --prune`, then maintenance and release.
 
 ### Done means
 

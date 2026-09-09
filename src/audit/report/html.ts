@@ -3,12 +3,13 @@ import { collapse, count, escapeAttribute, escapeText, standardsReference } from
 import { TOOL_VERSION } from '../../version.ts'
 import { discoveryLabel, missedParts, type RunCompleteness } from '../completeness.ts'
 import { type ComponentLocation, componentPath } from '../component.ts'
-import { buildCoverage, type CriterionCoverage } from '../coverage.ts'
+import { buildCoverage, type CriterionCoverage, reviewSummary } from '../coverage.ts'
 import { byImpactThenRule, type ImpactLevel, impactLabel } from '../impact.ts'
 import { blindRules, coverageParts, groupIssues, isShared, issueTotals } from '../issues.ts'
 import { manualCheckFor, understandingUrl } from '../manual.ts'
 import { remediationFor } from '../remediation.ts'
 import { runEngine } from '../result.ts'
+import type { ReviewOptions } from '../review.ts'
 import type { Finding, IncompleteFinding, PageAudit } from '../runners/jsdom.ts'
 import { buildSummary, type JsonSummary } from './json.ts'
 
@@ -65,6 +66,8 @@ export interface HtmlReportOptions {
    */
   framework?: string
   baseUrl?: string
+  /** What a person recorded about the criteria this run could not reach. */
+  review?: ReviewOptions
   /** Injectable so tests and snapshots are not time-dependent. */
   now?: Date
 }
@@ -100,7 +103,7 @@ ${notMeasured(options)}
 ${summary(totals, options)}
 ${pages(audits)}
 ${notEvaluated(audits)}
-${coverageSection(audits)}
+${coverageSection(audits, options)}
 ${footer()}
 </main>
 </body>
@@ -409,8 +412,8 @@ ${items}
  * majority of WCAG, and a percentage would present a limit of automated testing
  * as a property of this site.
  */
-function coverageSection(audits: readonly PageAudit[]): string {
-  const coverage = buildCoverage(audits)
+function coverageSection(audits: readonly PageAudit[], options: HtmlReportOptions): string {
+  const coverage = buildCoverage(audits, undefined, options.review)
 
   const rows = coverage.criteria
     .map((criterion) => {
@@ -420,7 +423,7 @@ function coverageSection(audits: readonly PageAudit[]): string {
       return `  <tr class="${escapeAttribute(criterion.status)}">
     <td>${linked}</td>
     <td>${escapeText(criterion.level)}</td>
-    <td>${statusText(criterion)}</td>
+    <td>${statusText(criterion)}${reviewCell(criterion)}</td>
   </tr>`
     })
     .join('\n')
@@ -444,6 +447,7 @@ function coverageSection(audits: readonly PageAudit[]): string {
   of WCAG cannot be automated, and a percentage here would present that limit of automated
   testing as though it were a measurement of this site.
 </p>
+${reviewParagraph(coverage)}
 <div class="scroll">
 <table class="coverage">
 <thead><tr><th>Success criterion</th><th>Level</th><th>This run</th></tr></thead>
@@ -452,6 +456,22 @@ ${rows}
 </tbody>
 </table>
 </div>`
+}
+
+/**
+ * What a person recorded, where a review was supplied.
+ *
+ * Its own paragraph, under the four counts and visibly apart from them: the
+ * counts are what an engine measured and this is what somebody says they
+ * checked. This document is the one that leaves the building, so the difference
+ * between the two has to survive being quoted.
+ */
+function reviewParagraph(coverage: ReturnType<typeof buildCoverage>): string {
+  const summary = reviewSummary(coverage)
+  if (summary === undefined) return ''
+
+  return `<p class="note review">${escapeText(summary)} eaa-kit cannot check that anything
+  recorded in a review is true; it reports it as the claim it is.</p>`
 }
 
 function statusText(criterion: CriterionCoverage): string {
@@ -466,6 +486,29 @@ function statusText(criterion: CriterionCoverage): string {
     case 'no-automated-rule':
       return 'No automated rule exists; a person must check it'
   }
+}
+
+/**
+ * What a person recorded about this criterion, in the cell that says what the
+ * run reached. An entry that was not counted keeps its place and says why: a
+ * review that has aged out is exactly what a reader has to see.
+ */
+function reviewCell(criterion: CriterionCoverage): string {
+  const review = criterion.review
+  if (review === undefined) return ''
+
+  const on = review.reviewedOn === undefined ? 'no date recorded' : review.reviewedOn
+  const by = review.reviewedBy === undefined ? '' : ` by ${review.reviewedBy}`
+  const because = review.counts ? '' : `, not counted: ${IGNORED_WORDS[review.ignored ?? 'stale']}`
+  return `<br><span class="reviewed">Checked by hand${escapeText(by)} (${escapeText(on)}):
+    ${escapeText(review.result)}${escapeText(because)}</span>`
+}
+
+/** Why an entry was read and not counted, in the same words the console uses. */
+const IGNORED_WORDS: Record<string, string> = {
+  'engine-reached-a-verdict': 'this run reached its own verdict here',
+  stale: 'older than the maximum age this run was given',
+  undated: 'no date recorded, and a maximum age was set',
 }
 
 function footer(): string {
@@ -546,6 +589,8 @@ table.coverage tr.evaluated td:last-child { color: #216e39; }
 table.coverage em { font-style: normal; opacity: 0.75; }
 ul.unreachable li { margin-bottom: 0.2rem; overflow-wrap: anywhere; }
 code.selector { color: #4a4a4a; }
+.reviewed { color: #4a4a4a; font-size: 0.95em; }
+p.note.review { border-left: 3px solid #c9c9c9; padding-left: 0.75rem; }
 p.clean { color: #216e39; }
 p.note { font-size: 0.95rem; }
 hr { border: 0; border-top: 1px solid #d4d4d4; margin: 3rem 0 1.5rem; }
@@ -585,7 +630,8 @@ ul.page-list { margin: 0.35rem 0 0; padding-left: 1.25rem; }
   pre { background: #1e1e1e; }
   li.finding { border-color: #3a3a3a; }
   p.standards, p.coverage, .reason, li.more, code.selector, footer,
-  p.accepted-heading, ul.accepted { color: #b6b6b6; }
+  p.accepted-heading, ul.accepted, .reviewed { color: #b6b6b6; }
+  p.note.review { border-left-color: #555; }
   p.clean { color: #7ee2a8; }
   .verdict.pass { background: #10240f; border-color: #7ee2a8; }
   .verdict.fail { background: #2b1111; border-color: #ff9d9d; }

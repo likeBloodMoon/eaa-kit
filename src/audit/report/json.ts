@@ -5,6 +5,7 @@ import { buildCoverage, type Coverage } from '../coverage.ts'
 import { elementFingerprint } from '../fingerprint.ts'
 import { countAtOrAbove, type ImpactLevel, impactLabel, isImpactLevel } from '../impact.ts'
 import { type AuditEngine, runEngine, uniqueRuleOutcomes } from '../result.ts'
+import type { ReviewOptions } from '../review.ts'
 import type { Finding, IncompleteFinding, PageAudit } from '../runners/jsdom.ts'
 
 /**
@@ -168,6 +169,8 @@ export interface JsonReportOptions {
   /** What the run did and did not manage to measure. */
   completeness: RunCompleteness
   baseUrl?: string
+  /** What a person recorded about the criteria this run could not reach. */
+  review?: ReviewOptions
   /** Injectable so tests and snapshots are not time-dependent. */
   now?: Date
 }
@@ -201,7 +204,7 @@ export function buildJsonReport(
     },
     summary: buildSummary(audits, options.failOn),
     completeness: options.completeness,
-    coverage: buildCoverage(audits),
+    coverage: buildCoverage(audits, undefined, options.review),
     rules: buildRuleIndex(audits),
     pages: audits.map(toJsonPage),
   }

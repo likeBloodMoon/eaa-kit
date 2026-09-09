@@ -16,6 +16,7 @@ import { count } from '../text.ts'
 import type { CollectedPage } from '../audit/collect.ts'
 import { type RunCompleteness, runCompleteness } from '../audit/completeness.ts'
 import type { ComponentLocation } from '../audit/component.ts'
+import type { ReviewOptions } from '../audit/review.ts'
 import { advise, emitDocument, fail, note, runEngine, warn } from './command.ts'
 import { type CrawlCommandOptions, resolvePages } from './pages.ts'
 
@@ -60,6 +61,17 @@ export interface AuditCommandOptions extends CrawlCommandOptions {
   manual?: boolean
   /** List every WCAG 2.2 A/AA criterion and what this run reached on it. */
   coverage?: boolean
+  /**
+   * Path to a review record: what a person checked, for the criteria no engine
+   * can reach. Reported beside what the run measured and never folded into it.
+   */
+  review?: string
+  /**
+   * Days after which a recorded review stops counting. Without it every dated
+   * entry stands, because how long a manual review remains true is a judgement
+   * about a site's rate of change that this tool cannot make.
+   */
+  reviewMaxAge?: number
 }
 
 export interface AuditCommandResult {
@@ -136,10 +148,15 @@ export async function runAuditCommand(
 
     const completeness = runCompleteness(audits, collection)
 
+    const review = await loadReview(options)
+    // A review asked for and not readable is exit 2 for the same reason a
+    // missing baseline is: the run did not report what it was told to report.
+    if (review === FAILED) return { audits, exitCode: 2 }
+
     // label, not dir: it is what the run actually audited. dir is undefined
     // under auto-detection, and was the unused ./dist default under --url,
     // which put a directory nobody read into the report.
-    await emit(audits, label, failOn, completeness, options)
+    await emit(audits, label, failOn, completeness, options, review)
 
     // A page that could not be audited is not a clean page. Exiting 0 here would
     // hand back a pass for markup nothing ever looked at, so it is reported as a
@@ -202,6 +219,37 @@ async function acceptBaseline(
   }
 }
 
+/** Distinguishes "no review asked for" from "the review could not be read". */
+const FAILED = Symbol('review-failed')
+
+/**
+ * Read the review record, when one was asked for.
+ *
+ * Returns undefined when no `--review` was given, which is the ordinary case,
+ * and the sentinel when one was given and could not be read.
+ */
+async function loadReview(
+  options: AuditCommandOptions,
+): Promise<ReviewOptions | undefined | typeof FAILED> {
+  if (options.review === undefined) return undefined
+
+  const { answeredCount, readReview, ReviewError } = await import('../audit/review.ts')
+  try {
+    const record = await readReview(options.review, options.cwd ?? process.cwd())
+    note(`Review record: ${count(answeredCount(record), 'criterion')} answered`)
+    return {
+      record,
+      ...(options.reviewMaxAge === undefined ? {} : { maxAgeDays: options.reviewMaxAge }),
+    }
+  } catch (cause) {
+    if (cause instanceof ReviewError) {
+      fail(cause.message)
+      return FAILED
+    }
+    throw cause
+  }
+}
+
 /**
  * What the progress line says about the engine.
  *
@@ -234,10 +282,20 @@ async function emit(
   failOn: ImpactLevel,
   completeness: RunCompleteness,
   options: AuditCommandOptions,
+  review: ReviewOptions | undefined,
 ): Promise<void> {
   const format = options.format ?? 'console'
   const toFile = typeof options.output === 'string'
-  const body = await renderReport(audits, dir, failOn, completeness, format, toFile, options)
+  const body = await renderReport(
+    audits,
+    dir,
+    failOn,
+    completeness,
+    format,
+    toFile,
+    options,
+    review,
+  )
 
   // Against the same working directory as --baseline, rather than the process's:
   // a caller that says where relative paths start means it for all of them.
@@ -254,6 +312,7 @@ async function renderReport(
   format: OutputFormat,
   toFile: boolean,
   options: AuditCommandOptions,
+  review: ReviewOptions | undefined,
 ): Promise<string> {
   switch (format) {
     case 'json': {
@@ -264,6 +323,7 @@ async function renderReport(
           ...(options.url === undefined ? {} : { sourceKind: 'url' as const }),
           failOn,
           completeness,
+          ...(review === undefined ? {} : { review }),
           ...(options.baseUrl ? { baseUrl: options.baseUrl } : {}),
         }),
       )
@@ -280,6 +340,7 @@ async function renderReport(
         directory: dir,
         failOn,
         completeness,
+        ...(review === undefined ? {} : { review }),
         ...(framework === undefined ? {} : { framework }),
         ...(options.baseUrl ? { baseUrl: options.baseUrl } : {}),
       })
@@ -291,6 +352,7 @@ async function renderReport(
         dir,
         failOn,
         completeness,
+        ...(review === undefined ? {} : { review }),
         ...(options.perPage ? { perPage: true } : {}),
         ...(options.manual ? { manual: true } : {}),
         ...(options.coverage ? { coverage: true } : {}),

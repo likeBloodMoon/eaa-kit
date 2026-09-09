@@ -50,3 +50,12 @@ export function standardsReference(
     ...enClauses.map((clause) => `EN 301 549 ${clause}`),
   ].join(', ')
 }
+
+/**
+ * A date as the ISO day this package records everywhere it writes one: the day
+ * a baseline entry was accepted, and the day a criterion was reviewed. Always
+ * UTC, so two people on either side of a date line write the same file.
+ */
+export function isoDate(date: Date): string {
+  return date.toISOString().slice(0, 10)
+}

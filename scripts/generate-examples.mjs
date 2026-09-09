@@ -106,6 +106,21 @@ for (const { file } of outputs) {
   await freezeClock('examples/baseline.json')
 }
 
+// The manual review: the record, expanded to every criterion from the four
+// answers checked in above, and the worksheet generated from it.
+{
+  const result = spawnSync(
+    process.execPath,
+    [CLI, 'checklist', '--record', 'examples/eaa-review.json', '--output', 'examples/review.md'],
+    { stdio: ['ignore', 'inherit', 'inherit'] },
+  )
+  if (result.status !== 0 || result.error) {
+    console.error('failed to generate examples/review.md')
+    process.exit(1)
+  }
+  console.log('wrote examples/review.md')
+}
+
 for (const { args, file } of statements) {
   const result = spawnSync(
     process.execPath,

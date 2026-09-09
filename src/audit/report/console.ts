@@ -2,7 +2,7 @@ import pc from 'picocolors'
 import { collapse, count, plural } from '../../text.ts'
 import type { RunCompleteness } from '../completeness.ts'
 import { type ComponentLocation, componentPath } from '../component.ts'
-import { buildCoverage, type Coverage, coverageSummary } from '../coverage.ts'
+import { buildCoverage, type Coverage, coverageSummary, reviewSummary } from '../coverage.ts'
 import { byImpactThenRule, DEFAULT_FAIL_ON, type ImpactLevel, impactLabel } from '../impact.ts'
 import {
   blindRules,
@@ -15,6 +15,7 @@ import {
 import { manualCheckFor, understandingUrl } from '../manual.ts'
 import { remediationFor } from '../remediation.ts'
 import { runEngine } from '../result.ts'
+import type { CriterionReview, ReviewOptions } from '../review.ts'
 import type { Finding, IncompleteFinding, PageAudit } from '../runners/jsdom.ts'
 import { buildSummary } from './json.ts'
 
@@ -70,6 +71,11 @@ export interface ConsoleReportOptions {
    * which for most rules is the same one.
    */
   framework?: string
+  /**
+   * What a person recorded about the criteria this run could not reach. Shown
+   * beside the coverage of the run, never folded into it.
+   */
+  review?: ReviewOptions
 }
 
 const DEFAULT_MAX_NODES = 3
@@ -125,6 +131,7 @@ interface Context {
   manual: boolean
   coverage: boolean
   framework: string | undefined
+  review: ReviewOptions | undefined
   c: ReturnType<typeof pc.createColors>
   symbol: (kind: 'violation' | 'review' | 'blind' | 'clean' | 'error') => string
   completeness: RunCompleteness | undefined
@@ -145,6 +152,7 @@ function context(options: ConsoleReportOptions): Context {
     manual: options.manual ?? false,
     coverage: options.coverage ?? false,
     framework: options.framework,
+    review: options.review,
     completeness: options.completeness,
     c,
     symbol: (kind) => {
@@ -392,7 +400,7 @@ function summary(audits: readonly PageAudit[], ctx: Context): string[] {
  * it could be read as boilerplate.
  */
 function coverageSection(audits: readonly PageAudit[], ctx: Context): string[] {
-  const coverage = buildCoverage(audits)
+  const coverage = buildCoverage(audits, undefined, ctx.review)
   const lines = [
     '',
     ...wrap(coverageSummary(coverage), ctx.width - 2).map((text) =>
@@ -405,6 +413,13 @@ function coverageSection(audits: readonly PageAudit[], ctx: Context): string[] {
     lines.push(
       line(ctx, `  --browser would answer ${coverage.browserWouldAnswer} more ${verb}.`, ctx.c.dim),
     )
+  }
+
+  // A separate paragraph from the engine's own reach, because it is a different
+  // kind of claim: what somebody says they checked, not what was measured here.
+  const review = reviewSummary(coverage)
+  if (review !== undefined) {
+    lines.push(...wrap(review, ctx.width - 2).map((text) => line(ctx, `  ${text}`, ctx.c.dim)))
   }
 
   if (!ctx.coverage) {
@@ -425,8 +440,33 @@ function coverageSection(audits: readonly PageAudit[], ctx: Context): string[] {
         { text: `${STATUS_WORDS[criterion.status]}${note}`, paint },
       ]),
     )
+    const recorded = reviewLine(criterion.review)
+    if (recorded !== undefined) lines.push(line(ctx, `        ${recorded}`, ctx.c.dim))
   }
   return lines
+}
+
+/**
+ * What a person recorded, under the criterion the engine could not reach.
+ *
+ * An entry that was not counted still prints, with the reason. Dropping it
+ * would hide the one thing the reader has to act on: a review that has aged
+ * out, or one recorded against a criterion this run decided for itself.
+ */
+function reviewLine(review: CriterionReview | undefined): string | undefined {
+  if (review === undefined) return undefined
+
+  const on = review.reviewedOn === undefined ? 'no date recorded' : review.reviewedOn
+  const by = review.reviewedBy === undefined ? '' : ` by ${review.reviewedBy}`
+  const because = review.counts ? '' : `, not counted: ${IGNORED_WORDS[review.ignored ?? 'stale']}`
+  return `checked by hand${by} (${on}): ${review.result}${because}`
+}
+
+/** Why an entry was read and not counted, in the same words the HTML report uses. */
+const IGNORED_WORDS: Record<NonNullable<CriterionReview['ignored']>, string> = {
+  'engine-reached-a-verdict': 'this run reached its own verdict here',
+  stale: 'older than --review-max-age',
+  undated: 'no date recorded, and --review-max-age was set',
 }
 
 /** What each outcome is called, in words rather than a symbol. */

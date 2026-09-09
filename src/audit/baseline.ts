@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import * as s from '../schema.ts'
+import { isoDate } from '../text.ts'
 import { elementFingerprint } from './fingerprint.ts'
 import { type Finding, type FindingNode, findingElements, type PageAudit } from './result.ts'
 
@@ -306,8 +307,4 @@ function byEntry(a: BaselineEntry, b: BaselineEntry): number {
     a.ruleId.localeCompare(b.ruleId) ||
     a.fingerprint.localeCompare(b.fingerprint)
   )
-}
-
-function isoDate(date: Date): string {
-  return date.toISOString().slice(0, 10)
 }

@@ -1,0 +1,179 @@
+{
+  "schemaVersion": 1,
+  "reviewedBy": "Musterbetrieb GmbH",
+  "criteria": {
+    "1.1.1": {
+      "result": "unreviewed"
+    },
+    "1.2.1": {
+      "result": "unreviewed"
+    },
+    "1.2.2": {
+      "result": "unreviewed"
+    },
+    "1.2.3": {
+      "result": "not-applicable",
+      "reviewedOn": "2026-08-21",
+      "note": "No prerecorded video or audio anywhere on the site."
+    },
+    "1.2.4": {
+      "result": "unreviewed"
+    },
+    "1.2.5": {
+      "result": "unreviewed"
+    },
+    "1.3.1": {
+      "result": "unreviewed"
+    },
+    "1.3.2": {
+      "result": "not-met",
+      "reviewedOn": "2026-08-21",
+      "note": "On the shop pages the sidebar reads before the product, in DOM order."
+    },
+    "1.3.3": {
+      "result": "unreviewed"
+    },
+    "1.3.4": {
+      "result": "unreviewed"
+    },
+    "1.3.5": {
+      "result": "unreviewed"
+    },
+    "1.4.1": {
+      "result": "unreviewed"
+    },
+    "1.4.2": {
+      "result": "unreviewed"
+    },
+    "1.4.3": {
+      "result": "unreviewed"
+    },
+    "1.4.4": {
+      "result": "unreviewed"
+    },
+    "1.4.5": {
+      "result": "unreviewed"
+    },
+    "1.4.10": {
+      "result": "unreviewed"
+    },
+    "1.4.11": {
+      "result": "unreviewed"
+    },
+    "1.4.12": {
+      "result": "unreviewed"
+    },
+    "1.4.13": {
+      "result": "unreviewed"
+    },
+    "2.1.1": {
+      "result": "met",
+      "reviewedOn": "2026-08-21",
+      "note": "Every control reached and operated with the keyboard alone, in Firefox and Safari."
+    },
+    "2.1.2": {
+      "result": "unreviewed"
+    },
+    "2.1.4": {
+      "result": "unreviewed"
+    },
+    "2.2.1": {
+      "result": "unreviewed"
+    },
+    "2.2.2": {
+      "result": "unreviewed"
+    },
+    "2.3.1": {
+      "result": "unreviewed"
+    },
+    "2.4.1": {
+      "result": "unreviewed"
+    },
+    "2.4.2": {
+      "result": "unreviewed"
+    },
+    "2.4.3": {
+      "result": "unreviewed"
+    },
+    "2.4.4": {
+      "result": "unreviewed"
+    },
+    "2.4.5": {
+      "result": "unreviewed"
+    },
+    "2.4.6": {
+      "result": "unreviewed"
+    },
+    "2.4.7": {
+      "result": "unreviewed"
+    },
+    "2.4.11": {
+      "result": "unreviewed"
+    },
+    "2.5.1": {
+      "result": "unreviewed"
+    },
+    "2.5.2": {
+      "result": "unreviewed"
+    },
+    "2.5.3": {
+      "result": "unreviewed"
+    },
+    "2.5.4": {
+      "result": "unreviewed"
+    },
+    "2.5.7": {
+      "result": "unreviewed"
+    },
+    "2.5.8": {
+      "result": "unreviewed"
+    },
+    "3.1.1": {
+      "result": "unreviewed"
+    },
+    "3.1.2": {
+      "result": "unreviewed"
+    },
+    "3.2.1": {
+      "result": "unreviewed"
+    },
+    "3.2.2": {
+      "result": "unreviewed"
+    },
+    "3.2.3": {
+      "result": "unreviewed"
+    },
+    "3.2.4": {
+      "result": "unreviewed"
+    },
+    "3.2.6": {
+      "result": "unreviewed"
+    },
+    "3.3.1": {
+      "result": "unreviewed"
+    },
+    "3.3.2": {
+      "result": "unreviewed"
+    },
+    "3.3.3": {
+      "result": "unreviewed"
+    },
+    "3.3.4": {
+      "result": "met",
+      "reviewedOn": "2026-08-19",
+      "reviewedBy": "Reinhard Auer"
+    },
+    "3.3.7": {
+      "result": "unreviewed"
+    },
+    "3.3.8": {
+      "result": "unreviewed"
+    },
+    "4.1.2": {
+      "result": "unreviewed"
+    },
+    "4.1.3": {
+      "result": "unreviewed"
+    }
+  }
+}

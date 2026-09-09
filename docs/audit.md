@@ -185,6 +185,8 @@ chatter coming along.
 | `--concurrency <n>` | from page and core count | Pages to audit at once — threads without `--browser`, tabs with it; `1` turns both off |
 | `--fast` | off | Skip the rules the browserless engine cannot decide, rather than running them and discarding the answer |
 | `--baseline <path>` | — | Accept the violations recorded in this file; fail only on new ones |
+| `--review <path>` | — | [What a person checked](review.md), for the criteria no engine reaches |
+| `--review-max-age <days>` | — | Stop counting review entries older than this |
 | `--config <path>` | searched for | Take defaults from this config file rather than the one found by searching |
 
 Dot directories such as build caches are skipped by default. `--include` and `--exclude`
@@ -230,6 +232,7 @@ the schema is required by `statement`, which is the command that publishes a doc
 | `failOn`, `format`, `output`, `baseline` | `--fail-on`, `--format`, `--output`, `--baseline` |
 | `browser`, `fast`, `concurrency` | the engine flags |
 | `perPage`, `manual`, `coverage` | the console report's three extra sections |
+| `review`, `reviewMaxAge` | `--review`, `--review-max-age` |
 | `build` | `false` is `--no-build` |
 
 `baseline` reads the keys that mean the same thing to it — the page selection and the
@@ -539,6 +542,21 @@ worth stating at all, and why it never becomes a grade.
 `rules ran and found nothing to check` is kept apart from `evaluated` for the same reason
 `inapplicable` is kept apart from `passes`: a page with no images proves nothing about
 image alternatives.
+
+### What a person checked
+
+The 34 criteria no rule can reach are the review somebody has to do by hand, and
+[`eaa-kit checklist`](review.md) writes it down where a run can read it back:
+
+```bash
+eaa-kit checklist --output a11y-review.md
+eaa-kit audit --review eaa-review.json --coverage
+```
+
+What that adds is reported beside the four counts and never inside them. A review never
+overrules the engine, never moves a criterion the run decided, and never counts an entry
+nobody has answered — the four outcomes above still describe what this engine reached, and
+a recorded result is a claim by a person, which is a different kind of thing.
 
 ## Sites that render on a server
 

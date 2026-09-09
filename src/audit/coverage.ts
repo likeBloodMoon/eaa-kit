@@ -1,6 +1,7 @@
 import axe from 'axe-core'
 import { manualCheckFor } from './manual.ts'
 import { DEFAULT_TAGS, ENGINE_BLIND_RULES, type PageAudit, successCriteria } from './result.ts'
+import { type CriterionReview, criterionReview, type ReviewOptions } from './review.ts'
 
 /**
  * How much of WCAG this run could reach at all.
@@ -116,6 +117,15 @@ export interface CriterionCoverage extends SuccessCriterion {
   /** Rules in scope that map to this criterion, sorted. */
   rules: string[]
   /**
+   * What a person recorded about this criterion, when a review was supplied.
+   *
+   * Beside `status` rather than folded into it: `status` is what this engine
+   * reached, and a person's answer is a different kind of claim with a
+   * different standing. Present even when it does not count, because an entry
+   * the run refused to count is exactly the thing a reader should see.
+   */
+  review?: CriterionReview
+  /**
    * True when re-running with `--browser` would move this out of
    * `not-evaluated`. False means a person has to look, whatever engine runs.
    */
@@ -136,6 +146,19 @@ export interface Coverage {
   browserWouldAnswer: number
   /** Everything above sums to this: the criteria in WCAG 2.2 at A and AA. */
   total: number
+  /**
+   * Criteria this engine did not decide that a person recorded a result for.
+   *
+   * Counted apart from the four above and never added to them. Those four
+   * partition the standard by what the engine reached; this says how much of
+   * the remainder somebody has been through, which is a claim by a person
+   * rather than a measurement, and the two must not be summed into one figure.
+   */
+  reviewed: number
+  /** Of `reviewed`, how many a person recorded as not met. */
+  reviewedNotMet: number
+  /** Entries read and not counted: stale, undated, or already decided here. */
+  reviewNotCounted: number
 }
 
 /**
@@ -145,7 +168,7 @@ export interface Coverage {
  * them off by default, so counting them as coverage would promise checks that
  * never run.
  */
-function rulesByCriterion(tags: readonly string[]): Map<string, string[]> {
+export function rulesByCriterion(tags: readonly string[]): Map<string, string[]> {
   const byCriterion = new Map<string, string[]>()
   for (const rule of axe.getRules([...tags])) {
     if (rule.tags.includes('experimental')) continue
@@ -192,6 +215,7 @@ function blindedRules(audits: readonly PageAudit[]): Set<string> {
 export function buildCoverage(
   audits: readonly PageAudit[],
   tags: readonly string[] = DEFAULT_TAGS,
+  review?: ReviewOptions,
 ): Coverage {
   const byCriterion = rulesByCriterion(tags)
   const decided = decidedRules(audits)
@@ -251,17 +275,38 @@ export function buildCoverage(
     return { ...criterion, status: 'nothing-to-check', rules, browserWouldAnswer: false }
   })
 
+  const reviewed = review === undefined ? criteria : criteria.map(withReview(review))
+
   const count = (status: CoverageStatus): number =>
-    criteria.filter((criterion) => criterion.status === status).length
+    reviewed.filter((criterion) => criterion.status === status).length
+
+  const counted = reviewed.filter((criterion) => criterion.review?.counts === true)
 
   return {
-    criteria,
+    criteria: reviewed,
     evaluated: count('evaluated'),
     notEvaluated: count('not-evaluated'),
     nothingToCheck: count('nothing-to-check'),
     noAutomatedRule: count('no-automated-rule'),
-    browserWouldAnswer: criteria.filter((criterion) => criterion.browserWouldAnswer).length,
+    browserWouldAnswer: reviewed.filter((criterion) => criterion.browserWouldAnswer).length,
     total: WCAG22_AA_CRITERIA.length,
+    reviewed: counted.length,
+    reviewedNotMet: counted.filter((criterion) => criterion.review?.result === 'not-met').length,
+    reviewNotCounted: reviewed.filter((criterion) => criterion.review?.counts === false).length,
+  }
+}
+
+/**
+ * Attach what a person recorded, without letting it move what the engine found.
+ *
+ * `status` is untouched here, deliberately and in every branch: a review adds a
+ * second kind of claim beside the run's own, and the moment it could rewrite
+ * one the report would stop being a record of what was measured.
+ */
+function withReview(review: ReviewOptions): (criterion: CriterionCoverage) => CriterionCoverage {
+  return (criterion) => {
+    const recorded = criterionReview(criterion.number, review, criterion.status === 'evaluated')
+    return recorded === undefined ? criterion : { ...criterion, review: recorded }
   }
 }
 
@@ -279,4 +324,27 @@ export function coverageSummary(coverage: Coverage): string {
     `${unautomatable} cannot be checked by any automated engine and need a person. ` +
     `This run reached a verdict on ${coverage.evaluated}.`
   )
+}
+
+/**
+ * What a person added to the run, in one sentence, or nothing when nobody did.
+ *
+ * Kept out of `coverageSummary` so the sentence about the engine's reach does
+ * not change shape depending on whether a review was supplied — and because a
+ * reader has to be able to tell the two claims apart at a glance: one is what
+ * an engine measured, the other is what somebody says they checked.
+ */
+export function reviewSummary(coverage: Coverage): string | undefined {
+  if (coverage.reviewed === 0 && coverage.reviewNotCounted === 0) return undefined
+
+  const parts = [
+    `A person recorded a result for ${coverage.reviewed} of the criteria this run did not reach`,
+  ]
+  if (coverage.reviewedNotMet > 0) {
+    parts.push(`${coverage.reviewedNotMet} of them as not met`)
+  }
+  if (coverage.reviewNotCounted > 0) {
+    parts.push(`${coverage.reviewNotCounted} further entries were not counted`)
+  }
+  return `${parts.join('; ')}. This is a claim by a person, not a measurement.`
 }
