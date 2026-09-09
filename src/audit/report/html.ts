@@ -9,7 +9,7 @@ import { blindRules, coverageParts, groupIssues, isShared, issueTotals } from '.
 import { manualCheckFor, understandingUrl } from '../manual.ts'
 import { remediationFor } from '../remediation.ts'
 import { runEngine } from '../result.ts'
-import type { ReviewOptions } from '../review.ts'
+import { type ReviewOptions, reviewSentence } from '../review.ts'
 import type { Finding, IncompleteFinding, PageAudit } from '../runners/jsdom.ts'
 import { buildSummary, type JsonSummary } from './json.ts'
 
@@ -490,25 +490,14 @@ function statusText(criterion: CriterionCoverage): string {
 
 /**
  * What a person recorded about this criterion, in the cell that says what the
- * run reached. An entry that was not counted keeps its place and says why: a
- * review that has aged out is exactly what a reader has to see.
+ * run reached. The same sentence the console report prints, from the same
+ * function, so two documents of one run cannot word it differently.
  */
 function reviewCell(criterion: CriterionCoverage): string {
   const review = criterion.review
   if (review === undefined) return ''
 
-  const on = review.reviewedOn === undefined ? 'no date recorded' : review.reviewedOn
-  const by = review.reviewedBy === undefined ? '' : ` by ${review.reviewedBy}`
-  const because = review.counts ? '' : `, not counted: ${IGNORED_WORDS[review.ignored ?? 'stale']}`
-  return `<br><span class="reviewed">Checked by hand${escapeText(by)} (${escapeText(on)}):
-    ${escapeText(review.result)}${escapeText(because)}</span>`
-}
-
-/** Why an entry was read and not counted, in the same words the console uses. */
-const IGNORED_WORDS: Record<string, string> = {
-  'engine-reached-a-verdict': 'this run reached its own verdict here',
-  stale: 'older than the maximum age this run was given',
-  undated: 'no date recorded, and a maximum age was set',
+  return `<br><span class="reviewed">${escapeText(reviewSentence(review))}</span>`
 }
 
 function footer(): string {

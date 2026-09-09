@@ -15,7 +15,7 @@ import {
 import { manualCheckFor, understandingUrl } from '../manual.ts'
 import { remediationFor } from '../remediation.ts'
 import { runEngine } from '../result.ts'
-import type { CriterionReview, ReviewOptions } from '../review.ts'
+import { type ReviewOptions, reviewSentence } from '../review.ts'
 import type { Finding, IncompleteFinding, PageAudit } from '../runners/jsdom.ts'
 import { buildSummary } from './json.ts'
 
@@ -440,33 +440,13 @@ function coverageSection(audits: readonly PageAudit[], ctx: Context): string[] {
         { text: `${STATUS_WORDS[criterion.status]}${note}`, paint },
       ]),
     )
-    const recorded = reviewLine(criterion.review)
-    if (recorded !== undefined) lines.push(line(ctx, `        ${recorded}`, ctx.c.dim))
+    // Under the criterion the engine could not reach, never in place of it.
+    const recorded = criterion.review
+    if (recorded !== undefined) {
+      lines.push(line(ctx, `        ${reviewSentence(recorded)}`, ctx.c.dim))
+    }
   }
   return lines
-}
-
-/**
- * What a person recorded, under the criterion the engine could not reach.
- *
- * An entry that was not counted still prints, with the reason. Dropping it
- * would hide the one thing the reader has to act on: a review that has aged
- * out, or one recorded against a criterion this run decided for itself.
- */
-function reviewLine(review: CriterionReview | undefined): string | undefined {
-  if (review === undefined) return undefined
-
-  const on = review.reviewedOn === undefined ? 'no date recorded' : review.reviewedOn
-  const by = review.reviewedBy === undefined ? '' : ` by ${review.reviewedBy}`
-  const because = review.counts ? '' : `, not counted: ${IGNORED_WORDS[review.ignored ?? 'stale']}`
-  return `checked by hand${by} (${on}): ${review.result}${because}`
-}
-
-/** Why an entry was read and not counted, in the same words the HTML report uses. */
-const IGNORED_WORDS: Record<NonNullable<CriterionReview['ignored']>, string> = {
-  'engine-reached-a-verdict': 'this run reached its own verdict here',
-  stale: 'older than --review-max-age',
-  undated: 'no date recorded, and --review-max-age was set',
 }
 
 /** What each outcome is called, in words rather than a symbol. */

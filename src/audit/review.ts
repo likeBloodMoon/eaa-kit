@@ -161,6 +161,35 @@ function olderThan(reviewedOn: string, maxAgeDays: number, today: Date): boolean
   return (now - then) / 86_400_000 > maxAgeDays
 }
 
+/**
+ * What a person recorded, as the sentence both reports print under the criterion.
+ *
+ * One sentence rather than one per format: the console report and the HTML one
+ * were composing the same four parts in the same order, with two tables of
+ * reasons that had already drifted apart in wording. A reader comparing the two
+ * documents of one run should not have to work out whether they mean the same
+ * thing.
+ *
+ * An entry that was not counted still gets a sentence, with the reason. Dropping
+ * it would hide the one thing a reader has to act on: a review that has aged
+ * out, or one recorded against a criterion the run decided for itself.
+ */
+export function reviewSentence(review: CriterionReview): string {
+  const by = review.reviewedBy === undefined ? '' : ` by ${review.reviewedBy}`
+  const on = review.reviewedOn ?? 'no date recorded'
+  const because = review.counts
+    ? ''
+    : `, not counted: ${IGNORED_REASONS[review.ignored ?? 'stale']}`
+  return `checked by hand${by} (${on}): ${review.result}${because}`
+}
+
+/** Why an entry was read and not counted, in words rather than a code. */
+const IGNORED_REASONS: Record<ReviewIgnored, string> = {
+  'engine-reached-a-verdict': 'this run reached its own verdict here',
+  stale: 'older than the maximum age this run was given',
+  undated: 'no date recorded, and a maximum age was set',
+}
+
 /** A record with an entry for every criterion, keeping any answers already given. */
 export function blankReview(
   criteria: readonly { number: string }[],
