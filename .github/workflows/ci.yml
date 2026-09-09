@@ -64,3 +64,16 @@ jobs:
       # sits next to the code and none of them could reproduce.
       - name: Run the packaged CLI the way an install does
         run: node scripts/test-packaged.mjs
+
+      # examples/ is generated output, checked in so the formats can be read as
+      # whole documents. Regenerating it here makes it a test: a change to the
+      # code that moves a byte of what the tool prints has to show up in the
+      # diff and be explained, and a refactor claiming to change nothing has to
+      # prove it. One platform, because the assertion is about the code rather
+      # than the runner, and a path separator or line ending would fail this on
+      # Windows for reasons that say nothing about the change under review.
+      - name: Check examples/ still matches what the code produces
+        if: runner.os == 'Linux' && matrix.node-version == 24
+        run: |
+          pnpm examples
+          git diff --exit-code examples/
