@@ -78,6 +78,24 @@ inputs:
     required: false
     default: ''
 
+  review:
+    description: >-
+      Path to an eaa-kit review record: what a person checked, for the 34 WCAG
+      criteria no automated rule can reach. It never changes whether the job
+      fails — a review is a claim beside what the run measured, never a verdict
+      on it — and it is carried in the SARIF log's run properties as counts,
+      never as alerts, since an unreviewed criterion is not a defect on a line.
+    required: false
+    default: ''
+
+  review-max-age:
+    description: >-
+      Days after which an entry in the review record stops counting. Undated
+      entries stop counting too, since an undated review cannot be shown to
+      still hold. Unset leaves every dated entry standing.
+    required: false
+    default: ''
+
   concurrency:
     description: 'Worker threads the browserless engine may use, or 1 for none. Default: from the page and core count.'
     required: false
@@ -141,6 +159,8 @@ runs:
         EAA_CONCURRENCY: ${{ inputs.concurrency }}
         EAA_FAST: ${{ inputs.fast }}
         EAA_BASELINE: ${{ inputs.baseline }}
+        EAA_REVIEW: ${{ inputs.review }}
+        EAA_REVIEW_MAX_AGE: ${{ inputs.review-max-age }}
       run: |
         set -o pipefail
         # A URL replaces the directory rather than joining it: they are two
@@ -176,6 +196,12 @@ runs:
         fi
         if [ -n "$EAA_BASELINE" ]; then
           args+=(--baseline "$EAA_BASELINE")
+        fi
+        if [ -n "$EAA_REVIEW" ]; then
+          args+=(--review "$EAA_REVIEW")
+          if [ -n "$EAA_REVIEW_MAX_AGE" ]; then
+            args+=(--review-max-age "$EAA_REVIEW_MAX_AGE")
+          fi
         fi
 
         set +e

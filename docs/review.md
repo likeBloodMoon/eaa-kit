@@ -120,15 +120,22 @@ for one, and an undated entry stops counting too: an undated review cannot be sh
 still hold, which is precisely the question the flag asks.
 
 Both keys can be written down once in [`eaa.config`](audit.md#defaults-from-eaaconfig), as
-`review` and `reviewMaxAge`.
+`review` and `reviewMaxAge`, and both reach the places most runs of this tool actually
+happen: the [GitHub Action](integrations.md#github-actions) as the `review` and
+`review-max-age` inputs, and every [build plugin](integrations.md) as `review` and
+`reviewMaxAge`. Neither ever changes whether a build fails — a review is a claim beside
+what the run measured, never a verdict on it.
 
 ## What it does not reach yet
 
 - **The statement does not read the record.** `eaa-kit statement` takes its conformance
   claim from the config file, as it always has. Wiring a review into a legal document needs
   the same care as adding a country, and it is not done.
-- **SARIF carries none of it.** GitHub code scanning models alerts at source locations, and
-  a criterion nobody has reviewed is not a defect on a line.
+- **SARIF carries the counts, not the detail.** A criterion nobody has reviewed is not a
+  defect at a source location, so nothing here ever becomes an alert; the three counts sit
+  in the log's `run.properties`, where the unevaluated counts already do, so a log with no
+  results is not read as "everything was checked". The criterion-by-criterion detail is in
+  the JSON report.
 - **A review is not tied to a version of the site.** It ages by the calendar, not by what
   changed. A record from before a redesign is stale in every sense that matters and only
   `--review-max-age` will say so.

@@ -27,6 +27,16 @@ export interface IntegrationOptions {
   fast?: boolean
   concurrency?: number
   baseline?: string
+  /**
+   * Path to a review record: what a person checked, for the criteria no engine
+   * can reach. It changes nothing about whether the build fails — a review is a
+   * claim beside the run's own findings, never a verdict on them — but it is
+   * what makes the coverage in a build log describe the whole standard rather
+   * than only the automatable fraction of it.
+   */
+  review?: string
+  /** Days after which a recorded review stops counting. */
+  reviewMaxAge?: number
   format?: OutputFormat
   /** Write the report here instead of the build log. */
   output?: string

@@ -20,7 +20,15 @@ describe('auditBuild', () => {
   it('passes the audit options through, and keeps its own two', async () => {
     await auditBuild(
       'dist',
-      { fast: true, failOn: 'critical', browser: false, enabled: true, failBuild: false },
+      {
+        fast: true,
+        failOn: 'critical',
+        browser: false,
+        review: 'eaa-review.json',
+        reviewMaxAge: 365,
+        enabled: true,
+        failBuild: false,
+      },
       { info: () => {}, warn: () => {}, error: () => {} },
     )
 
@@ -28,6 +36,8 @@ describe('auditBuild', () => {
       fast: true,
       failOn: 'critical',
       browser: false,
+      review: 'eaa-review.json',
+      reviewMaxAge: 365,
     })
   })
 })

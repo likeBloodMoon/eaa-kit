@@ -39,6 +39,8 @@ prints, and fails the build on violations at or above the threshold.
 | `failBuild` | `true` | Whether a failing audit fails the build at all |
 | `enabled` | `true` | Set false to skip the audit entirely |
 | `baseline` | — | Accept the violations in this file; fail only on new ones |
+| `review` | — | A [review record](review.md): what a person checked. Never changes whether the build fails |
+| `reviewMaxAge` | — | Days after which a review entry stops counting |
 | `format`, `output` | — | Also write a report, as `--format` and `--output` do |
 | `include`, `exclude`, `baseUrl`, `browser`, `fast`, `concurrency` | | As for `audit` |
 
@@ -156,7 +158,7 @@ absence.
 | `failBuild: false` | report without failing — for the week it takes to adopt this on a site that already exists |
 | `enabled: false` | skip entirely, for turning it off per environment without unwiring it |
 | `directory` | audit somewhere other than the build's `outDir` |
-| `browser`, `fast`, `baseline`, `include`, `exclude`, `format`, `output` | as the CLI |
+| `browser`, `fast`, `baseline`, `review`, `reviewMaxAge`, `include`, `exclude`, `format`, `output` | as the CLI |
 
 `outDir` is read from the resolved Vite config, so a project that moved its output needs no
 second place to say so.
@@ -275,6 +277,8 @@ watching is the wrong default for something whose job is to fail that build.
 | `upload-sarif` | `true` | Upload to GitHub code scanning |
 | `sitemap` | — | Where the site lists its pages, if not `/sitemap.xml`; with `url` only |
 | `baseline` | — | Path to a baseline file; fail only on violations it does not list |
+| `review` | — | Path to a [review record](review.md); carried in the SARIF run properties as counts, never as alerts |
+| `review-max-age` | — | Days after which a review entry stops counting; undated entries stop counting too |
 | `concurrency` | from page and core count | Worker threads for the browserless engine; `1` for none |
 | `fast` | `false` | Skip the rules the browserless engine cannot decide instead of running them and discarding the answer |
 | `version` | `latest` | Version of eaa-kit to run |

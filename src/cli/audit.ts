@@ -330,7 +330,13 @@ async function renderReport(
     }
     case 'sarif': {
       const { buildSarifReport, serialiseSarifReport } = await import('../audit/report/sarif.ts')
-      return serialiseSarifReport(buildSarifReport(audits, { directory: dir, completeness }))
+      return serialiseSarifReport(
+        buildSarifReport(audits, {
+          directory: dir,
+          completeness,
+          ...(review === undefined ? {} : { review }),
+        }),
+      )
     }
     case 'html': {
       const { buildHtmlReport } = await import('../audit/report/html.ts')

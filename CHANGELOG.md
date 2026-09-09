@@ -48,6 +48,13 @@ consumers must ignore what they do not recognise.
   nothing existing changed meaning, and a run with no review produces the report it always
   did, byte for byte apart from those three zeroes.
 
+  Reachable from where runs actually happen, which is the rule `--fast` set in 0.5.0: the
+  GitHub Action takes `review` and `review-max-age`, and every build plugin takes `review`
+  and `reviewMaxAge`. Neither ever changes whether a build fails. SARIF carries the three
+  counts in `run.properties`, beside the unevaluated counts already there, and never as an
+  alert: an unreviewed criterion is not a defect at a source location, and filing one would
+  bury the failures that are.
+
 ### Changed
 
 - **The reports derive the run's numbers once.** The console report counted violations,
