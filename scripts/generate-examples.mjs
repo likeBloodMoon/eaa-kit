@@ -7,6 +7,7 @@
 
 import { spawnSync } from 'node:child_process'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { pathToFileURL } from 'node:url'
 
 const CLI = 'dist/cli/index.js'
 const FIXTURES = 'tests/fixtures/site'
@@ -51,23 +52,37 @@ const statements = [
  * before the statements are generated is what makes that prose stand still
  * too — normalising it afterwards would leave the German date behind.
  *
- * Done here rather than through a CLI flag: a way to fix the clock is a
- * testing seam, and the shipped tool should not carry one for the sake of its
- * own documentation.
+ * And one shape of place. A JSON report records the URL each page was audited
+ * at, which for a build directory is a `file://` URL under wherever the
+ * repository happens to sit — `/home/runner/work` on CI, something else on
+ * every laptop. That is correct in a report somebody runs and meaningless in
+ * one checked into a repository, so the root is replaced by a fixed stand-in.
+ * It is the same idea as the clock: the example is a document about the
+ * format, and the parts of it that describe the machine that produced it are
+ * noise that would bury a real change.
+ *
+ * Done here rather than through a CLI flag: a way to fix the clock or the
+ * paths is a testing seam, and the shipped tool should not carry one for the
+ * sake of its own documentation.
  */
 const FIXED = '2026-01-01T00:00:00.000Z'
 const FIXED_DAY = '2026-01-01'
+const FIXED_ROOT = 'file:///eaa-kit'
 
 async function freezeClock(file) {
   const before = await readFile(file, 'utf8')
   const after = before
     .replace(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z/g, FIXED)
     .replace(/("(?:createdOn|acceptedOn)": ")\d{4}-\d{2}-\d{2}(")/g, `$1${FIXED_DAY}$2`)
+    .replaceAll(root, FIXED_ROOT)
   if (after !== before) {
     await writeFile(file, after, 'utf8')
     console.log(`froze the clock in ${file}`)
   }
 }
+
+/** This checkout, as the `file://` URL a report writes it as, without a trailing slash. */
+const root = pathToFileURL(process.cwd()).href.replace(/\/$/, '')
 
 await mkdir('examples', { recursive: true })
 

@@ -67,9 +67,11 @@ consumers must ignore what they do not recognise.
   in so the formats can be read as whole documents, and nothing was making sure they still
   matched the code. Regenerating them is now a test: a change to what the tool prints has to
   show up in the diff and be explained, and a refactor claiming to change nothing has to
-  prove it. Two fields that moved on their own — the day a baseline records and the report
-  timestamp the German statement quotes back as prose — are frozen by the generator, which
-  is what made the check possible at all.
+  prove it. Three things that moved on their own are frozen by the generator, which is what
+  made the check possible at all: the day a baseline records, the report timestamp the
+  German statement quotes back as prose, and the checkout's own absolute path, which a JSON
+  report records as the `file://` URL each page was audited at. The first run of the check
+  in CI caught that last one, which is the argument for having it.
 
 ## 0.5.0 — 2026-09-01
 
