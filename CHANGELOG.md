@@ -9,6 +9,156 @@ move: the JSON report's `schemaVersion` and the baseline file's. Both are bumped
 a field is removed, renamed, or changes meaning — new fields may appear without one, so
 consumers must ignore what they do not recognise.
 
+## Unreleased
+
+### Added
+
+- **`eaa-kit checklist`, and `audit --review`**: the manual review, written down where a
+  run can read it back. Of the 55 WCAG 2.2 A and AA success criteria, 34 have no automated
+  rule at all. Every report has said so since 0.3 and that is where it stopped — there was
+  nowhere to put the answer, so a site nobody had reviewed and a site audited by hand last
+  week produced identical coverage.
+
+  `checklist` writes two files from one list of criteria: `eaa-review.json`, the record the
+  tool reads back, and a Markdown worksheet with what each criterion requires and the check
+  to do by hand. Re-running keeps every answer already recorded and fills in only what is
+  missing, so a review done over three sittings survives; a record that exists and cannot be
+  parsed stops the command rather than being replaced, because it holds work no tool can
+  redo.
+
+  What a review is not allowed to do is the half that decides whether this was worth
+  shipping, and all four refusals are asserted. It never overrules the engine: a criterion
+  the run decided keeps its verdict, and an entry recorded against one is shown as not
+  counted, with the reason. It never moves the four coverage counts, which still partition
+  the standard by what the engine reached — what a person recorded is counted separately and
+  never added to them or divided into anything. It never counts `unreviewed`, because
+  generating the worksheet is not doing the review. And under `--review-max-age <days>` it
+  never counts an entry that has aged out, nor an undated one, since an undated review
+  cannot be shown to still hold.
+
+  A recorded result is a claim by a person, with the same standing as the claims in the
+  statement this tool writes: reported, never verified, and labelled as such wherever it
+  appears. `--review` and `--review-max-age` can be written down once in `eaa.config` as
+  `review` and `reviewMaxAge`. Two things it deliberately does not do yet: the statement
+  does not read the record, and staleness is by the calendar rather than by the pages the
+  review covers. Both are in [docs/review.md](docs/review.md).
+
+  The JSON report's `coverage` gains `reviewed`, `reviewedNotMet` and `reviewNotCounted`,
+  and each criterion an optional `review`. New fields, so `schemaVersion` does not move —
+  nothing existing changed meaning, and a run with no review produces the report it always
+  did, byte for byte apart from those three zeroes.
+
+  Reachable from where runs actually happen, which is the rule `--fast` set in 0.5.0: the
+  GitHub Action takes `review` and `review-max-age`, and every build plugin takes `review`
+  and `reviewMaxAge`. Neither ever changes whether a build fails. SARIF carries the three
+  counts in `run.properties`, beside the unevaluated counts already there, and never as an
+  alert: an unreviewed criterion is not a defect at a source location, and filing one would
+  bury the failures that are.
+
+- **`eaa-kit baseline --prune`**, which removes the entries a run shows are gone and adds
+  nothing. The audit has always said when entries no longer match — that is the good news,
+  somebody fixed them — but acting on it meant editing JSON by hand, so mostly nobody did
+  and baselines accumulated barriers fixed years ago while looking exactly like one nobody
+  had read. Adding nothing is the difference between this and recording the baseline again,
+  which accepts whatever the site fails today. Entries for pages the run did not audit are
+  kept, because from here a page nobody audited and a page that no longer exists are
+  indistinguishable, and expired entries are kept and reported rather than swept up: an
+  expiry date is a decision somebody made, not a barrier that went away.
+
+- **`--header` and `--basic-auth`, for a site behind a login or a preview protection.** The
+  two places small teams stage work were the two this tool could not reach: a preview
+  deployment, which every host protects by default, and a CMS staging site behind basic auth
+  or a session cookie. `--url` sent one fixed pair of headers with no way to add to it, so
+  auditing either meant putting the site on the public internet first.
+
+  `--header "Name: value"` is repeatable and `--basic-auth user:password` is sugar for the
+  header you would otherwise base64 by hand. They are sent on every request the crawl makes —
+  pages, `robots.txt` and the sitemap, because a site that needs credentials needs them for
+  all three — and under `--browser` they are set on the browser context, so a protected page
+  is not audited without its stylesheet. Also on `baseline`, which runs the same audit, and on
+  the GitHub Action as the `headers` and `basic-auth` inputs, which read from `secrets`.
+
+  These are credentials, and the tool writes none of them down: nothing reaches a report, a
+  baseline, a SARIF log or the completeness record, and a malformed `--header` is reported by
+  name rather than by echoing the value, since that case is a bad flag printing a token into
+  a CI log. There is deliberately no `headers` key in `eaa.config` — that file is committed,
+  and a token in it is a token in the repository — and the invocation drops the key even if
+  one appears, rather than resting on the schema to do it.
+
+- **A sign-in page in front of the site is caught rather than audited.** Found by running
+  the credentials work above against reproductions of the four walls people actually meet:
+  htpasswd staging, Vercel preview protection, Cloudflare Access, and a form login. The
+  first three fail loudly — 401, or a redirect off the origin — and always did. The fourth
+  did not: a site that redirects unauthenticated requests to a login form answers 200 to
+  everything, so the crawl audited the login page, found a violation on its unlabelled
+  password field, and reported `complete: true` over a site it had never seen.
+
+  The crawl now records where a request actually answered. When several requested URLs
+  answer at one address, or a whole crawl comes back as the single page it was redirected
+  to, those URLs are recorded as pages the run never reached — which puts them in every
+  report's "what this run did not measure", takes `complete` to false, and prints the
+  credential flags to try. Ordinary redirects are untouched: a locale prefix, a trailing
+  slash, anything landing somewhere of its own, all still report a complete run.
+
+- **The statement refuses to contradict the evidence beside it.** The README has said since
+  0.1 that a statement claiming full conformance for a site that is not conformant is worse
+  than no statement at all, and the tool did nothing about it: the claim came out of the
+  config file, the report came in through `--audit`, and nothing ever put the two in the same
+  room. A run could print a document claiming full conformance directly above the list of
+  barriers that disproves it.
+
+  Two claims are now refused, with exit 2 and no file written: `compliant` while the audit
+  report lists barriers, and `compliant` while a review record passed to the new `--review`
+  has criteria recorded as `not-met`. Refused rather than warned about, because this is the
+  one output of this tool published under somebody's name — the failure mode is a false
+  statement on a website rather than a wrong number in a terminal — and the message names the
+  fix, since `partially-compliant` is the ordinary answer and does not read that way to
+  somebody filling in a config for the first time.
+
+  Four things warn instead, with the document still written: an `assessedOn` in the future or
+  more than a year old, an audit that ran after the date the statement gives as its
+  assessment, and a report more than a year old. An old date is not a false claim; it is a
+  document nobody has revisited, and only the publisher knows whether the site has moved.
+
+  Nothing is checked without evidence — `eaa-kit statement` on its own behaves exactly as it
+  did. `--review` is read for this check alone and reaches none of the text. The check is
+  exported as `checkStatementEvidence` for anything driving the renderer directly.
+
+### Changed
+
+- **The reports derive the run's numbers once.** The console report counted violations,
+  elements, pages and accepted elements with its own reduces while the HTML report computed
+  the same summary twice and the JSON report built it properly; all three now read the one
+  the JSON report builds. The rule catalogue JSON and SARIF each walked separately is one
+  function, as are the engine label all four repeated and the comparator two of them wrote
+  out. No output moved — `examples/` regenerates byte-identical — and three reports of one
+  run can no longer disagree about how many violations there were.
+
+  First pass of `ponytail`, a compaction skill checked in at
+  `.claude/skills/ponytail/SKILL.md`, which is now how this project keeps its own code in
+  shape: existing modules in scheduled passes, and new code before its pull request.
+  [ROADMAP.md](ROADMAP.md) says which modules are next.
+
+- **`examples/` is regenerated and diffed in CI.** Those files are generated output, checked
+  in so the formats can be read as whole documents, and nothing was making sure they still
+  matched the code. Regenerating them is now a test: a change to what the tool prints has to
+  show up in the diff and be explained, and a refactor claiming to change nothing has to
+  prove it. Three things that moved on their own are frozen by the generator, which is what
+  made the check possible at all: the day a baseline records, the report timestamp the
+  German statement quotes back as prose, and the checkout's own absolute path, which a JSON
+  report records as the `file://` URL each page was audited at. The first run of the check
+  in CI caught that last one, which is the argument for having it.
+
+### Fixed
+
+- **Plurals in two counts this release added**: "2 entrys" and "4 criterions". `plural` now
+  carries the short list of irregular nouns this package's own output uses, which also
+  retires the hand-written ternary `baseline` had been carrying around the same problem.
+
+- **An unclassified impact is called "unclassified" in the per-page console listing**, as it
+  already was in the issues section, the HTML report and the JSON summary. One run, one
+  finding, one word. Visible only under `--per-page`.
+
 ## 0.5.0 — 2026-09-01
 
 ### Added

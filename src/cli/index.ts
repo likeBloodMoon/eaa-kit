@@ -2,7 +2,9 @@
 import { enableCompileCache } from 'node:module'
 import { Command, InvalidArgumentError } from 'commander'
 import { DEFAULT_BASELINE_FILE } from '../audit/baseline.ts'
+import { basicAuth, parseHeader } from '../audit/headers.ts'
 import { DEFAULT_FAIL_ON, IMPACT_LEVELS } from '../audit/impact.ts'
+import { DEFAULT_REVIEW_FILE } from '../audit/review.ts'
 import {
   COUNTRIES,
   ConfigError,
@@ -12,6 +14,7 @@ import {
 import { TOOL_VERSION } from '../version.ts'
 import { OUTPUT_FORMATS, runAuditCommand } from './audit.ts'
 import { runBaselineCommand } from './baseline.ts'
+import type { ChecklistCommandOptions } from './checklist.ts'
 import {
   type AuditFlags,
   auditDefaults,
@@ -64,6 +67,7 @@ useCompileCache()
  * they occur: `--no-build`, which commander reports as `build`, and `--lang`,
  * which the statement command calls `locale`.
  */
+type ChecklistFlags = Omit<ChecklistCommandOptions, 'cwd'>
 type DiffFlags = Omit<DiffCommandOptions, 'cwd'>
 type StatementFlags = Omit<StatementCommandOptions, 'locale' | 'cwd'> & { lang?: StatementLocale }
 
@@ -113,6 +117,32 @@ const parsePositive = wholeNumber(1)
 const parseDepth = wholeNumber(0)
 const parseConcurrency = wholeNumber(1)
 
+/**
+ * `--header` repeated, collected into a list the command turns into a record.
+ *
+ * Validated here so a typo stops the run before a site is crawled with a
+ * malformed credential — and the error names the header rather than repeating
+ * the value, because a bad `--header` is exactly the case where the value is a
+ * token and the terminal is a CI log.
+ */
+function collectHeader(value: string, previous: string[] = []): string[] {
+  try {
+    parseHeader(value)
+  } catch (cause) {
+    throw new InvalidArgumentError(cause instanceof Error ? cause.message : String(cause))
+  }
+  return [...previous, value]
+}
+
+function parseBasicAuth(value: string): string {
+  try {
+    basicAuth(value)
+  } catch (cause) {
+    throw new InvalidArgumentError(cause instanceof Error ? cause.message : String(cause))
+  }
+  return value
+}
+
 const program = new Command()
 
 // Commander exits 1 on usage errors; this CLI reserves 1 for "violations found"
@@ -144,6 +174,16 @@ program
   .option('--sitemap <path>', 'where the site lists its pages, if not /sitemap.xml')
   .option('--max-pages <n>', 'stop the crawl after this many pages', parsePositive)
   .option('--max-depth <n>', 'how far from the entry URL to follow links', parseDepth)
+  .option(
+    '--header <header>',
+    'send this header with every request, e.g. "Authorization: Bearer …". Repeatable',
+    collectHeader,
+  )
+  .option(
+    '--basic-auth <user:password>',
+    'send an Authorization header for basic auth',
+    parseBasicAuth,
+  )
   // Neither of these carries a commander default any more. Commander writes a
   // default into the parsed options whether or not the flag was typed, and the
   // flags are merged over the config file's `audit` block — so a default here
@@ -171,6 +211,8 @@ program
     parseConcurrency,
   )
   .option('--baseline <path>', 'accept the violations recorded in this file; fail only on new ones')
+  .option('--review <path>', 'what a person checked, from eaa-kit checklist')
+  .option('--review-max-age <days>', 'stop counting review entries older than this', parseDepth)
   .option('--config <path>', 'take defaults from this config file, otherwise it is searched for')
   .action(async (dir: string | undefined, flags: AuditFlags) => {
     const defaults = await auditDefaults({ ...(flags.config ? { config: flags.config } : {}) })
@@ -192,7 +234,21 @@ program
   .option('--sitemap <path>', 'where the site lists its pages, if not /sitemap.xml')
   .option('--max-pages <n>', 'stop the crawl after this many pages', parsePositive)
   .option('--max-depth <n>', 'how far from the entry URL to follow links', parseDepth)
+  .option(
+    '--header <header>',
+    'send this header with every request, e.g. "Authorization: Bearer …". Repeatable',
+    collectHeader,
+  )
+  .option(
+    '--basic-auth <user:password>',
+    'send an Authorization header for basic auth',
+    parseBasicAuth,
+  )
   .option('--output <path>', `where to write it (default: ${DEFAULT_BASELINE_FILE})`)
+  .option(
+    '--prune',
+    'remove the entries this run shows are gone, instead of recording a new baseline',
+  )
   .option('--note <text>', 'recorded on every entry, for whoever reads the file')
   .option('--expires-on <date>', 'ISO date after which the entries stop suppressing', parseDate)
   .option('--browser', 'audit in real Chromium instead of jsdom')
@@ -202,6 +258,18 @@ program
     const defaults = await auditDefaults({ ...(flags.config ? { config: flags.config } : {}) })
     const invocation = baselineInvocation(dir, defaults, flags)
     const { exitCode } = await runBaselineCommand(invocation.dir, invocation.options)
+    process.exitCode = exitCode
+  })
+
+program
+  .command('checklist')
+  .description('Write the manual review: the 34 WCAG criteria no automated rule can reach')
+  .option('--record <path>', `where the answers live (default: ${DEFAULT_REVIEW_FILE})`)
+  .option('--output <path>', 'write the worksheet here instead of stdout')
+  .option('--reviewed-by <name>', 'who is carrying out the review')
+  .action(async (flags: ChecklistFlags) => {
+    const { runChecklistCommand } = await import('./checklist.ts')
+    const { exitCode } = await runChecklistCommand(flags)
     process.exitCode = exitCode
   })
 
@@ -246,6 +314,10 @@ program
     parseCountry,
   )
   .option('--audit <path>', 'list the barriers from an eaa-kit audit --format json report')
+  .option(
+    '--review <path>',
+    'check the conformance claim against a review record; nothing from it is published',
+  )
   .option(
     '--format <format>',
     `output format (${STATEMENT_FORMATS.join('|')}), otherwise from the --output extension`,

@@ -81,6 +81,14 @@ export interface CrawlOptions {
    * response over it is recorded as a failure rather than buffered.
    */
   maxBodyBytes?: number
+  /**
+   * Extra request headers, for a site behind a login or a preview protection.
+   * Sent on every request the crawl makes — pages, robots.txt and the sitemap —
+   * because a site that needs credentials needs them for all three.
+   *
+   * Credentials. Never recorded in a report, and never logged.
+   */
+  headers?: Record<string, string>
   /** Injectable for tests. Defaults to global fetch. */
   fetchImpl?: typeof fetch
   /** Called as pages arrive, for progress reporting. */
@@ -93,6 +101,15 @@ export interface CrawlResult {
   origin: string
   /** URLs that could not be fetched, with the reason. */
   failures: Array<{ url: string; reason: string }>
+  /**
+   * URLs that answered somewhere other than where they were asked.
+   *
+   * Recorded because a redirect is the one way a run can audit something other
+   * than what it was told to audit and still look like it succeeded. Most are
+   * ordinary — a trailing slash, a locale prefix — and the caller decides what
+   * to make of them; `collapsedOnto` names the case that is not ordinary.
+   */
+  redirects: Array<{ requested: string; landedOn: string }>
   /** True when the crawl stopped at maxPages rather than running out of links. */
   truncated: boolean
   /** How the pages were found. */
@@ -213,6 +230,7 @@ async function fetchPage(
   /** Origin the crawl is confined to. A redirect that leaves it is refused. */
   origin: string,
   maxBodyBytes: number,
+  headers: Record<string, string> | undefined,
 ): Promise<{ ok: true; value: Fetched } | { ok: false; reason: string }> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
@@ -220,7 +238,12 @@ async function fetchPage(
     const response = await impl(url.href, {
       signal: controller.signal,
       redirect: 'follow',
-      headers: { accept: 'text/html,application/xhtml+xml', 'user-agent': 'eaa-kit' },
+      // Caller's headers last: somebody who sets a user-agent means it.
+      headers: {
+        accept: 'text/html,application/xhtml+xml',
+        'user-agent': 'eaa-kit',
+        ...headers,
+      },
     })
     if (!response.ok) return { ok: false, reason: `HTTP ${response.status}` }
 
@@ -349,6 +372,7 @@ async function fetchSiteFile(
   name: string,
   timeoutMs: number,
   maxBodyBytes: number,
+  headers: Record<string, string> | undefined,
 ): Promise<string | undefined> {
   // These two requests are made before any page is fetched, and they used to be
   // the only ones in the crawler with no timeout on them. A server that accepts
@@ -361,6 +385,7 @@ async function fetchSiteFile(
     const response = await impl(new URL(name, entry).href, {
       redirect: 'follow',
       signal: controller.signal,
+      ...(headers === undefined ? {} : { headers }),
     })
     if (!response.ok) return undefined
 
@@ -400,7 +425,7 @@ export async function crawlSite(entry: URL, options: CrawlOptions = {}): Promise
   // Paths the site's own robots.txt puts off limits.
   const robots = options.ignoreRobots
     ? undefined
-    : await fetchSiteFile(entry, impl, '/robots.txt', timeoutMs, maxBodyBytes)
+    : await fetchSiteFile(entry, impl, '/robots.txt', timeoutMs, maxBodyBytes, options.headers)
   const blocked = robots === undefined ? [] : disallowedPaths(robots)
 
   const allowed = (url: URL): boolean => !blocked.some((path) => url.pathname.startsWith(path))
@@ -427,6 +452,7 @@ export async function crawlSite(entry: URL, options: CrawlOptions = {}): Promise
     options.sitemap ?? '/sitemap.xml',
     timeoutMs,
     maxBodyBytes,
+    options.headers,
   )
   const listed = sitemap === undefined ? [] : urlsFromSitemap(sitemap, entry)
   if (listed.length > 0) {
@@ -436,13 +462,21 @@ export async function crawlSite(entry: URL, options: CrawlOptions = {}): Promise
   enqueue(entry, 0)
 
   const pages: CollectedPage[] = []
+  const redirects: CrawlResult['redirects'] = []
 
   while (queue.length > 0 && pages.length < maxPages) {
     const batch = queue.splice(0, Math.min(REQUEST_CONCURRENCY, maxPages - pages.length))
     const results = await Promise.all(
       batch.map(async (item) => ({
         item,
-        result: await fetchPage(item.url, impl, timeoutMs, entry.origin, maxBodyBytes),
+        result: await fetchPage(
+          item.url,
+          impl,
+          timeoutMs,
+          entry.origin,
+          maxBodyBytes,
+          options.headers,
+        ),
       })),
     )
 
@@ -452,6 +486,9 @@ export async function crawlSite(entry: URL, options: CrawlOptions = {}): Promise
         continue
       }
       const { url, html } = result.value
+      if (url.href !== item.url.href) {
+        redirects.push({ requested: item.url.href, landedOn: url.href })
+      }
       pages.push({
         // The URL is the identity here; there is no file on disk. absolutePath
         // is the page's own href so that anything reaching for it gets
@@ -475,11 +512,49 @@ export async function crawlSite(entry: URL, options: CrawlOptions = {}): Promise
     pages: byIdentity(pages),
     origin: entry.origin,
     failures,
+    redirects,
     // Anything still queued when the loop stopped is a page the caller asked
     // for and is not getting, which they have to be told about.
     truncated: queue.length > 0,
     discovery,
   }
+}
+
+/**
+ * The requested URLs that a login wall swallowed, or none.
+ *
+ * A redirect on its own says nothing: sites normalise trailing slashes and send
+ * `/` to `/en/` all day. What is not ordinary is *several* different URLs
+ * answering at one address, or a whole crawl coming back as the single page the
+ * entry was redirected to. Both are the shape of a sign-in page standing in
+ * front of the site, and both otherwise produce a report about a page nobody
+ * asked for that says it audited everything it set out to.
+ *
+ * Returns what was asked for and never reached, which is the one thing the run
+ * has to say out loud. Deliberately shy of naming the cause: a single-page site
+ * that redirects its entry looks identical from here, and being told where the
+ * run actually landed is useful either way.
+ */
+export function collapsedOnto(result: CrawlResult): Array<{ requested: string; landedOn: string }> {
+  if (result.redirects.length === 0) return []
+
+  const byDestination = new Map<string, string[]>()
+  for (const redirect of result.redirects) {
+    byDestination.set(redirect.landedOn, [
+      ...(byDestination.get(redirect.landedOn) ?? []),
+      redirect.requested,
+    ])
+  }
+
+  const collapsed: Array<{ requested: string; landedOn: string }> = []
+  for (const [landedOn, requested] of byDestination) {
+    // Two URLs answering at one address, or a crawl that came back as nothing
+    // but the page it was redirected to.
+    if (requested.length > 1 || result.pages.length === 1) {
+      for (const from of requested) collapsed.push({ requested: from, landedOn })
+    }
+  }
+  return collapsed
 }
 
 /**

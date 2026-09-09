@@ -3,13 +3,15 @@ import { collapse, count, escapeAttribute, escapeText, standardsReference } from
 import { TOOL_VERSION } from '../../version.ts'
 import { discoveryLabel, missedParts, type RunCompleteness } from '../completeness.ts'
 import { type ComponentLocation, componentPath } from '../component.ts'
-import { buildCoverage, type CriterionCoverage } from '../coverage.ts'
-import { countAtOrAbove, type ImpactLevel, impactLabel, impactRank } from '../impact.ts'
-import { blindRules, coverageParts, groupIssues, isShared } from '../issues.ts'
+import { buildCoverage, type CriterionCoverage, reviewSummary } from '../coverage.ts'
+import { byImpactThenRule, type ImpactLevel, impactLabel } from '../impact.ts'
+import { blindRules, coverageParts, groupIssues, isShared, issueTotals } from '../issues.ts'
 import { manualCheckFor, understandingUrl } from '../manual.ts'
 import { remediationFor } from '../remediation.ts'
+import { runEngine } from '../result.ts'
+import { type ReviewOptions, reviewSentence } from '../review.ts'
 import type { Finding, IncompleteFinding, PageAudit } from '../runners/jsdom.ts'
-import { buildSummary } from './json.ts'
+import { buildSummary, type JsonSummary } from './json.ts'
 
 /**
  * A standalone HTML audit report.
@@ -64,13 +66,18 @@ export interface HtmlReportOptions {
    */
   framework?: string
   baseUrl?: string
+  /** What a person recorded about the criteria this run could not reach. */
+  review?: ReviewOptions
   /** Injectable so tests and snapshots are not time-dependent. */
   now?: Date
 }
 
 export function buildHtmlReport(audits: readonly PageAudit[], options: HtmlReportOptions): string {
-  const engine = audits[0]?.engine ?? 'jsdom'
-  const failing = countAtOrAbove(audits, options.failOn)
+  const engine = runEngine(audits)
+  // Counted once and handed to both the banner and the summary. Two parts of
+  // one document disagreeing about how many violations there were is the kind
+  // of bug nobody notices until a client does.
+  const totals = buildSummary(audits, options.failOn)
   const generatedAt = (options.now ?? new Date()).toISOString()
   const title = `Accessibility audit · ${options.directory}`
 
@@ -88,15 +95,15 @@ ${STYLES}
 <body>
 <main>
 <h1>Accessibility audit</h1>
-${verdict(audits, failing, options)}
+${verdict(totals, options)}
 ${scoreboard(audits)}
 ${issues(audits, options)}
 ${runDetails(audits, engine, generatedAt, options)}
 ${notMeasured(options)}
-${summary(audits, failing, options)}
+${summary(totals, options)}
 ${pages(audits)}
 ${notEvaluated(audits)}
-${coverageSection(audits)}
+${coverageSection(audits, options)}
 ${footer()}
 </main>
 </body>
@@ -112,12 +119,8 @@ ${footer()}
  * which would be an embarrassing thing for this document in particular to get
  * wrong.
  */
-function verdict(
-  audits: readonly PageAudit[],
-  failing: number,
-  options: HtmlReportOptions,
-): string {
-  const unaudited = audits.filter((audit) => audit.error).length
+function verdict(totals: JsonSummary, options: HtmlReportOptions): string {
+  const unaudited = totals.pagesNotAudited
 
   if (unaudited > 0) {
     return banner(
@@ -126,14 +129,14 @@ function verdict(
       `${count(unaudited, 'page')} could not be audited, so this run reached no verdict.`,
     )
   }
-  if (failing > 0) {
+  if (totals.failing > 0) {
     return banner(
       'fail',
       'Violations found',
-      `${count(failing, 'violation')} at or above ${escapeText(options.failOn)}.`,
+      `${count(totals.failing, 'violation')} at or above ${escapeText(options.failOn)}.`,
     )
   }
-  const below = totalViolations(audits) - failing
+  const below = totals.violations - totals.failing
   if (below > 0) {
     return banner(
       'pass',
@@ -255,13 +258,7 @@ function notMeasured(options: HtmlReportOptions): string {
  * the kind of bug nobody notices until a client does, so there is one place
  * that counts.
  */
-function summary(
-  audits: readonly PageAudit[],
-  failing: number,
-  options: HtmlReportOptions,
-): string {
-  const totals = buildSummary(audits, options.failOn)
-
+function summary(totals: JsonSummary, options: HtmlReportOptions): string {
   const impacts = IMPACT_ORDER.filter((impact) => totals.byImpact[impact] > 0)
     .map(
       (impact) =>
@@ -272,7 +269,7 @@ function summary(
   return `<h2>Summary</h2>
 <ul class="counts">
   <li><strong>${count(totals.violations, 'violation')}</strong> on ${totals.pagesWithViolations} of ${count(totals.pages, 'page')}, across ${count(totals.violatingElements, 'element')}</li>
-  <li><strong>${failing}</strong> at or above ${escapeText(options.failOn)}</li>
+  <li><strong>${totals.failing}</strong> at or above ${escapeText(options.failOn)}</li>
   <li><strong>${totals.needsReview}</strong> ${totals.needsReview === 1 ? 'rule needs' : 'rules need'} manual review</li>
   <li><strong>${totals.notEvaluated}</strong> ${totals.notEvaluated === 1 ? 'rule was' : 'rules were'} not evaluated by this engine</li>
 ${totals.accepted > 0 ? `  <li><strong>${totals.accepted}</strong> ${totals.accepted === 1 ? 'element is' : 'elements are'} accepted by the baseline, and not counted above</li>` : ''}
@@ -415,8 +412,8 @@ ${items}
  * majority of WCAG, and a percentage would present a limit of automated testing
  * as a property of this site.
  */
-function coverageSection(audits: readonly PageAudit[]): string {
-  const coverage = buildCoverage(audits)
+function coverageSection(audits: readonly PageAudit[], options: HtmlReportOptions): string {
+  const coverage = buildCoverage(audits, undefined, options.review)
 
   const rows = coverage.criteria
     .map((criterion) => {
@@ -426,7 +423,7 @@ function coverageSection(audits: readonly PageAudit[]): string {
       return `  <tr class="${escapeAttribute(criterion.status)}">
     <td>${linked}</td>
     <td>${escapeText(criterion.level)}</td>
-    <td>${statusText(criterion)}</td>
+    <td>${statusText(criterion)}${reviewCell(criterion)}</td>
   </tr>`
     })
     .join('\n')
@@ -450,6 +447,7 @@ function coverageSection(audits: readonly PageAudit[]): string {
   of WCAG cannot be automated, and a percentage here would present that limit of automated
   testing as though it were a measurement of this site.
 </p>
+${reviewParagraph(coverage)}
 <div class="scroll">
 <table class="coverage">
 <thead><tr><th>Success criterion</th><th>Level</th><th>This run</th></tr></thead>
@@ -458,6 +456,22 @@ ${rows}
 </tbody>
 </table>
 </div>`
+}
+
+/**
+ * What a person recorded, where a review was supplied.
+ *
+ * Its own paragraph, under the four counts and visibly apart from them: the
+ * counts are what an engine measured and this is what somebody says they
+ * checked. This document is the one that leaves the building, so the difference
+ * between the two has to survive being quoted.
+ */
+function reviewParagraph(coverage: ReturnType<typeof buildCoverage>): string {
+  const summary = reviewSummary(coverage)
+  if (summary === undefined) return ''
+
+  return `<p class="note review">${escapeText(summary)} eaa-kit cannot check that anything
+  recorded in a review is true; it reports it as the claim it is.</p>`
 }
 
 function statusText(criterion: CriterionCoverage): string {
@@ -472,6 +486,18 @@ function statusText(criterion: CriterionCoverage): string {
     case 'no-automated-rule':
       return 'No automated rule exists; a person must check it'
   }
+}
+
+/**
+ * What a person recorded about this criterion, in the cell that says what the
+ * run reached. The same sentence the console report prints, from the same
+ * function, so two documents of one run cannot word it differently.
+ */
+function reviewCell(criterion: CriterionCoverage): string {
+  const review = criterion.review
+  if (review === undefined) return ''
+
+  return `<br><span class="reviewed">${escapeText(reviewSentence(review))}</span>`
 }
 
 function footer(): string {
@@ -497,14 +523,6 @@ function standards(finding: Finding): string {
 
 function standardsText(finding: Finding): string {
   return escapeText(standardsReference(finding.successCriteria, finding.enClauses))
-}
-
-function totalViolations(audits: readonly PageAudit[]): number {
-  return audits.reduce((total, audit) => total + audit.violations.length, 0)
-}
-
-function byImpactThenRule(a: Finding, b: Finding): number {
-  return impactRank(a.impact) - impactRank(b.impact) || a.ruleId.localeCompare(b.ruleId)
 }
 
 const STYLES = `:root { color-scheme: light dark; }
@@ -560,6 +578,8 @@ table.coverage tr.evaluated td:last-child { color: #216e39; }
 table.coverage em { font-style: normal; opacity: 0.75; }
 ul.unreachable li { margin-bottom: 0.2rem; overflow-wrap: anywhere; }
 code.selector { color: #4a4a4a; }
+.reviewed { color: #4a4a4a; font-size: 0.95em; }
+p.note.review { border-left: 3px solid #c9c9c9; padding-left: 0.75rem; }
 p.clean { color: #216e39; }
 p.note { font-size: 0.95rem; }
 hr { border: 0; border-top: 1px solid #d4d4d4; margin: 3rem 0 1.5rem; }
@@ -599,7 +619,8 @@ ul.page-list { margin: 0.35rem 0 0; padding-left: 1.25rem; }
   pre { background: #1e1e1e; }
   li.finding { border-color: #3a3a3a; }
   p.standards, p.coverage, .reason, li.more, code.selector, footer,
-  p.accepted-heading, ul.accepted { color: #b6b6b6; }
+  p.accepted-heading, ul.accepted, .reviewed { color: #b6b6b6; }
+  p.note.review { border-left-color: #555; }
   p.clean { color: #7ee2a8; }
   .verdict.pass { background: #10240f; border-color: #7ee2a8; }
   .verdict.fail { background: #2b1111; border-color: #ff9d9d; }
@@ -686,8 +707,7 @@ function issues(audits: readonly PageAudit[], options: HtmlReportOptions): strin
   const found = groupIssues(audits)
   if (found.length === 0) return ''
 
-  const elements = found.reduce((total, issue) => total + issue.elements.length, 0)
-  const occurrences = found.reduce((total, issue) => total + issue.occurrences, 0)
+  const { elements, occurrences } = issueTotals(found)
 
   const intro =
     occurrences === elements

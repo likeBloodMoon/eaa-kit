@@ -2,6 +2,7 @@ import path from 'node:path'
 import { ConfigError, type Country, type StatementLocale } from '../config/define.ts'
 import { loadConfig } from '../config/load.ts'
 import { StatementError } from '../statement/error.ts'
+import { checkStatementEvidence, refuses } from '../statement/evidence.ts'
 import { type AuditSummary, readAuditReport } from '../statement/findings.ts'
 import { renderStatement } from '../statement/render.ts'
 import { count } from '../text.ts'
@@ -20,6 +21,11 @@ export interface StatementCommandOptions {
   country?: Country
   /** Path to a report from `eaa-kit audit --format json`. */
   audit?: string
+  /**
+   * Path to a review record. Read only to check the config's claim against what
+   * a person recorded; nothing from it reaches the text of the statement.
+   */
+  review?: string
   /** Defaults to the extension of --output, and to markdown without one. */
   format?: StatementFormat
   /** Write the statement here instead of stdout. */
@@ -56,6 +62,25 @@ export async function runStatementCommand(
       audit = await readAuditReport(options.audit, options.cwd ?? process.cwd())
     }
 
+    let review: Awaited<ReturnType<typeof import('../audit/review.ts').readReview>> | undefined
+    if (options.review) {
+      const { readReview } = await import('../audit/review.ts')
+      review = await readReview(options.review, options.cwd ?? process.cwd())
+    }
+
+    // Before anything is rendered: a statement that contradicts the evidence
+    // beside it must not exist as a file somebody can publish by accident.
+    const problems = checkStatementEvidence({
+      config,
+      ...(audit ? { audit } : {}),
+      ...(review ? { review } : {}),
+    })
+    for (const problem of problems) {
+      if (problem.severity === 'refuses') fail(problem.message)
+      else advise(problem.message)
+    }
+    if (refuses(problems)) return { document: '', format, exitCode: 2 }
+
     const statement = await renderStatement(config, {
       ...(options.locale ? { locale: options.locale } : {}),
       ...(options.country ? { country: options.country } : {}),
@@ -90,7 +115,12 @@ export async function runStatementCommand(
 
     return { document, format, exitCode: 0 }
   } catch (cause) {
-    if (cause instanceof ConfigError || cause instanceof StatementError) {
+    const { ReviewError } = await import('../audit/review.ts')
+    if (
+      cause instanceof ConfigError ||
+      cause instanceof StatementError ||
+      cause instanceof ReviewError
+    ) {
       fail(cause.message)
       if (cause instanceof ConfigError) {
         for (const issue of cause.issues) note(`  ${issue}`)

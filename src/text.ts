@@ -20,9 +20,22 @@ export function escapeAttribute(value: string): string {
   return escapeText(value).replace(/"/g, '&quot;').replace(/'/g, '&#39;')
 }
 
+/**
+ * The plurals this package's own output actually uses, where an `s` is wrong.
+ *
+ * Deliberately a short list rather than a pluralisation library: this is the
+ * vocabulary of a handful of report lines, and every entry here was added
+ * because something printed "2 entrys" or "4 criterions" at somebody.
+ */
+const IRREGULAR: Readonly<Record<string, string>> = {
+  entry: 'entries',
+  criterion: 'criteria',
+}
+
 /** `plural(1, 'page')` is `page`, `plural(2, 'page')` is `pages`. */
 export function plural(value: number, noun: string): string {
-  return value === 1 ? noun : `${noun}s`
+  if (value === 1) return noun
+  return IRREGULAR[noun] ?? `${noun}s`
 }
 
 /** `count(2, 'page')` is `2 pages`. */
@@ -49,4 +62,13 @@ export function standardsReference(
     ...successCriteria.map((criterion) => `WCAG ${criterion}`),
     ...enClauses.map((clause) => `EN 301 549 ${clause}`),
   ].join(', ')
+}
+
+/**
+ * A date as the ISO day this package records everywhere it writes one: the day
+ * a baseline entry was accepted, and the day a criterion was reviewed. Always
+ * UTC, so two people on either side of a date line write the same file.
+ */
+export function isoDate(date: Date): string {
+  return date.toISOString().slice(0, 10)
 }

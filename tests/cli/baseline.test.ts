@@ -347,3 +347,67 @@ describe('the reports', () => {
     expect(html).toContain('accepted by the baseline, and not counted above')
   })
 })
+
+describe('eaa-kit baseline --prune', () => {
+  it('removes the entries this run shows are gone, and adds nothing', async () => {
+    const dir = await site()
+    await runBaselineCommand('dist', { cwd: dir })
+    // Fix one of the three recorded barriers, and introduce a new one that the
+    // baseline never accepted.
+    const index = path.join(dir, 'dist', 'index.html')
+    const html = await readFile(index, 'utf8')
+    await writeFile(
+      index,
+      html.replace('<img src="/assets/logo.svg" />', '<img src="/assets/logo.svg" alt="Logo" />'),
+      'utf8',
+    )
+    await addPage(dir, 'new.html')
+
+    const { removed } = await runBaselineCommand('dist', { cwd: dir, prune: true })
+
+    const baseline = await readBaseline('eaa-baseline.json', dir)
+    expect(removed).toBe(1)
+    expect(baseline.entries.map((entry) => entry.ruleId)).not.toContain('image-alt')
+    // Nothing was added: the new page's violation is not now accepted.
+    expect(baseline.entries.every((entry) => entry.page !== 'new.html')).toBe(true)
+  })
+
+  it('leaves entries for pages this run did not audit', async () => {
+    // The failure this guards against: a run narrowed by --include would
+    // otherwise be told to delete the entries protecting the rest of the site.
+    const dir = await site()
+    await runBaselineCommand('dist', { cwd: dir })
+    const before = (await readBaseline('eaa-baseline.json', dir)).entries.length
+
+    const { removed } = await runBaselineCommand('dist', {
+      cwd: dir,
+      prune: true,
+      include: ['about/**'],
+    })
+
+    expect(removed).toBe(0)
+    expect((await readBaseline('eaa-baseline.json', dir)).entries).toHaveLength(before)
+  })
+
+  it('writes nothing and says so when every entry still matches', async () => {
+    const dir = await site()
+    await runBaselineCommand('dist', { cwd: dir })
+    const before = await readFile(path.join(dir, 'eaa-baseline.json'), 'utf8')
+
+    const { removed, exitCode } = await runBaselineCommand('dist', { cwd: dir, prune: true })
+
+    expect(exitCode).toBe(0)
+    expect(removed).toBe(0)
+    expect(await readFile(path.join(dir, 'eaa-baseline.json'), 'utf8')).toBe(before)
+    expect(stderr.join('')).toContain('Nothing to remove')
+  })
+
+  it('stops rather than starting a new file when there is no baseline to prune', async () => {
+    const dir = await site()
+
+    const { exitCode } = await runBaselineCommand('dist', { cwd: dir, prune: true })
+
+    expect(exitCode).toBe(2)
+    expect(stderr.join('')).toContain('Could not read the baseline')
+  })
+})

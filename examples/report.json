@@ -581,7 +581,10 @@
     "nothingToCheck": 9,
     "noAutomatedRule": 34,
     "browserWouldAnswer": 5,
-    "total": 55
+    "total": 55,
+    "reviewed": 0,
+    "reviewedNotMet": 0,
+    "reviewNotCounted": 0
   },
   "rules": {
     "area-alt": {
@@ -1226,7 +1229,7 @@
   "pages": [
     {
       "path": "about/index.html",
-      "url": "file:///home/user/eaa-kit/tests/fixtures/site/about/index.html",
+      "url": "file:///eaa-kit/tests/fixtures/site/about/index.html",
       "violations": [],
       "incomplete": [
         {
@@ -1334,7 +1337,7 @@
     },
     {
       "path": "blog/post-1.html",
-      "url": "file:///home/user/eaa-kit/tests/fixtures/site/blog/post-1.html",
+      "url": "file:///eaa-kit/tests/fixtures/site/blog/post-1.html",
       "violations": [],
       "incomplete": [
         {
@@ -1442,7 +1445,7 @@
     },
     {
       "path": "drafts/draft.html",
-      "url": "file:///home/user/eaa-kit/tests/fixtures/site/drafts/draft.html",
+      "url": "file:///eaa-kit/tests/fixtures/site/drafts/draft.html",
       "violations": [],
       "incomplete": [
         {
@@ -1550,7 +1553,7 @@
     },
     {
       "path": "index.html",
-      "url": "file:///home/user/eaa-kit/tests/fixtures/site/index.html",
+      "url": "file:///eaa-kit/tests/fixtures/site/index.html",
       "violations": [
         {
           "ruleId": "html-has-lang",
@@ -1728,7 +1731,7 @@
     },
     {
       "path": "legacy.htm",
-      "url": "file:///home/user/eaa-kit/tests/fixtures/site/legacy.htm",
+      "url": "file:///eaa-kit/tests/fixtures/site/legacy.htm",
       "violations": [],
       "incomplete": [
         {

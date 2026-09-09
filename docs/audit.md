@@ -55,6 +55,54 @@ a crawl that stopped early says so.
 | `--allow-remote` | crawl a host that is not localhost |
 | `--ignore-robots` | crawl paths `robots.txt` disallows |
 
+### Sites behind a login or a preview protection
+
+The two places small teams actually stage work both refuse anonymous requests: a preview
+deployment, which every host protects by default, and a CMS staging site behind basic auth
+or a session cookie. Both are reachable:
+
+```bash
+eaa-kit audit --url https://preview.example.com --basic-auth user:password
+eaa-kit audit --url https://staging.example.com --header "Cookie: session=$SESSION"
+eaa-kit audit --url https://preview.example.com --header "X-Vercel-Protection-Bypass: $TOKEN"
+```
+
+`--header` may be repeated, and `--basic-auth user:password` is sugar for the `Authorization`
+header you would otherwise base64 by hand. They go on every request the run makes — pages,
+`robots.txt` and the sitemap — because a site that needs credentials needs them for all
+three, and a crawl that loses the sitemap quietly audits less. Under `--browser` they are set
+on the browser context, so stylesheets and images load too; a protected page audited without
+its CSS is a page audited wrong.
+
+**A sign-in page in front of the site is caught rather than audited.** The dangerous shape
+is not the one that answers 401 — that fails loudly. It is the site whose unauthenticated
+requests are *redirected* to a login form, which answers 200: every request succeeds, and a
+tool that is not looking will audit the login page and report it as the site. When several
+requested URLs all answer at one address, or a whole crawl comes back as the single page it
+was redirected to, the run says so and records those URLs as pages it never reached — so the
+report cannot come back complete:
+
+```
+warning Every page requested answered at https://staging.example.com/login, which is not
+        where it was asked.
+  A sign-in page in front of the site looks like this.
+  If it is behind one, pass --basic-auth user:password or --header "Cookie: …".
+```
+
+Ordinary redirects are left alone: a locale prefix on the entry, trailing-slash
+normalisation, anything where each URL lands somewhere of its own. A redirect that leaves
+the origin — an identity provider, as Cloudflare Access uses — was already refused, since
+auditing somebody else's sign-in page is not auditing your site.
+
+**These are credentials, and the tool never writes one down.** Nothing reaches a report, a
+baseline, a SARIF log or the completeness record, and a malformed `--header` is reported by
+name rather than by echoing what you typed — a bad flag in CI would otherwise print a token
+into a log.
+
+**There is no `headers` key in `eaa.config`.** That file is committed, and a token in it is a
+token in the repository. Pass them as flags, letting the shell expand a variable, or use the
+GitHub Action's `headers` and `basic-auth` inputs, which read from `secrets`.
+
 **Only localhost, unless you say otherwise.** A tool that fails builds should not be one
 flag away from crawling production, or somebody else's site, out of CI, so a non-loopback
 host is refused until `--allow-remote` is passed. `robots.txt` is honoured either way
@@ -185,6 +233,10 @@ chatter coming along.
 | `--concurrency <n>` | from page and core count | Pages to audit at once — threads without `--browser`, tabs with it; `1` turns both off |
 | `--fast` | off | Skip the rules the browserless engine cannot decide, rather than running them and discarding the answer |
 | `--baseline <path>` | — | Accept the violations recorded in this file; fail only on new ones |
+| `--header <header>` | — | Send this header with every request, e.g. `"Authorization: Bearer …"`. Repeatable |
+| `--basic-auth <user:password>` | — | Send an `Authorization` header for basic auth |
+| `--review <path>` | — | [What a person checked](review.md), for the criteria no engine reaches |
+| `--review-max-age <days>` | — | Stop counting review entries older than this |
 | `--config <path>` | searched for | Take defaults from this config file rather than the one found by searching |
 
 Dot directories such as build caches are skipped by default. `--include` and `--exclude`
@@ -230,6 +282,7 @@ the schema is required by `statement`, which is the command that publishes a doc
 | `failOn`, `format`, `output`, `baseline` | `--fail-on`, `--format`, `--output`, `--baseline` |
 | `browser`, `fast`, `concurrency` | the engine flags |
 | `perPage`, `manual`, `coverage` | the console report's three extra sections |
+| `review`, `reviewMaxAge` | `--review`, `--review-max-age` |
 | `build` | `false` is `--no-build` |
 
 `baseline` reads the keys that mean the same thing to it — the page selection and the
@@ -539,6 +592,21 @@ worth stating at all, and why it never becomes a grade.
 `rules ran and found nothing to check` is kept apart from `evaluated` for the same reason
 `inapplicable` is kept apart from `passes`: a page with no images proves nothing about
 image alternatives.
+
+### What a person checked
+
+The 34 criteria no rule can reach are the review somebody has to do by hand, and
+[`eaa-kit checklist`](review.md) writes it down where a run can read it back:
+
+```bash
+eaa-kit checklist --output a11y-review.md
+eaa-kit audit --review eaa-review.json --coverage
+```
+
+What that adds is reported beside the four counts and never inside them. A review never
+overrules the engine, never moves a criterion the run decided, and never counts an entry
+nobody has answered — the four outcomes above still describe what this engine reached, and
+a recorded result is a claim by a person, which is a different kind of thing.
 
 ## Sites that render on a server
 

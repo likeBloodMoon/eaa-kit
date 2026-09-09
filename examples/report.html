@@ -59,6 +59,8 @@ table.coverage tr.evaluated td:last-child { color: #216e39; }
 table.coverage em { font-style: normal; opacity: 0.75; }
 ul.unreachable li { margin-bottom: 0.2rem; overflow-wrap: anywhere; }
 code.selector { color: #4a4a4a; }
+.reviewed { color: #4a4a4a; font-size: 0.95em; }
+p.note.review { border-left: 3px solid #c9c9c9; padding-left: 0.75rem; }
 p.clean { color: #216e39; }
 p.note { font-size: 0.95rem; }
 hr { border: 0; border-top: 1px solid #d4d4d4; margin: 3rem 0 1.5rem; }
@@ -98,7 +100,8 @@ ul.page-list { margin: 0.35rem 0 0; padding-left: 1.25rem; }
   pre { background: #1e1e1e; }
   li.finding { border-color: #3a3a3a; }
   p.standards, p.coverage, .reason, li.more, code.selector, footer,
-  p.accepted-heading, ul.accepted { color: #b6b6b6; }
+  p.accepted-heading, ul.accepted, .reviewed { color: #b6b6b6; }
+  p.note.review { border-left-color: #555; }
   p.clean { color: #7ee2a8; }
   .verdict.pass { background: #10240f; border-color: #7ee2a8; }
   .verdict.fail { background: #2b1111; border-color: #ff9d9d; }
@@ -346,6 +349,7 @@ accessibility barriers and this is where the rest of them are.</p>
   of WCAG cannot be automated, and a percentage here would present that limit of automated
   testing as though it were a measurement of this site.
 </p>
+
 <div class="scroll">
 <table class="coverage">
 <thead><tr><th>Success criterion</th><th>Level</th><th>This run</th></tr></thead>

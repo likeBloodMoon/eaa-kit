@@ -165,3 +165,41 @@ describe('baselineInvocation', () => {
     expect(baselineInvocation(undefined, {}, {}).dir).toBe('./dist')
   })
 })
+
+describe('credentials', () => {
+  it('turn --header and --basic-auth into the headers the run sends', () => {
+    const { options } = auditInvocation(
+      undefined,
+      {},
+      { header: ['X-Preview-Token: letmein'], basicAuth: 'alex:hunter2', build: true },
+    )
+
+    expect(options.headers?.['X-Preview-Token']).toBe('letmein')
+    expect(options.headers?.['Authorization']).toMatch(/^Basic /)
+    // The flags themselves never reach the command options.
+    expect(options).not.toHaveProperty('header')
+    expect(options).not.toHaveProperty('basicAuth')
+  })
+
+  it('reach the baseline command the same way', () => {
+    const { options } = baselineInvocation(undefined, {}, { basicAuth: 'alex:hunter2' })
+
+    expect(options.headers?.['Authorization']).toMatch(/^Basic /)
+  })
+
+  it('are absent when nobody passed any', () => {
+    expect(auditInvocation(undefined, {}, { build: true }).options.headers).toBeUndefined()
+  })
+
+  it('cannot come from the config file, which is committed', () => {
+    // Deliberate: a token in eaa.config is a token in the repository. The
+    // schema drops unknown keys, so one written there simply does not arrive.
+    const { options } = auditInvocation(
+      undefined,
+      { headers: { Authorization: 'Bearer nope' } } as never,
+      { build: true },
+    )
+
+    expect(options.headers).toBeUndefined()
+  })
+})

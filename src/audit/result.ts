@@ -233,6 +233,35 @@ export function ruleOutcomes(audit: PageAudit): RuleOutcome[] {
   ]
 }
 
+/**
+ * Which engine produced this run, as every report format has to label it.
+ *
+ * Taken from the first page rather than tracked separately: a run uses one
+ * engine for all of its pages, and an empty run has none to report, which is
+ * the jsdom default the CLI would have used.
+ */
+export function runEngine(audits: readonly PageAudit[]): AuditEngine {
+  return audits[0]?.engine ?? 'jsdom'
+}
+
+/**
+ * Every rule the run mentions anywhere, once each, sorted by id.
+ *
+ * Both machine-readable formats need this and neither can take it from the
+ * other: the JSON report keys its `rules` map by id, and SARIF needs the same
+ * catalogue as a list its results index into. First mention wins because a
+ * rule's help text and criteria do not vary between the pages it appears on.
+ */
+export function uniqueRuleOutcomes(audits: readonly PageAudit[]): RuleOutcome[] {
+  const byId = new Map<string, RuleOutcome>()
+  for (const audit of audits) {
+    for (const outcome of ruleOutcomes(audit)) {
+      if (!byId.has(outcome.ruleId)) byId.set(outcome.ruleId, outcome)
+    }
+  }
+  return [...byId.values()].sort((a, b) => a.ruleId.localeCompare(b.ruleId))
+}
+
 export function runOptions(
   tags: readonly string[],
   options: { skipBlindRules?: boolean } = {},

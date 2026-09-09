@@ -1,19 +1,23 @@
 import pc from 'picocolors'
 import { collapse, count, plural } from '../../text.ts'
-import { discoveryLabel, missedParts, type RunCompleteness } from '../completeness.ts'
+import type { RunCompleteness } from '../completeness.ts'
 import { type ComponentLocation, componentPath } from '../component.ts'
-import { buildCoverage, type Coverage, coverageSummary } from '../coverage.ts'
+import { buildCoverage, type Coverage, coverageSummary, reviewSummary } from '../coverage.ts'
+import { byImpactThenRule, DEFAULT_FAIL_ON, type ImpactLevel, impactLabel } from '../impact.ts'
 import {
-  countAtOrAbove,
-  DEFAULT_FAIL_ON,
-  type ImpactLevel,
-  impactLabel,
-  impactRank,
-} from '../impact.ts'
-import { blindRules, coverageParts, groupIssues, type IssueElement, isShared } from '../issues.ts'
+  blindRules,
+  coverageParts,
+  groupIssues,
+  type IssueElement,
+  isShared,
+  issueTotals,
+} from '../issues.ts'
 import { manualCheckFor, understandingUrl } from '../manual.ts'
 import { remediationFor } from '../remediation.ts'
+import { runEngine } from '../result.ts'
+import { type ReviewOptions, reviewSentence } from '../review.ts'
 import type { Finding, IncompleteFinding, PageAudit } from '../runners/jsdom.ts'
+import { buildSummary } from './json.ts'
 
 export interface ConsoleReportOptions {
   /** Build directory the audit ran against, shown in the header. */
@@ -67,6 +71,11 @@ export interface ConsoleReportOptions {
    * which for most rules is the same one.
    */
   framework?: string
+  /**
+   * What a person recorded about the criteria this run could not reach. Shown
+   * beside the coverage of the run, never folded into it.
+   */
+  review?: ReviewOptions
 }
 
 const DEFAULT_MAX_NODES = 3
@@ -122,6 +131,7 @@ interface Context {
   manual: boolean
   coverage: boolean
   framework: string | undefined
+  review: ReviewOptions | undefined
   c: ReturnType<typeof pc.createColors>
   symbol: (kind: 'violation' | 'review' | 'blind' | 'clean' | 'error') => string
   completeness: RunCompleteness | undefined
@@ -142,6 +152,7 @@ function context(options: ConsoleReportOptions): Context {
     manual: options.manual ?? false,
     coverage: options.coverage ?? false,
     framework: options.framework,
+    review: options.review,
     completeness: options.completeness,
     c,
     symbol: (kind) => {
@@ -197,7 +208,7 @@ function line(ctx: Context, text: string, paint?: Segment['paint']): string {
 }
 
 function headerLines(audits: readonly PageAudit[], ctx: Context): string[] {
-  const engine = audits[0]?.engine ?? 'jsdom'
+  const engine = runEngine(audits)
   // The label has to follow the engine: calling a Chromium run "browserless"
   // was the first thing wrong with the browser mode's output.
   const engineLabel = engine === 'browser' ? 'chromium' : 'jsdom (browserless)'
@@ -234,7 +245,7 @@ function pageSection(audit: PageAudit, ctx: Context): string[] {
     return lines
   }
 
-  for (const finding of sortByImpact(audit.violations)) {
+  for (const finding of [...audit.violations].sort(byImpactThenRule)) {
     lines.push(...violationLines(finding, ctx))
   }
 
@@ -264,7 +275,7 @@ function pageSection(audit: PageAudit, ctx: Context): string[] {
     )
   }
 
-  for (const finding of sortByImpact(audit.accepted ?? [])) {
+  for (const finding of [...(audit.accepted ?? [])].sort(byImpactThenRule)) {
     const elements = count(finding.nodes.length, 'element')
     lines.push(line(ctx, `  · ${finding.ruleId} accepted by the baseline (${elements})`, ctx.c.dim))
   }
@@ -279,7 +290,10 @@ function coverageLine(audit: PageAudit, ctx: Context): string {
 }
 
 function violationLines(finding: Finding, ctx: Context): string[] {
-  const impact = finding.impact ?? 'unknown'
+  // impactLabel, not a word of its own: this line said "unknown" where the
+  // issues section, the HTML report and the JSON summary all say
+  // "unclassified", for the same finding in the same run.
+  const impact = impactLabel(finding.impact)
   const lines = [
     render(ctx, [
       { text: `  ${ctx.symbol('violation')} `, paint: ctx.c.red },
@@ -303,37 +317,36 @@ function violationLines(finding: Finding, ctx: Context): string[] {
 }
 
 function summary(audits: readonly PageAudit[], ctx: Context): string[] {
-  const withViolations = audits.filter((audit) => audit.violations.length > 0)
-  const errored = audits.filter((audit) => audit.error)
-  const ruleCount = audits.reduce((total, audit) => total + audit.violations.length, 0)
-  const elementCount = audits.reduce(
-    (total, audit) =>
-      total + audit.violations.reduce((sum, finding) => sum + finding.nodes.length, 0),
-    0,
-  )
+  // The same tally the JSON and HTML reports print, rather than a third count
+  // of the same run: three reports of one audit disagreeing about how many
+  // violations there were is the kind of bug nobody notices until a client
+  // does. Only the review count is derived here, because this report counts
+  // distinct rules where the summary counts findings.
+  const totals = buildSummary(audits, ctx.failOn)
   const reviewCount = countRules(audits, 'needs-review')
   const pages = count(audits.length, 'page')
   // A page that errored produced no findings because nothing read it, so it is
   // not one of the pages a "no violations" sentence can be counted over.
-  const audited = audits.length - errored.length
+  const audited = totals.pages - totals.pagesNotAudited
 
   const lines = [line(ctx, 'Summary', ctx.c.bold), ...completenessLines(ctx)]
 
-  if (ruleCount === 0 && audited === 0 && errored.length > 0) {
+  if (totals.violations === 0 && audited === 0 && totals.pagesNotAudited > 0) {
     // Every page this run was given failed. "No violations" here would be a
     // pass handed back for markup nothing ever opened, so the count is not
     // printed as a verdict at all and the error line below carries the result.
     // A run with no pages is a different thing and keeps its own wording: there
     // was nothing to fail.
     lines.push(line(ctx, '  Nothing was audited: no page could be read.', ctx.c.red))
-  } else if (ruleCount === 0) {
+  } else if (totals.violations === 0) {
     // Qualified rather than plain when the run did not see the whole site: "no
     // violations" over a fraction of the pages is not the sentence it looks
     // like, and the completeness lines above have just said which fraction.
     // The count is of pages actually audited, not of pages attempted: saying
     // "no violations across 2 pages" when one of them errored claims a verdict
     // on a page nothing looked at.
-    const incomplete = errored.length > 0 || (ctx.completeness && !ctx.completeness.complete)
+    const incomplete =
+      totals.pagesNotAudited > 0 || (ctx.completeness && !ctx.completeness.complete)
     const clean = incomplete
       ? `  No violations across the ${count(audited, 'page')} that were audited.`
       : `  No violations across ${pages}.`
@@ -344,13 +357,13 @@ function summary(audits: readonly PageAudit[], ctx: Context): string[] {
         {
           // Out of the pages audited, not the pages attempted: "on 1 of 2
           // pages" reads as one clean page when the other one errored.
-          text: `  ${count(ruleCount, 'violation')} on ${withViolations.length} of ${count(audited, 'page')}`,
+          text: `  ${count(totals.violations, 'violation')} on ${totals.pagesWithViolations} of ${count(audited, 'page')}`,
           paint: ctx.c.red,
         },
-        { text: ` (${count(elementCount, 'element')})`, paint: ctx.c.dim },
+        { text: ` (${count(totals.violatingElements, 'element')})`, paint: ctx.c.dim },
       ]),
     )
-    lines.push(thresholdLine(audits, ctx))
+    lines.push(thresholdLine(totals.failing, ctx))
   }
 
   if (reviewCount > 0) {
@@ -358,22 +371,19 @@ function summary(audits: readonly PageAudit[], ctx: Context): string[] {
     lines.push(line(ctx, `  ${count(reviewCount, 'rule')} ${verb} manual review`, ctx.c.yellow))
   }
 
-  if (errored.length > 0) {
-    lines.push(line(ctx, `  ${count(errored.length, 'page')} could not be audited`, ctx.c.red))
+  if (totals.pagesNotAudited > 0) {
+    lines.push(
+      line(ctx, `  ${count(totals.pagesNotAudited, 'page')} could not be audited`, ctx.c.red),
+    )
   }
 
-  const accepted = audits.reduce(
-    (total, audit) =>
-      total + (audit.accepted ?? []).reduce((sum, finding) => sum + finding.nodes.length, 0),
-    0,
-  )
-  if (accepted > 0) {
+  if (totals.accepted > 0) {
     // Counted and named, never folded into the passes: a barrier somebody
     // agreed to defer is not a criterion that was met.
     lines.push(
       line(
         ctx,
-        `  ${count(accepted, 'element')} accepted by the baseline, not counted above`,
+        `  ${count(totals.accepted, 'element')} accepted by the baseline, not counted above`,
         ctx.c.dim,
       ),
     )
@@ -393,7 +403,7 @@ function summary(audits: readonly PageAudit[], ctx: Context): string[] {
  * it could be read as boilerplate.
  */
 function coverageSection(audits: readonly PageAudit[], ctx: Context): string[] {
-  const coverage = buildCoverage(audits)
+  const coverage = buildCoverage(audits, undefined, ctx.review)
   const lines = [
     '',
     ...wrap(coverageSummary(coverage), ctx.width - 2).map((text) =>
@@ -406,6 +416,13 @@ function coverageSection(audits: readonly PageAudit[], ctx: Context): string[] {
     lines.push(
       line(ctx, `  --browser would answer ${coverage.browserWouldAnswer} more ${verb}.`, ctx.c.dim),
     )
+  }
+
+  // A separate paragraph from the engine's own reach, because it is a different
+  // kind of claim: what somebody says they checked, not what was measured here.
+  const review = reviewSummary(coverage)
+  if (review !== undefined) {
+    lines.push(...wrap(review, ctx.width - 2).map((text) => line(ctx, `  ${text}`, ctx.c.dim)))
   }
 
   if (!ctx.coverage) {
@@ -426,6 +443,11 @@ function coverageSection(audits: readonly PageAudit[], ctx: Context): string[] {
         { text: `${STATUS_WORDS[criterion.status]}${note}`, paint },
       ]),
     )
+    // Under the criterion the engine could not reach, never in place of it.
+    const recorded = criterion.review
+    if (recorded !== undefined) {
+      lines.push(line(ctx, `        ${reviewSentence(recorded)}`, ctx.c.dim))
+    }
   }
   return lines
 }
@@ -483,9 +505,8 @@ function completenessLines(ctx: Context): string[] {
  * Why the run passed or failed. Without this, a build that exits 0 while the
  * report lists violations looks like a bug rather than a threshold choice.
  */
-function thresholdLine(audits: readonly PageAudit[], ctx: Context): string {
+function thresholdLine(failing: number, ctx: Context): string {
   const failOn = ctx.failOn
-  const failing = countAtOrAbove(audits, failOn)
 
   if (failing === 0) {
     const text = `  none at or above ${failOn} (--fail-on ${failOn}), so this run passes`
@@ -559,12 +580,6 @@ function countRules(audits: readonly PageAudit[], reason: IncompleteFinding['rea
   return ruleIds.size
 }
 
-function sortByImpact(findings: readonly Finding[]): Finding[] {
-  return [...findings].sort(
-    (a, b) => impactRank(a.impact) - impactRank(b.impact) || a.ruleId.localeCompare(b.ruleId),
-  )
-}
-
 function criteria(finding: Finding): string {
   return finding.successCriteria.length > 0 ? `, WCAG ${finding.successCriteria.join(' ')}` : ''
 }
@@ -582,8 +597,7 @@ function issuesSection(audits: readonly PageAudit[], ctx: Context): string[] {
   const issues = groupIssues(audits)
   if (issues.length === 0) return []
 
-  const elements = issues.reduce((total, issue) => total + issue.elements.length, 0)
-  const occurrences = issues.reduce((total, issue) => total + issue.occurrences, 0)
+  const { elements, occurrences } = issueTotals(issues)
 
   // No leading blank: the caller has already put one after the header.
   const lines = [line(ctx, 'Issues', ctx.c.bold)]

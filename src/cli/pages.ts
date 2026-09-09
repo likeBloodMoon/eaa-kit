@@ -34,6 +34,11 @@ export interface CrawlCommandOptions {
   maxDepth?: number
   /** Per-request timeout, shared with the audit runners. */
   timeoutMs?: number
+  /**
+   * Extra request headers, for a site behind a login or preview protection.
+   * Sent by the crawl and by the browser runner, and never written down.
+   */
+  headers?: Record<string, string>
 }
 
 export interface ResolvePagesOptions extends CrawlCommandOptions {
@@ -195,7 +200,7 @@ async function crawlPages(
   url: string,
   options: CrawlCommandOptions,
 ): Promise<{ pages: CollectedPage[]; origin: string; completeness: Collection } | undefined> {
-  const { crawlSite, CrawlError, parseEntryUrl } = await import('../audit/crawl.ts')
+  const { collapsedOnto, crawlSite, CrawlError, parseEntryUrl } = await import('../audit/crawl.ts')
 
   let entry: URL
   try {
@@ -217,6 +222,7 @@ async function crawlPages(
     ...(options.maxPages === undefined ? {} : { maxPages: options.maxPages }),
     ...(options.maxDepth === undefined ? {} : { maxDepth: options.maxDepth }),
     ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
+    ...(options.headers === undefined ? {} : { headers: options.headers }),
   })
 
   if (result.pages.length === 0 && result.failures.length > 0) {
@@ -250,16 +256,36 @@ async function crawlPages(
     )
   }
 
+  // A sign-in page standing in front of the site is the one failure that looks
+  // like a success: every request answers 200, the run audits the login form
+  // and reports it as the site. Said here, and carried into the report below,
+  // because somebody reading an HTML report was never at this terminal.
+  const collapsed = collapsedOnto(result)
+  if (collapsed.length > 0) {
+    const landedOn = collapsed[0]?.landedOn ?? ''
+    warn(`Every page requested answered at ${landedOn}, which is not where it was asked.`)
+    note('  A sign-in page in front of the site looks like this.')
+    note('  If it is behind one, pass --basic-auth user:password or --header "Cookie: …".')
+  }
+
   return {
     pages: result.pages,
     origin: result.origin,
     completeness: {
       discovery: result.discovery,
       collected: result.pages.length,
-      unreachable: result.failures.map((failure) => ({
-        location: failure.url,
-        reason: failure.reason,
-      })),
+      unreachable: [
+        ...result.failures.map((failure) => ({
+          location: failure.url,
+          reason: failure.reason,
+        })),
+        // Never reached, whatever the status code said: the run has a verdict
+        // about the page it was sent to, and none about the page it asked for.
+        ...collapsed.map((redirect) => ({
+          location: redirect.requested,
+          reason: `answered at ${redirect.landedOn} instead, so this page was not audited`,
+        })),
+      ],
       truncated: result.truncated,
     },
   }

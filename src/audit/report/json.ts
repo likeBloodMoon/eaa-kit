@@ -4,7 +4,8 @@ import type { RunCompleteness } from '../completeness.ts'
 import { buildCoverage, type Coverage } from '../coverage.ts'
 import { elementFingerprint } from '../fingerprint.ts'
 import { countAtOrAbove, type ImpactLevel, impactLabel, isImpactLevel } from '../impact.ts'
-import { ruleOutcomes } from '../result.ts'
+import { type AuditEngine, runEngine, uniqueRuleOutcomes } from '../result.ts'
+import type { ReviewOptions } from '../review.ts'
 import type { Finding, IncompleteFinding, PageAudit } from '../runners/jsdom.ts'
 
 /**
@@ -21,7 +22,8 @@ import type { Finding, IncompleteFinding, PageAudit } from '../runners/jsdom.ts'
  */
 export const SCHEMA_VERSION = 2
 
-export type ReportEngine = 'jsdom' | 'browser'
+/** The engine that produced the run. The same set the runners are named by. */
+export type ReportEngine = AuditEngine
 
 /**
  * Rule metadata, held once in the document's `rules` map and referenced by id
@@ -167,6 +169,8 @@ export interface JsonReportOptions {
   /** What the run did and did not manage to measure. */
   completeness: RunCompleteness
   baseUrl?: string
+  /** What a person recorded about the criteria this run could not reach. */
+  review?: ReviewOptions
   /** Injectable so tests and snapshots are not time-dependent. */
   now?: Date
 }
@@ -191,7 +195,7 @@ export function buildJsonReport(
     schemaVersion: SCHEMA_VERSION,
     tool: { name: 'eaa-kit', version: TOOL_VERSION, axeCore: axe.version },
     generatedAt,
-    engine: audits[0]?.engine ?? 'jsdom',
+    engine: runEngine(audits),
     target: {
       source: options.directory,
       kind: options.sourceKind ?? 'directory',
@@ -200,7 +204,7 @@ export function buildJsonReport(
     },
     summary: buildSummary(audits, options.failOn),
     completeness: options.completeness,
-    coverage: buildCoverage(audits),
+    coverage: buildCoverage(audits, undefined, options.review),
     rules: buildRuleIndex(audits),
     pages: audits.map(toJsonPage),
   }
@@ -208,21 +212,17 @@ export function buildJsonReport(
 
 /** Every rule mentioned by any page, keyed by id and sorted for stable diffs. */
 function buildRuleIndex(audits: readonly PageAudit[]): Record<string, JsonRule> {
-  const index = new Map<string, JsonRule>()
-
-  for (const audit of audits) {
-    for (const outcome of ruleOutcomes(audit)) {
-      if (index.has(outcome.ruleId)) continue
-      index.set(outcome.ruleId, {
+  return Object.fromEntries(
+    uniqueRuleOutcomes(audits).map((outcome) => [
+      outcome.ruleId,
+      {
         help: outcome.help,
         helpUrl: outcome.helpUrl,
         successCriteria: outcome.successCriteria,
         en301549: outcome.enClauses,
-      })
-    }
-  }
-
-  return Object.fromEntries([...index].sort(([a], [b]) => a.localeCompare(b)))
+      },
+    ]),
+  )
 }
 
 /** Serialised form written to stdout or to --output, with a trailing newline. */

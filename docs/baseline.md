@@ -17,12 +17,42 @@ That second command now exits 0 for the violations in the file and 1 for anythin
 | `--output <path>` | `eaa-baseline.json` | Where to write it |
 | `--note <text>` | — | Recorded on every entry, for whoever reads the file |
 | `--expires-on <date>` | — | ISO date after which the entries stop suppressing |
+| `--prune` | — | Remove the entries this run shows are gone, instead of recording a new one |
 | `--include`, `--exclude`, `--base-url`, `--browser`, `--concurrency` | | As for `audit` |
 
 It is a separate subcommand rather than a flag on `audit`, deliberately. Accepting a set
 of violations is a decision made once and committed to a file other people read; folding
 it into the command that checks them would make it easy to type by reflex the moment a
 build goes red, which is exactly when it should take a deliberate act.
+
+## Taking entries back out
+
+An audit already says when baseline entries no longer match anything, because that is the
+good news: somebody fixed them. Acting on it meant editing JSON by hand, entry by entry,
+against a file whose whole point is that nobody has to remember what is in it — so mostly
+nobody did, and baselines accumulated barriers fixed years ago while looking exactly like
+one nobody had read.
+
+```bash
+eaa-kit baseline --prune          # or --prune ./dist, as for recording one
+```
+
+It audits the site, removes the entries whose element is no longer there, and **adds
+nothing**. That last part is the difference between this and recording the baseline again:
+re-recording accepts whatever the site fails today, which on a bad day quietly adopts a
+barrier nobody agreed to.
+
+Two things it deliberately leaves alone:
+
+- **Entries for pages this run did not audit.** From here, a page nobody audited and a page
+  that no longer exists look identical, and a run narrowed by `--include` would otherwise be
+  told to delete the entries protecting the rest of the site.
+- **Expired entries.** An entry past its `--expires-on` date already suppresses nothing; it
+  is a decision with a date on it rather than a fixed barrier, so it is reported and kept
+  for you to decide about.
+
+With nothing to remove it writes no file at all and says so, and with no baseline to read it
+stops rather than starting a new one.
 
 ## What it will not do
 

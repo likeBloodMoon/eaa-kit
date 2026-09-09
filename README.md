@@ -14,6 +14,7 @@ npx eaa-kit audit                 # WCAG 2.2 AA report; finds your build itself
 npx eaa-kit diff a.json b.json    # what a change made worse, and what it fixed
 npx eaa-kit init                  # write an eaa.config.json
 npx eaa-kit statement             # accessibility statement, in one of seven countries
+npx eaa-kit checklist             # the manual review no engine can do for you
 ```
 
 > **Not legal advice.** eaa-kit reports what an automated engine can and cannot determine
@@ -95,6 +96,17 @@ could invent a fix that looks right and is not.
     written in src/components/Header.astro:12
 ```
 
+**Records the part no engine can do.** 34 of the 55 criteria have no automated rule at
+all. `eaa-kit checklist` writes them out as a worksheet and a record; `audit --review`
+reads the record back and reports what a person checked *beside* what the run measured,
+never folded into it. A review never overrules the engine, never counts an entry nobody
+answered, and never counts one that has aged out.
+
+```bash
+eaa-kit checklist --output a11y-review.md
+eaa-kit audit --review eaa-review.json --coverage
+```
+
 **Says how much of WCAG it could reach.** WCAG 2.2 has 55 success criteria at Levels A and
 AA. axe-core has rules touching 23 of them. Every run says so, and `--coverage` lists all
 55 with what this run reached on each — never as a percentage, because most of WCAG cannot
@@ -133,6 +145,16 @@ that instead — following the site's own sitemap, wherever it keeps it.
 eaa-kit audit --url http://localhost:8000 --sitemap /sitemap_index.xml
 ```
 
+**Reaches a site behind a login.** A preview deployment or a staging CMS refuses anonymous
+requests, which used to put both out of reach. `--basic-auth` and a repeatable `--header`
+cover them, on the crawl and in the browser, and the credentials are never written into a
+report, a baseline or a SARIF log — nor accepted from `eaa.config`, which is a committed
+file.
+
+```bash
+eaa-kit audit --url https://preview.example.com --basic-auth user:password
+```
+
 ## Documentation
 
 | | |
@@ -143,6 +165,7 @@ eaa-kit audit --url http://localhost:8000 --sitemap /sitemap_index.xml
 | [Baselines](docs/baseline.md) | Adopting the tool on a site that already has violations |
 | [Comparing two runs](docs/reports.md#comparing-two-runs) | The `diff` command, and what it refuses to call fixed |
 | [Coverage of WCAG](docs/audit.md#how-much-of-wcag-a-run-reaches) | What an automated engine can reach at all, and what it cannot |
+| [Recording a manual review](docs/review.md) | The `checklist` command, the record, and what a review is not allowed to do |
 | [Report formats](docs/reports.md) | The JSON contract, SARIF, and the HTML report |
 | [Integrations](docs/integrations.md) | The build plugins, the GitHub Action, and the two builders that get a command instead |
 
@@ -169,11 +192,15 @@ you](docs/audit.md#what-the-browserless-engine-can-and-cannot-tell-you).
 
 The same applies to the statement: it says what you told it. eaa-kit cannot check whether
 those claims are true, and a statement claiming full conformance for a site that is not
-conformant is worse than no statement at all.
+conformant is worse than no statement at all — which is why, given evidence, it now refuses
+to write that particular one. `statement --audit` will not claim full conformance over a
+report listing barriers, and `--review` will not claim it over criteria somebody recorded as
+not met.
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md).
+See [CHANGELOG.md](CHANGELOG.md), and [ROADMAP.md](ROADMAP.md) for what 0.6.0 is meant to
+add and what it deliberately will not.
 
 ## License
 

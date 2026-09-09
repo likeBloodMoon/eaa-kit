@@ -78,6 +78,41 @@ inputs:
     required: false
     default: ''
 
+  headers:
+    description: >-
+      Extra request headers for a site behind a login or a preview protection,
+      one "Name: value" per line. Read these from `secrets`, never from the
+      workflow file: they are credentials, and everything else in a workflow is
+      public in a public repository. eaa-kit sends them on every request it
+      makes and writes none of them into any report.
+    required: false
+    default: ''
+
+  basic-auth:
+    description: >-
+      "user:password" for a site behind basic auth, sent as an Authorization
+      header. Read it from `secrets`.
+    required: false
+    default: ''
+
+  review:
+    description: >-
+      Path to an eaa-kit review record: what a person checked, for the 34 WCAG
+      criteria no automated rule can reach. It never changes whether the job
+      fails — a review is a claim beside what the run measured, never a verdict
+      on it — and it is carried in the SARIF log's run properties as counts,
+      never as alerts, since an unreviewed criterion is not a defect on a line.
+    required: false
+    default: ''
+
+  review-max-age:
+    description: >-
+      Days after which an entry in the review record stops counting. Undated
+      entries stop counting too, since an undated review cannot be shown to
+      still hold. Unset leaves every dated entry standing.
+    required: false
+    default: ''
+
   concurrency:
     description: 'Worker threads the browserless engine may use, or 1 for none. Default: from the page and core count.'
     required: false
@@ -141,6 +176,10 @@ runs:
         EAA_CONCURRENCY: ${{ inputs.concurrency }}
         EAA_FAST: ${{ inputs.fast }}
         EAA_BASELINE: ${{ inputs.baseline }}
+        EAA_HEADERS: ${{ inputs.headers }}
+        EAA_BASIC_AUTH: ${{ inputs.basic-auth }}
+        EAA_REVIEW: ${{ inputs.review }}
+        EAA_REVIEW_MAX_AGE: ${{ inputs.review-max-age }}
       run: |
         set -o pipefail
         # A URL replaces the directory rather than joining it: they are two
@@ -176,6 +215,24 @@ runs:
         fi
         if [ -n "$EAA_BASELINE" ]; then
           args+=(--baseline "$EAA_BASELINE")
+        fi
+        if [ -n "$EAA_BASIC_AUTH" ]; then
+          args+=(--basic-auth "$EAA_BASIC_AUTH")
+        fi
+        # One header per line. Read with IFS cleared and -r so a value keeps its
+        # spaces and its backslashes; blank lines are skipped so a trailing
+        # newline in a secret is not sent as a header.
+        if [ -n "$EAA_HEADERS" ]; then
+          while IFS= read -r line; do
+            [ -z "$line" ] && continue
+            args+=(--header "$line")
+          done <<< "$EAA_HEADERS"
+        fi
+        if [ -n "$EAA_REVIEW" ]; then
+          args+=(--review "$EAA_REVIEW")
+          if [ -n "$EAA_REVIEW_MAX_AGE" ]; then
+            args+=(--review-max-age "$EAA_REVIEW_MAX_AGE")
+          fi
         fi
 
         set +e

@@ -265,3 +265,40 @@ describe('audit --browser, end to end', () => {
     }
   }, 180_000)
 })
+
+describe('a site behind a login', () => {
+  it('is audited when the credentials are given, and refused when they are not', async () => {
+    // The browser navigates for itself, so the crawl's headers do not reach it:
+    // this is the separate path, and without it --browser is the one engine
+    // that cannot audit a preview deployment.
+    const { createServer } = await import('node:http')
+    const server = createServer((request, response) => {
+      if (request.headers['x-preview-token'] !== 'letmein') {
+        response.writeHead(401)
+        response.end('unauthorized')
+        return
+      }
+      response.writeHead(200, { 'content-type': 'text/html' })
+      response.end(
+        '<!doctype html><html lang="en"><head><title>Staging</title></head><body><main><img src="/logo.png"></main></body></html>',
+      )
+    })
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    const port = (server.address() as { port: number }).port
+    const url = `http://127.0.0.1:${port}/`
+    const page = { relativePath: 'index.html', url, html: '', absolutePath: url }
+
+    try {
+      const [refused] = await runBrowserAudit(undefined, [page as never])
+      expect(refused?.error ?? refused?.violations.length).toBeTruthy()
+
+      const [audited] = await runBrowserAudit(undefined, [page as never], {
+        headers: { 'X-Preview-Token': 'letmein' },
+      })
+      expect(audited?.error).toBeUndefined()
+      expect(audited?.violations.map((finding) => finding.ruleId)).toContain('image-alt')
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+    }
+  }, 120_000)
+})

@@ -3,9 +3,11 @@ import type { ImpactValue } from 'axe-core'
 import { standardsReference } from '../../text.ts'
 import { TOOL_VERSION } from '../../version.ts'
 import type { RunCompleteness } from '../completeness.ts'
+import { buildCoverage } from '../coverage.ts'
 import { elementFingerprint } from '../fingerprint.ts'
 import { isImpactLevel } from '../impact.ts'
-import { findingElements, ruleOutcomes } from '../result.ts'
+import { findingElements, runEngine, uniqueRuleOutcomes } from '../result.ts'
+import type { ReviewOptions } from '../review.ts'
 import type { Finding, PageAudit, RuleOutcome } from '../runners/jsdom.ts'
 
 export const SARIF_VERSION = '2.1.0'
@@ -81,6 +83,15 @@ export interface SarifReportOptions {
    * rendering a log by hand need not synthesise one; the CLI always supplies it.
    */
   completeness?: RunCompleteness
+  /**
+   * What a person recorded about the criteria this engine cannot reach.
+   *
+   * Never becomes a result: an unreviewed criterion is not a defect at a source
+   * location, and filing one as an alert would bury the failures that are real.
+   * It goes in `run.properties` for the same reason the unevaluated counts do —
+   * a log with no results must not be mistaken for "everything was checked".
+   */
+  review?: ReviewOptions
   now?: Date
 }
 
@@ -164,7 +175,7 @@ export function buildSarifReport(
           },
         ],
         results,
-        properties: summaryProperties(audits, options.completeness),
+        properties: summaryProperties(audits, options.completeness, options.review),
       },
     ],
   }
@@ -219,16 +230,7 @@ function fingerprint(ruleId: string, selector: string, html: string): Record<str
 
 /** Every rule the run knows about, so the catalogue is complete in GitHub. */
 function buildRules(audits: readonly PageAudit[]): SarifRule[] {
-  const rules = new Map<string, SarifRule>()
-
-  for (const audit of audits) {
-    for (const outcome of ruleOutcomes(audit)) {
-      if (rules.has(outcome.ruleId)) continue
-      rules.set(outcome.ruleId, toSarifRule(outcome))
-    }
-  }
-
-  return [...rules.values()].sort((a, b) => a.id.localeCompare(b.id))
+  return uniqueRuleOutcomes(audits).map(toSarifRule)
 }
 
 function toSarifRule(outcome: RuleOutcome): SarifRule {
@@ -256,6 +258,7 @@ function toSarifRule(outcome: RuleOutcome): SarifRule {
 function summaryProperties(
   audits: readonly PageAudit[],
   completeness: RunCompleteness | undefined,
+  review: ReviewOptions | undefined,
 ): Record<string, unknown> {
   let needsReview = 0
   let notEvaluated = 0
@@ -273,11 +276,14 @@ function summaryProperties(
   }
 
   return {
-    engine: audits[0]?.engine ?? 'jsdom',
+    engine: runEngine(audits),
     pages: audits.length,
     needsReview,
     notEvaluated,
     notEvaluatedRules: [...notEvaluatedRules].sort(),
+    // What a person checked, when a record was given. Computed only then: it
+    // costs a coverage build, and a run without a review has nothing to say.
+    ...(review ? reviewProperties(audits, review) : {}),
     // The pages that produced no alerts because nothing ever looked at them.
     // Code scanning shows alerts and not this, so it survives here for whoever
     // reads the artifact rather than the pull request.
@@ -291,6 +297,24 @@ function summaryProperties(
           truncated: completeness.truncated,
         }
       : {}),
+  }
+}
+
+/**
+ * The review as three counts, in the same shape the JSON report carries them.
+ *
+ * Counts only: this log's job is alerts, and the criterion-by-criterion detail
+ * belongs in the JSON report, which carries it in full.
+ */
+function reviewProperties(
+  audits: readonly PageAudit[],
+  review: ReviewOptions,
+): Record<string, number> {
+  const coverage = buildCoverage(audits, undefined, review)
+  return {
+    reviewedCriteria: coverage.reviewed,
+    reviewedNotMet: coverage.reviewedNotMet,
+    reviewNotCounted: coverage.reviewNotCounted,
   }
 }
 

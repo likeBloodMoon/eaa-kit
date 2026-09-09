@@ -123,6 +123,10 @@ const auditSchema = s.object({
   manual: s.optional(s.boolean()),
   /** List every WCAG 2.2 A/AA criterion and what the run reached on it. */
   coverage: s.optional(s.boolean()),
+  /** Path to a review record: what a person checked, for the criteria no engine reaches. */
+  review: s.optional(s.string({ min: 1 })),
+  /** Days after which a recorded review stops counting. */
+  reviewMaxAge: s.optional(s.integer({ min: 0 })),
   /**
    * False is `--no-build`: never run the project's build or start its server to
    * find something to audit. Written in the positive because that is the state

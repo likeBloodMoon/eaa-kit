@@ -277,6 +277,32 @@ describe('run metadata', () => {
     expect(properties.notEvaluatedRules).toContain('color-contrast')
   })
 
+  it('carries a review as counts in run properties, and never as an alert', () => {
+    // An unreviewed criterion is not a defect at a source location, so it must
+    // not become an alert — but a log with no results must not be read as
+    // "everything was checked" either, which is what these properties are for.
+    const withReview = buildSarifReport(siteAudits, {
+      directory: 'tests/fixtures/site',
+      cwd: CWD,
+      now: NOW,
+      review: {
+        record: {
+          schemaVersion: 1,
+          criteria: { '1.3.2': { result: 'met', reviewedOn: '2026-08-01' } },
+        },
+        today: NOW,
+      },
+    })
+
+    const properties = withReview.runs[0]?.properties as { reviewedCriteria: number }
+    expect(properties.reviewedCriteria).toBe(1)
+    expect(withReview.runs[0]?.results).toEqual(log.runs[0]?.results)
+  })
+
+  it('says nothing about a review when none was given', () => {
+    expect(log.runs[0]?.properties).not.toHaveProperty('reviewedCriteria')
+  })
+
   it('produces byte-identical output for the same run', () => {
     expect(serialiseSarifReport(build(siteAudits, 'tests/fixtures/site'))).toBe(
       serialiseSarifReport(build(siteAudits, 'tests/fixtures/site')),
