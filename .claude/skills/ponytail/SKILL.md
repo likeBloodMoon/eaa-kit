@@ -21,6 +21,13 @@ SARIF, HTML, and the statements. Regenerate it. One changed byte means the pass 
 behaviour. Either that byte is an improvement you can name and defend in the changelog, in
 which case it belongs in its own commit as a change, or the pass is wrong.
 
+**It is not a performance change, and it does not claim to be one.** Compaction removes
+duplicated *places*, not work: folding three copies of a calculation into one leaves the
+same calculation. Do not describe a pass as making anything faster, and do not reach for
+one when something is slow — that is a separate job, with a measurement before and after.
+The line count is not the metric either: a pass that adds shared code with the comments to
+explain it can leave the tree bigger and still be the right change.
+
 ## What it changes
 
 1. **Duplication that is one idea written twice.** Two functions doing the same work in two

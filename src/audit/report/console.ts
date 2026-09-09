@@ -290,7 +290,10 @@ function coverageLine(audit: PageAudit, ctx: Context): string {
 }
 
 function violationLines(finding: Finding, ctx: Context): string[] {
-  const impact = finding.impact ?? 'unknown'
+  // impactLabel, not a word of its own: this line said "unknown" where the
+  // issues section, the HTML report and the JSON summary all say
+  // "unclassified", for the same finding in the same run.
+  const impact = impactLabel(finding.impact)
   const lines = [
     render(ctx, [
       { text: `  ${ctx.symbol('violation')} `, paint: ctx.c.red },

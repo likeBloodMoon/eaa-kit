@@ -107,6 +107,9 @@ A complete generated document is checked in at
     "nothingToCheck": 10,                       // rules ran, nothing on the site matched
     "noAutomatedRule": 34,                      // nothing can check it; a person must
     "browserWouldAnswer": 4,                    // of notEvaluated, how many --browser answers
+    "reviewed": 0,                              // criteria the engine missed that a person answered
+    "reviewedNotMet": 0,                        // of those, how many they recorded as not met
+    "reviewNotCounted": 0,                      // entries read and refused: stale, undated, or decided here
     "criteria": [
       {
         "number": "1.1.1",
@@ -115,7 +118,17 @@ A complete generated document is checked in at
         "status": "evaluated",                  // evaluated | not-evaluated
                                                 // | nothing-to-check | no-automated-rule
         "rules": ["image-alt"],                 // keys into "rules"
-        "browserWouldAnswer": false
+        "browserWouldAnswer": false,
+        // Present only where a review record answered this criterion.
+        "review": {
+          "result": "met",                      // met | not-met | not-applicable
+          "reviewedOn": "2026-09-01",           // absent when the record carries no date
+          "reviewedBy": "Alex Reviewer",        // absent when nobody is named
+          "note": "Checked in Firefox and Safari.",
+          "counts": true,                       // false when the run refused to count it
+          "ignored": "stale"                    // why, present only when counts is false:
+                                                // engine-reached-a-verdict | stale | undated
+        }
       }
     ]
   },
@@ -236,6 +249,19 @@ the site — which is the same mistake as adding `inapplicable` to `passes`, and
 `browserWouldAnswer` is the cost of the browserless engine as a number: how many of the
 `notEvaluated` criteria a `--browser` run would decide. The remainder need a person
 whatever engine runs.
+
+The three `review` counts and the per-criterion `review` object describe [what a person
+recorded](review.md), and they are a different kind of claim from everything above them: the
+four status counts are what an engine measured, and a review is what somebody says they
+checked. Do not add them together, and do not read `reviewed` as coverage — a run with
+`reviewed: 20` has still evaluated exactly what `evaluated` says it did.
+
+`counts: false` means the run read the entry and refused it, and `ignored` says which
+refusal applied: `engine-reached-a-verdict` (the run decided the criterion itself, so the
+person's answer changes nothing), `stale` (older than `--review-max-age`), or `undated` (no
+`reviewedOn`, and a maximum age was asked for). A refused entry is still emitted, because an
+aged-out review is the thing a reader has to act on. All four counts are 0 and no `review`
+object appears when the run was given no record.
 
 Added without moving `schemaVersion`.
 
