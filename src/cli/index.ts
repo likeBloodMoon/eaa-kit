@@ -198,6 +198,10 @@ program
   .option('--max-pages <n>', 'stop the crawl after this many pages', parsePositive)
   .option('--max-depth <n>', 'how far from the entry URL to follow links', parseDepth)
   .option('--output <path>', `where to write it (default: ${DEFAULT_BASELINE_FILE})`)
+  .option(
+    '--prune',
+    'remove the entries this run shows are gone, instead of recording a new baseline',
+  )
   .option('--note <text>', 'recorded on every entry, for whoever reads the file')
   .option('--expires-on <date>', 'ISO date after which the entries stop suppressing', parseDate)
   .option('--browser', 'audit in real Chromium instead of jsdom')

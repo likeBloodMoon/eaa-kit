@@ -161,9 +161,11 @@ country.
 entries are announced, and entries the run no longer matches are already reported as
 removable — with the care not to say that about pages a narrowed run never audited.
 
-What is actually missing is smaller than the item claimed: a `baseline --prune` that
+What was actually missing was smaller than the item claimed: a `baseline --prune` that
 rewrites the file without the entries the current build no longer produces, so acting on
-that advice is not a hand edit. Worth doing, not worth a headline.
+that advice is not a hand edit. **Landed**, keeping the two things it must not touch —
+entries for pages the run did not audit, and expired entries, which are decisions with
+dates rather than barriers that went away.
 
 ### 6. Maintenance
 
@@ -194,7 +196,7 @@ that advice is not a hand edit. Worth doing, not worth a headline.
 5. The four countries — independent of the rest, and can land at any point. Each needs its
    statute and supervisory body established from primary sources first, which is the work,
    not the template.
-6. `baseline --prune`, then maintenance and release.
+6. ~~`baseline --prune`~~ — done. Then maintenance and release.
 
 ### Done means
 

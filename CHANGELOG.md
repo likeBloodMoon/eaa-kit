@@ -55,6 +55,16 @@ consumers must ignore what they do not recognise.
   alert: an unreviewed criterion is not a defect at a source location, and filing one would
   bury the failures that are.
 
+- **`eaa-kit baseline --prune`**, which removes the entries a run shows are gone and adds
+  nothing. The audit has always said when entries no longer match — that is the good news,
+  somebody fixed them — but acting on it meant editing JSON by hand, so mostly nobody did
+  and baselines accumulated barriers fixed years ago while looking exactly like one nobody
+  had read. Adding nothing is the difference between this and recording the baseline again,
+  which accepts whatever the site fails today. Entries for pages the run did not audit are
+  kept, because from here a page nobody audited and a page that no longer exists are
+  indistinguishable, and expired entries are kept and reported rather than swept up: an
+  expiry date is a decision somebody made, not a barrier that went away.
+
 ### Changed
 
 - **The reports derive the run's numbers once.** The console report counted violations,
@@ -79,6 +89,16 @@ consumers must ignore what they do not recognise.
   German statement quotes back as prose, and the checkout's own absolute path, which a JSON
   report records as the `file://` URL each page was audited at. The first run of the check
   in CI caught that last one, which is the argument for having it.
+
+### Fixed
+
+- **Plurals in two counts this release added**: "2 entrys" and "4 criterions". `plural` now
+  carries the short list of irregular nouns this package's own output uses, which also
+  retires the hand-written ternary `baseline` had been carrying around the same problem.
+
+- **An unclassified impact is called "unclassified" in the per-page console listing**, as it
+  already was in the issues section, the HTML report and the JSON summary. One run, one
+  finding, one word. Visible only under `--per-page`.
 
 ## 0.5.0 — 2026-09-01
 

@@ -20,9 +20,22 @@ export function escapeAttribute(value: string): string {
   return escapeText(value).replace(/"/g, '&quot;').replace(/'/g, '&#39;')
 }
 
+/**
+ * The plurals this package's own output actually uses, where an `s` is wrong.
+ *
+ * Deliberately a short list rather than a pluralisation library: this is the
+ * vocabulary of a handful of report lines, and every entry here was added
+ * because something printed "2 entrys" or "4 criterions" at somebody.
+ */
+const IRREGULAR: Readonly<Record<string, string>> = {
+  entry: 'entries',
+  criterion: 'criteria',
+}
+
 /** `plural(1, 'page')` is `page`, `plural(2, 'page')` is `pages`. */
 export function plural(value: number, noun: string): string {
-  return value === 1 ? noun : `${noun}s`
+  if (value === 1) return noun
+  return IRREGULAR[noun] ?? `${noun}s`
 }
 
 /** `count(2, 'page')` is `2 pages`. */

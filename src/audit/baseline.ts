@@ -194,6 +194,38 @@ export function applyBaseline(
   return { audits: next, stale, expired: expired.sort(byEntry), accepted }
 }
 
+/**
+ * The baseline without the entries this run showed are gone.
+ *
+ * `applyBaseline` already decides which those are, and does it carefully: an
+ * entry counts as stale only when the page it names was audited and the element
+ * was not found. Entries for pages a narrowed run never looked at are not stale
+ * and are kept here, because from the outside a page nobody audited and a page
+ * that no longer exists are the same thing, and guessing wrong empties the file
+ * that is holding the rest of the site's build together.
+ *
+ * Nothing is added. That is the whole difference between this and recording a
+ * baseline again: re-recording accepts whatever the site is failing today,
+ * which on a bad day is a new barrier nobody agreed to.
+ */
+export function pruneBaseline(
+  baseline: Baseline,
+  stale: readonly BaselineEntry[],
+): { baseline: Baseline; removed: BaselineEntry[] } {
+  const gone = new Set(stale.map((entry) => key(entry.page, entry.ruleId, entry.fingerprint)))
+  if (gone.size === 0) return { baseline, removed: [] }
+
+  const kept = baseline.entries.filter(
+    (entry) => !gone.has(key(entry.page, entry.ruleId, entry.fingerprint)),
+  )
+  return {
+    baseline: { ...baseline, entries: kept },
+    removed: baseline.entries.filter((entry) =>
+      gone.has(key(entry.page, entry.ruleId, entry.fingerprint)),
+    ),
+  }
+}
+
 export interface BuildBaselineOptions {
   /** ISO date recorded on every entry. Defaults to today. */
   today?: Date
