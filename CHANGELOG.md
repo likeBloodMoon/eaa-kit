@@ -9,7 +9,7 @@ move: the JSON report's `schemaVersion` and the baseline file's. Both are bumped
 a field is removed, renamed, or changes meaning — new fields may appear without one, so
 consumers must ignore what they do not recognise.
 
-## Unreleased
+## 0.6.0 — 2026-09-09
 
 ### Added
 

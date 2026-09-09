@@ -9,6 +9,12 @@ in the DACH region — the BFSG in Germany, the BaFG in Austria — and the stat
 the statute and supervisory body of **seven countries**: Austria, Germany, Switzerland,
 Spain, France, Italy and the Netherlands, each in its own language as well as English.
 
+0.6.0 adds the half no engine can do. Of the 55 WCAG 2.2 A and AA success criteria, 34 have
+no automated rule at all: `checklist` writes those down as a review somebody works through,
+`audit --review` reads the answers back beside what the run measured, and `statement` now
+refuses to publish a claim of full conformance that either one contradicts. Sites behind a
+login or a preview protection are auditable too.
+
 ```bash
 npx eaa-kit audit                 # WCAG 2.2 AA report; finds your build itself
 npx eaa-kit diff a.json b.json    # what a change made worse, and what it fixed
