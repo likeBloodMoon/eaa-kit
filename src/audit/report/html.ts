@@ -4,12 +4,13 @@ import { TOOL_VERSION } from '../../version.ts'
 import { discoveryLabel, missedParts, type RunCompleteness } from '../completeness.ts'
 import { type ComponentLocation, componentPath } from '../component.ts'
 import { buildCoverage, type CriterionCoverage } from '../coverage.ts'
-import { countAtOrAbove, type ImpactLevel, impactLabel, impactRank } from '../impact.ts'
-import { blindRules, coverageParts, groupIssues, isShared } from '../issues.ts'
+import { byImpactThenRule, type ImpactLevel, impactLabel } from '../impact.ts'
+import { blindRules, coverageParts, groupIssues, isShared, issueTotals } from '../issues.ts'
 import { manualCheckFor, understandingUrl } from '../manual.ts'
 import { remediationFor } from '../remediation.ts'
+import { runEngine } from '../result.ts'
 import type { Finding, IncompleteFinding, PageAudit } from '../runners/jsdom.ts'
-import { buildSummary } from './json.ts'
+import { buildSummary, type JsonSummary } from './json.ts'
 
 /**
  * A standalone HTML audit report.
@@ -69,8 +70,11 @@ export interface HtmlReportOptions {
 }
 
 export function buildHtmlReport(audits: readonly PageAudit[], options: HtmlReportOptions): string {
-  const engine = audits[0]?.engine ?? 'jsdom'
-  const failing = countAtOrAbove(audits, options.failOn)
+  const engine = runEngine(audits)
+  // Counted once and handed to both the banner and the summary. Two parts of
+  // one document disagreeing about how many violations there were is the kind
+  // of bug nobody notices until a client does.
+  const totals = buildSummary(audits, options.failOn)
   const generatedAt = (options.now ?? new Date()).toISOString()
   const title = `Accessibility audit · ${options.directory}`
 
@@ -88,12 +92,12 @@ ${STYLES}
 <body>
 <main>
 <h1>Accessibility audit</h1>
-${verdict(audits, failing, options)}
+${verdict(totals, options)}
 ${scoreboard(audits)}
 ${issues(audits, options)}
 ${runDetails(audits, engine, generatedAt, options)}
 ${notMeasured(options)}
-${summary(audits, failing, options)}
+${summary(totals, options)}
 ${pages(audits)}
 ${notEvaluated(audits)}
 ${coverageSection(audits)}
@@ -112,12 +116,8 @@ ${footer()}
  * which would be an embarrassing thing for this document in particular to get
  * wrong.
  */
-function verdict(
-  audits: readonly PageAudit[],
-  failing: number,
-  options: HtmlReportOptions,
-): string {
-  const unaudited = audits.filter((audit) => audit.error).length
+function verdict(totals: JsonSummary, options: HtmlReportOptions): string {
+  const unaudited = totals.pagesNotAudited
 
   if (unaudited > 0) {
     return banner(
@@ -126,14 +126,14 @@ function verdict(
       `${count(unaudited, 'page')} could not be audited, so this run reached no verdict.`,
     )
   }
-  if (failing > 0) {
+  if (totals.failing > 0) {
     return banner(
       'fail',
       'Violations found',
-      `${count(failing, 'violation')} at or above ${escapeText(options.failOn)}.`,
+      `${count(totals.failing, 'violation')} at or above ${escapeText(options.failOn)}.`,
     )
   }
-  const below = totalViolations(audits) - failing
+  const below = totals.violations - totals.failing
   if (below > 0) {
     return banner(
       'pass',
@@ -255,13 +255,7 @@ function notMeasured(options: HtmlReportOptions): string {
  * the kind of bug nobody notices until a client does, so there is one place
  * that counts.
  */
-function summary(
-  audits: readonly PageAudit[],
-  failing: number,
-  options: HtmlReportOptions,
-): string {
-  const totals = buildSummary(audits, options.failOn)
-
+function summary(totals: JsonSummary, options: HtmlReportOptions): string {
   const impacts = IMPACT_ORDER.filter((impact) => totals.byImpact[impact] > 0)
     .map(
       (impact) =>
@@ -272,7 +266,7 @@ function summary(
   return `<h2>Summary</h2>
 <ul class="counts">
   <li><strong>${count(totals.violations, 'violation')}</strong> on ${totals.pagesWithViolations} of ${count(totals.pages, 'page')}, across ${count(totals.violatingElements, 'element')}</li>
-  <li><strong>${failing}</strong> at or above ${escapeText(options.failOn)}</li>
+  <li><strong>${totals.failing}</strong> at or above ${escapeText(options.failOn)}</li>
   <li><strong>${totals.needsReview}</strong> ${totals.needsReview === 1 ? 'rule needs' : 'rules need'} manual review</li>
   <li><strong>${totals.notEvaluated}</strong> ${totals.notEvaluated === 1 ? 'rule was' : 'rules were'} not evaluated by this engine</li>
 ${totals.accepted > 0 ? `  <li><strong>${totals.accepted}</strong> ${totals.accepted === 1 ? 'element is' : 'elements are'} accepted by the baseline, and not counted above</li>` : ''}
@@ -499,14 +493,6 @@ function standardsText(finding: Finding): string {
   return escapeText(standardsReference(finding.successCriteria, finding.enClauses))
 }
 
-function totalViolations(audits: readonly PageAudit[]): number {
-  return audits.reduce((total, audit) => total + audit.violations.length, 0)
-}
-
-function byImpactThenRule(a: Finding, b: Finding): number {
-  return impactRank(a.impact) - impactRank(b.impact) || a.ruleId.localeCompare(b.ruleId)
-}
-
 const STYLES = `:root { color-scheme: light dark; }
 body { margin: 0; background: #ffffff; color: #1a1a1a;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; line-height: 1.6; }
@@ -686,8 +672,7 @@ function issues(audits: readonly PageAudit[], options: HtmlReportOptions): strin
   const found = groupIssues(audits)
   if (found.length === 0) return ''
 
-  const elements = found.reduce((total, issue) => total + issue.elements.length, 0)
-  const occurrences = found.reduce((total, issue) => total + issue.occurrences, 0)
+  const { elements, occurrences } = issueTotals(found)
 
   const intro =
     occurrences === elements

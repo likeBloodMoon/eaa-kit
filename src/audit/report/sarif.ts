@@ -5,7 +5,7 @@ import { TOOL_VERSION } from '../../version.ts'
 import type { RunCompleteness } from '../completeness.ts'
 import { elementFingerprint } from '../fingerprint.ts'
 import { isImpactLevel } from '../impact.ts'
-import { findingElements, ruleOutcomes } from '../result.ts'
+import { findingElements, runEngine, uniqueRuleOutcomes } from '../result.ts'
 import type { Finding, PageAudit, RuleOutcome } from '../runners/jsdom.ts'
 
 export const SARIF_VERSION = '2.1.0'
@@ -219,16 +219,7 @@ function fingerprint(ruleId: string, selector: string, html: string): Record<str
 
 /** Every rule the run knows about, so the catalogue is complete in GitHub. */
 function buildRules(audits: readonly PageAudit[]): SarifRule[] {
-  const rules = new Map<string, SarifRule>()
-
-  for (const audit of audits) {
-    for (const outcome of ruleOutcomes(audit)) {
-      if (rules.has(outcome.ruleId)) continue
-      rules.set(outcome.ruleId, toSarifRule(outcome))
-    }
-  }
-
-  return [...rules.values()].sort((a, b) => a.id.localeCompare(b.id))
+  return uniqueRuleOutcomes(audits).map(toSarifRule)
 }
 
 function toSarifRule(outcome: RuleOutcome): SarifRule {
@@ -273,7 +264,7 @@ function summaryProperties(
   }
 
   return {
-    engine: audits[0]?.engine ?? 'jsdom',
+    engine: runEngine(audits),
     pages: audits.length,
     needsReview,
     notEvaluated,

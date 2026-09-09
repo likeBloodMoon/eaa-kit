@@ -41,6 +41,20 @@ export function impactLabel(impact: ImpactValue): ImpactLevel | 'unclassified' {
   return impact !== null && isImpactLevel(impact) ? impact : 'unclassified'
 }
 
+/**
+ * Worst first, then by rule id so two runs of the same build agree.
+ *
+ * The order every format lists a page's findings in. Issues are sorted by
+ * `bySeverityThenReach` instead, which adds the reach a grouped issue has and a
+ * single page's findings do not.
+ */
+export function byImpactThenRule(
+  a: { impact: ImpactValue; ruleId: string },
+  b: { impact: ImpactValue; ruleId: string },
+): number {
+  return impactRank(a.impact) - impactRank(b.impact) || a.ruleId.localeCompare(b.ruleId)
+}
+
 /** Violations at or above `threshold`, counted per rule per page. */
 export function countAtOrAbove(audits: readonly PageAudit[], threshold: ImpactLevel): number {
   let total = 0

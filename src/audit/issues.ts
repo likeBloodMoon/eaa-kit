@@ -114,6 +114,21 @@ export function groupIssues(audits: readonly PageAudit[]): Issue[] {
   return issues
 }
 
+/**
+ * What the grouped issues add up to: distinct elements, and the violations they
+ * account for. Both reports open their issues section with these two numbers,
+ * and say something different when they are equal.
+ */
+export function issueTotals(issues: readonly Issue[]): { elements: number; occurrences: number } {
+  let elements = 0
+  let occurrences = 0
+  for (const issue of issues) {
+    elements += issue.elements.length
+    occurrences += issue.occurrences
+  }
+  return { elements, occurrences }
+}
+
 /** One rule this engine reached no verdict on, and how far it reached. */
 export interface BlindRuleGroup {
   ruleId: string
