@@ -166,14 +166,7 @@ export async function resolvePages(
     return undefined
   }
 
-  if (unreachable.length > 0) {
-    const verb = unreachable.length === 1 ? 'file was' : 'files were'
-    warn(`${unreachable.length} ${verb} not readable, and so not audited:`)
-    for (const file of unreachable.slice(0, 10)) {
-      note(`  ${file.location} — ${file.reason}`)
-    }
-    if (unreachable.length > 10) note(`  …and ${unreachable.length - 10} more`)
-  }
+  warnUnmeasured(unreachable, 'file', 'readable')
 
   return {
     pages,
@@ -188,6 +181,26 @@ export async function resolvePages(
       truncated: false,
     },
   }
+}
+
+/**
+ * Name what was missed, up to ten of them, and count the rest.
+ *
+ * Both collectors need this and neither may skip it: a file that could not be
+ * read and a URL that could not be fetched are pages with no verdict, and a run
+ * that mentioned neither would report the rest of the site as though it were
+ * the site. Ten because the point is to make the problem recognisable, and two
+ * hundred failures usually have the one reason the first few show — the count
+ * that follows is what says the list was cut.
+ */
+function warnUnmeasured(missed: readonly Unmeasured[], noun: string, reached: string): void {
+  if (missed.length === 0) return
+
+  warn(
+    `${count(missed.length, noun)} ${missed.length === 1 ? 'was' : 'were'} not ${reached}, and so not audited:`,
+  )
+  for (const item of missed.slice(0, 10)) note(`  ${item.location} — ${item.reason}`)
+  if (missed.length > 10) note(`  …and ${missed.length - 10} more`)
 }
 
 /**
@@ -239,16 +252,11 @@ async function crawlPages(
   // Pages that could not be fetched are named rather than counted away: a
   // crawl that quietly skipped half the site would report the other half as if
   // it were the whole thing.
-  if (result.failures.length > 0) {
-    const verb = result.failures.length === 1 ? 'URL was' : 'URLs were'
-    warn(`${result.failures.length} ${verb} not fetched, and so not audited:`)
-    for (const failure of result.failures.slice(0, 10)) {
-      note(`  ${failure.url} — ${failure.reason}`)
-    }
-    if (result.failures.length > 10) {
-      note(`  …and ${result.failures.length - 10} more`)
-    }
-  }
+  const failed = result.failures.map((failure) => ({
+    location: failure.url,
+    reason: failure.reason,
+  }))
+  warnUnmeasured(failed, 'URL', 'fetched')
 
   if (result.truncated) {
     warn(
@@ -275,10 +283,7 @@ async function crawlPages(
       discovery: result.discovery,
       collected: result.pages.length,
       unreachable: [
-        ...result.failures.map((failure) => ({
-          location: failure.url,
-          reason: failure.reason,
-        })),
+        ...failed,
         // Never reached, whatever the status code said: the run has a verdict
         // about the page it was sent to, and none about the page it asked for.
         ...collapsed.map((redirect) => ({

@@ -386,30 +386,25 @@ async function describeEngine(
 }
 
 /**
- * Emit the chosen format, to a file when --output is given and to stdout
- * otherwise. Colour is dropped when writing to a file, since escape codes in a
- * saved report are noise.
+ * Render the chosen format and put it where it was asked for: a file under
+ * --output, stdout otherwise. Colour is dropped when writing to a file, since
+ * escape codes in a saved report are noise.
+ *
+ * One function rather than a renderer and a writer, because the renderer needed
+ * to know where the document was going anyway — which is the whole of what the
+ * split was carrying between them.
  */
 async function emit(
   audits: readonly PageAudit[],
+  /** What was audited: a build directory, or a crawl's entry URL. */
   dir: string,
   failOn: ImpactLevel,
   completeness: RunCompleteness,
   options: AuditCommandOptions,
   review: ReviewOptions | undefined,
 ): Promise<void> {
-  const format = options.format ?? 'console'
   const toFile = typeof options.output === 'string'
-  const body = await renderReport(
-    audits,
-    dir,
-    failOn,
-    completeness,
-    format,
-    toFile,
-    options,
-    review,
-  )
+  const body = await render(audits, dir, failOn, completeness, toFile, options, review)
 
   // Against the same working directory as --baseline, rather than the process's:
   // a caller that says where relative paths start means it for all of them.
@@ -417,18 +412,16 @@ async function emit(
   if (options.output !== undefined) note(`Report written to ${options.output}`)
 }
 
-async function renderReport(
+async function render(
   audits: readonly PageAudit[],
-  /** What was audited: a build directory, or a crawl's entry URL. */
   dir: string,
   failOn: ImpactLevel,
   completeness: RunCompleteness,
-  format: OutputFormat,
   toFile: boolean,
   options: AuditCommandOptions,
   review: ReviewOptions | undefined,
 ): Promise<string> {
-  switch (format) {
+  switch (options.format ?? 'console') {
     case 'json': {
       const { buildJsonReport, serialiseJsonReport } = await import('../audit/report/json.ts')
       return serialiseJsonReport(
@@ -454,21 +447,18 @@ async function renderReport(
     }
     case 'html': {
       const { buildHtmlReport } = await import('../audit/report/html.ts')
-      const framework = await detectedFramework(options.cwd ?? process.cwd())
       return buildHtmlReport(audits, {
-        ...(await sourceLookups(options.cwd ?? process.cwd(), audits)),
+        ...(await fromTheProject(audits, options)),
         directory: dir,
         failOn,
         completeness,
         ...(review === undefined ? {} : { review }),
-        ...(framework === undefined ? {} : { framework }),
         ...(options.baseUrl ? { baseUrl: options.baseUrl } : {}),
       })
     }
     case 'console': {
-      const framework = await detectedFramework(options.cwd ?? process.cwd())
       return `${formatConsoleReport(audits, {
-        ...(await sourceLookups(options.cwd ?? process.cwd(), audits)),
+        ...(await fromTheProject(audits, options)),
         dir,
         failOn,
         completeness,
@@ -476,10 +466,36 @@ async function renderReport(
         ...(options.perPage ? { perPage: true } : {}),
         ...(options.manual ? { manual: true } : {}),
         ...(options.coverage ? { coverage: true } : {}),
-        ...(framework === undefined ? {} : { framework }),
         ...(toFile ? { color: false } : {}),
       })}\n`
     }
+  }
+}
+
+/**
+ * What the two human-readable reports both take from the project on disk: where
+ * each page and each failing element was written, and what built the site.
+ *
+ * Only those two ask. JSON and SARIF are read by other programs, which have the
+ * project in front of them already, and building the component index for one of
+ * them would be several hundred milliseconds spent on nobody's behalf.
+ */
+async function fromTheProject(
+  audits: readonly PageAudit[],
+  options: AuditCommandOptions,
+): Promise<{
+  sourceFor: (page: string) => string | undefined
+  componentFor: (html: string) => ComponentLocation | undefined
+  framework?: string
+}> {
+  const cwd = options.cwd ?? process.cwd()
+  const { detectFramework } = await import('../audit/frameworks.ts')
+  const { readPackageJson } = await import('../audit/project.ts')
+  const detected = await detectFramework(cwd, await readPackageJson(cwd))
+
+  return {
+    ...(await sourceLookups(cwd, audits)),
+    ...(detected === undefined ? {} : { framework: detected.framework.id }),
   }
 }
 
@@ -488,13 +504,6 @@ async function renderReport(
  * so. Best-effort: a project using no convention this recognises gets the
  * report it always got, with no source named.
  */
-/** The registry id of whatever built this project, for framework-shaped advice. */
-async function detectedFramework(cwd: string): Promise<string | undefined> {
-  const { detectFramework } = await import('../audit/frameworks.ts')
-  const { readPackageJson } = await import('../audit/project.ts')
-  return (await detectFramework(cwd, await readPackageJson(cwd)))?.framework.id
-}
-
 async function sourceLookups(
   cwd: string,
   /** What the run found, which decides whether the component index is worth building. */

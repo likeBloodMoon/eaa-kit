@@ -222,6 +222,13 @@ program
     process.exitCode = exitCode
   })
 
+// The page-selection and credential flags below repeat `audit`'s word for word,
+// and stay repeated on purpose. This wiring is read in the order it prints, and
+// the shared flags are contiguous here but interrupted there by four the audit
+// alone has — so a helper would have to be split in three to leave `--help`
+// where it was, which is more indirection than two lists of `.option` calls are
+// worth. Where the two commands share meaning rather than spelling is
+// `auditInvocation` and `baselineInvocation`, and that is shared.
 program
   .command('baseline')
   .description('Record the violations a build already has, so later runs fail only on new ones')

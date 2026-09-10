@@ -30,17 +30,6 @@ export {
   ENGINE_BLIND_RULES,
 } from '../result.ts'
 
-/**
- * Per-page ceiling.
- *
- * A soft one, and the limit is worth stating: this races axe-core against a
- * timer, so it only fires where the work yields to the event loop. Neither
- * jsdom's parse nor axe-core's walk of the tree does, so a document pathological
- * enough to hold the thread runs past this unimpeded. The hard ceiling is the
- * worker pool's, which terminates the thread; see the note on `runWorkers`.
- */
-const DEFAULT_TIMEOUT_MS = DEFAULT_PAGE_TIMEOUT_MS
-
 export interface JsdomRunnerOptions {
   /** axe-core tag filter. Defaults to DEFAULT_TAGS. */
   tags?: readonly string[]
@@ -99,7 +88,7 @@ export async function auditPage(
     const { axe: pageAxe } = dom.window as unknown as { axe: typeof axe }
     const results = await withTimeout(
       pageAxe.run(dom.window.document, runOptions(tags, { skipBlindRules: options.fast === true })),
-      options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+      options.timeoutMs ?? DEFAULT_PAGE_TIMEOUT_MS,
     )
     return shapeResults(results, {
       ...identity,
@@ -147,6 +136,15 @@ function injectAxe(dom: JSDOM): void {
   axeScript.runInContext(dom.getInternalVMContext())
 }
 
+/**
+ * The per-page ceiling, and it is a soft one.
+ *
+ * This races axe-core against a timer, so it only fires where the work yields to
+ * the event loop. Neither jsdom's parse nor axe-core's walk of the tree does, so
+ * a document pathological enough to hold the thread runs past this unimpeded.
+ * The hard ceiling is the worker pool's, which terminates the thread; see the
+ * note on `runWorkers`.
+ */
 async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   // A late rejection from the loser of the race must not surface as an
   // unhandled rejection once the timeout has already been reported.
