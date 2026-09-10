@@ -22,8 +22,13 @@ export interface StatementCommandOptions {
   /** Path to a report from `eaa-kit audit --format json`. */
   audit?: string
   /**
-   * Path to a review record. Read only to check the config's claim against what
-   * a person recorded; nothing from it reaches the text of the statement.
+   * Path to a review record, from `eaa-kit checklist`.
+   *
+   * Two uses, and the difference between them matters: the statement says how
+   * many criteria a person checked and when, which is a fact about the work,
+   * and it refuses to be written at all when what a person recorded contradicts
+   * the conformance the config claims. What a review concluded never becomes
+   * prose here — that is the barrier list's job, and a person writes it.
    */
   review?: string
   /** Defaults to the extension of --output, and to markdown without one. */
@@ -85,6 +90,7 @@ export async function runStatementCommand(
       ...(options.locale ? { locale: options.locale } : {}),
       ...(options.country ? { country: options.country } : {}),
       ...(audit ? { audit } : {}),
+      ...(review ? { review } : {}),
     })
 
     note(

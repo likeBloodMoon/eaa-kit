@@ -11,6 +11,7 @@ eaa-kit statement --output src/content/a11y.md      # to a file
 eaa-kit statement --lang en --country DE            # override both
 eaa-kit statement --output public/a11y.html         # a standalone HTML page
 eaa-kit statement --audit a11y.json                 # list what the audit found
+eaa-kit statement --review eaa-review.json          # say what a person checked
 ```
 
 | Flag | Default | Meaning |
@@ -19,6 +20,7 @@ eaa-kit statement --audit a11y.json                 # list what the audit found
 | `--lang <locale>` | from `site.locale` | `de`, `en`, `es`, `fr`, `it` or `nl` — see the table below for which countries have which |
 | `--country <code>` | from `enforcement.country` | `AT`, `CH`, `DE`, `ES`, `FR`, `IT` or `NL` |
 | `--audit <path>` | — | A report from `eaa-kit audit --format json`; its violations are listed as non-accessible content |
+| `--review <path>` | — | A [review record](review.md); the statement says how many criteria a person checked, and refuses a false claim of conformance |
 | `--format <format>` | from `--output` | `markdown` or `html` |
 | `--output <path>` | stdout | Write to a file; parent directories are created |
 
@@ -298,9 +300,34 @@ Nothing is checked without evidence. `eaa-kit statement` on its own behaves exac
 always did: the tool cannot audit what it was not shown, and refusing there would be an
 accusation rather than a finding.
 
-`--review` is read for this check alone. Nothing from the record reaches the text of the
-statement — wiring a manual review into legal wording is a separate piece of work, in six
-languages, and it is not done.
+## What a person checked
+
+`--review` also puts one fact into the document, in the "preparation" section beside what
+the automated run covered:
+
+```
+4 of the 55 success criteria in WCAG 2.2 at Levels A and AA were checked manually.
+The most recent of those manual checks was recorded on 4 April 2026.
+```
+
+It is there because the sentences beside it describe a run that cannot reach 34 of those 55
+criteria. A reader with no way to tell a criterion nobody checked from one no machine could
+check is being told less than the truth, and that gap is the whole reason the review record
+exists.
+
+**What it never says is what the review concluded.** A recorded result is a claim by a
+person, and the place for a claim in this document is the barrier list, which you write in
+your own words. Turning a `not-met` entry into a conformance sentence would be this tool
+putting a legal position in your mouth — so a record of `met` entries and a record of
+`not-met` entries produce the same sentence, and a test asserts it. What `not-met` does do
+is refuse a claim of full conformance, above.
+
+Two more refusals, both from the same principle: a record nobody has answered yet produces
+no sentence at all, because generating a worksheet is not doing the review; and a record
+whose entries carry no dates gives the count without the date, because an undated entry
+cannot be shown to have happened at any particular time.
+
+The sentence is written into all fourteen templates in the language each is written in.
 
 ## Read it before you publish it
 

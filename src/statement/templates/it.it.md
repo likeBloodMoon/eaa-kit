@@ -64,6 +64,21 @@ Si basa su un'autovalutazione svolta da {{ provider.legalName }}.
 Si basa su una valutazione svolta da terzi.
 {{/if}}
 
+{{#if review.isSingle}}
+Uno dei {{ review.total }} criteri di successo delle WCAG 2.2 (livelli A e AA) è stato
+verificato manualmente.
+{{/if}}
+{{#if review.isPlural}}
+{{ review.answered }} dei {{ review.total }} criteri di successo delle WCAG 2.2 (livelli A e
+AA) sono stati verificati manualmente.
+{{/if}}
+{{#if review.hasDate}}
+La più recente di queste verifiche manuali è stata effettuata il
+{{ review.checkedOnFormatted }}.
+{{/if}}
+{{#if hasReview}}
+
+{{/if}}
 {{#if audit.isSinglePage}}
 Il test automatico del {{ audit.checkedOnFormatted }} ha riguardato una pagina di questo
 sito.

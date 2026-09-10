@@ -317,7 +317,7 @@ program
   .option('--audit <path>', 'list the barriers from an eaa-kit audit --format json report')
   .option(
     '--review <path>',
-    'check the conformance claim against a review record; nothing from it is published',
+    'say how many criteria a person checked, and check the conformance claim against them',
   )
   .option(
     '--format <format>',

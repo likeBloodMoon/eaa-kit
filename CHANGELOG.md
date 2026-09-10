@@ -62,6 +62,34 @@ consumers must ignore what they do not recognise.
   `schemaVersion` stays at 2. A report written before they existed is read as it was meant:
   those runs audited every page they listed.
 
+- **The statement says what a person checked.** 0.6.0 gave the manual review somewhere to
+  live and then stopped one step short: `statement --review` read the record only to refuse
+  a claim the record contradicted. The loop closes here. The "preparation" section of the
+  document now carries one more fact, in the language the statement is written in:
+
+  > 4 of the 55 success criteria in WCAG 2.2 at Levels A and AA were checked manually.
+  > The most recent of those manual checks was recorded on 4 April 2026.
+
+  It belongs there because the sentences beside it describe an automated run that cannot
+  reach 34 of those 55 criteria. A reader who cannot tell a criterion nobody checked from
+  one no machine could check is being told less than the truth, and closing that gap is the
+  whole reason the review record exists.
+
+  **What it never says is what the review concluded.** A recorded result is a claim by a
+  person, and the place for a claim in this document is the barrier list, which a person
+  writes in their own words; turning a `not-met` entry into a conformance sentence would be
+  this tool putting a legal position in somebody's mouth. A record of `met` entries and a
+  record of `not-met` entries produce the same document, and a test asserts exactly that.
+  Two more refusals for the same reason: a record nobody has answered yet produces no
+  sentence at all, because generating a worksheet is not doing the review, and a record with
+  no dates gives the count without a date, because an undated entry cannot be shown to have
+  happened at any particular time.
+
+  Written into all fourteen templates, each mirroring the automated-run sentence already in
+  it, so the grammar and the register come from text written for that country rather than
+  from a translation of the English. `examples/statement.audit.de.md` is regenerated with
+  both kinds of evidence behind it.
+
 - **`pnpm bench`**, so the numbers this project quotes can be re-run by anybody. Until now
   every performance claim here was a number in a doc comment produced once by a benchmark
   that no longer existed — the worker pool's thresholds are still calibrated to "a 4-core

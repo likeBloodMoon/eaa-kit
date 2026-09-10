@@ -41,6 +41,10 @@ Diese Erklärung wurde am 21. August 2026 erstellt.
 
 Grundlage ist eine Selbstbewertung durch Musterbetrieb GmbH.
 
+4 der 55 Erfolgskriterien der WCAG 2.2 (Stufen A und AA)
+wurden manuell geprüft.
+Die jüngste dieser manuellen Prüfungen erfolgte am 21. August 2026.
+
 Die automatisierte Prüfung vom 1. Jänner 2026 umfasste 5
 Seiten dieser Website.
 Bei einer weiteren Regelprüfung ist eine manuelle Beurteilung erforderlich.

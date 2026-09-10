@@ -64,6 +64,21 @@ Zij berust op een zelfbeoordeling door {{ provider.legalName }}.
 Zij berust op een beoordeling door een derde partij.
 {{/if}}
 
+{{#if review.isSingle}}
+Eén van de {{ review.total }} succescriteria van WCAG 2.2 (niveaus A en AA) is handmatig
+gecontroleerd.
+{{/if}}
+{{#if review.isPlural}}
+{{ review.answered }} van de {{ review.total }} succescriteria van WCAG 2.2 (niveaus A en
+AA) zijn handmatig gecontroleerd.
+{{/if}}
+{{#if review.hasDate}}
+De meest recente van deze handmatige controles is uitgevoerd op
+{{ review.checkedOnFormatted }}.
+{{/if}}
+{{#if hasReview}}
+
+{{/if}}
 {{#if audit.isSinglePage}}
 De geautomatiseerde test van {{ audit.checkedOnFormatted }} betrof één pagina van deze
 website.

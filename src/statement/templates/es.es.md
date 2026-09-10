@@ -64,6 +64,21 @@ Se basa en una autoevaluación realizada por {{ provider.legalName }}.
 Se basa en una evaluación realizada por un tercero.
 {{/if}}
 
+{{#if review.isSingle}}
+Uno de los {{ review.total }} criterios de conformidad de las WCAG 2.2 (niveles A y AA) se
+comprobó manualmente.
+{{/if}}
+{{#if review.isPlural}}
+{{ review.answered }} de los {{ review.total }} criterios de conformidad de las WCAG 2.2
+(niveles A y AA) se comprobaron manualmente.
+{{/if}}
+{{#if review.hasDate}}
+La más reciente de esas comprobaciones manuales se registró el
+{{ review.checkedOnFormatted }}.
+{{/if}}
+{{#if hasReview}}
+
+{{/if}}
 {{#if audit.isSinglePage}}
 El análisis automático del {{ audit.checkedOnFormatted }} abarcó una página de este sitio
 web.
