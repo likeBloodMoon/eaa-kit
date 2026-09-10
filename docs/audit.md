@@ -233,6 +233,7 @@ chatter coming along.
 | `--concurrency <n>` | from page and core count | Pages to audit at once — threads without `--browser`, tabs with it; `1` turns both off |
 | `--fast` | off | Skip the rules the browserless engine cannot decide, rather than running them and discarding the answer |
 | `--baseline <path>` | — | Accept the violations recorded in this file; fail only on new ones |
+| `--no-cache` | on | Audit every page, reusing nothing an earlier run measured |
 | `--header <header>` | — | Send this header with every request, e.g. `"Authorization: Bearer …"`. Repeatable |
 | `--basic-auth <user:password>` | — | Send an `Authorization` header for basic auth |
 | `--review <path>` | — | [What a person checked](review.md), for the criteria no engine reaches |
@@ -284,6 +285,7 @@ the schema is required by `statement`, which is the command that publishes a doc
 | `perPage`, `manual`, `coverage` | the console report's three extra sections |
 | `review`, `reviewMaxAge` | `--review`, `--review-max-age` |
 | `build` | `false` is `--no-build` |
+| `cache` | `false` is `--no-cache` |
 
 `baseline` reads the keys that mean the same thing to it — the page selection and the
 engine — and not the ones that do not. `output` is where the report goes for one command
@@ -468,6 +470,66 @@ site in a memory-capped container. If a run does die with *JavaScript heap out o
 raise the thread count before anything else, then `NODE_OPTIONS=--max-old-space-size=4096`,
 then split the run with `--include`.
 
+## Auditing only what changed
+
+A run keeps what it measured in `.eaa-kit/cache/`, one file per page, and the next run
+reuses the result for any page whose markup is byte-identical. Nothing about it is
+configured: it is on, `--no-cache` turns it off, and deleting the directory is always safe.
+
+What it buys is most of a run that has nothing to do. The engine is loaded through a
+dynamic import, so a run whose pages are all reused never imports jsdom at all — the
+pages are read and hashed before anything decides an engine is needed, and a test asserts
+that the engine is handed no pages rather than merely finding none. Twenty pages, medians
+of five runs, from `pnpm bench` on a four-core Linux box:
+
+| | |
+| --- | --- |
+| First run, nothing cached | ~2,520 ms |
+| Second run, one page edited | ~1,060 ms |
+| Second run, nothing edited | ~230 ms |
+| `eaa-kit --version`, for scale | ~165 ms |
+
+A page costs about 80 ms at the margin; everything before the first page costs about
+900 ms, nearly all of it loading jsdom. That is the shape of the saving: a run that reuses
+everything costs about what starting the process costs, and a run that re-audits one page
+of twenty still pays the 900 ms once. The 65 ms between the reused run and `--version` is
+axe-core, which is loaded either way — the console report's coverage table is computed from
+axe's rule set, and that is as true of a reused result as of a fresh one.
+
+Those numbers are from one machine on one afternoon. `pnpm bench` prints the same table for
+yours.
+
+**A reused result is never presented as a fresh one.** All four report formats count reuse
+apart from auditing — the console and HTML reports name it in the run details, the JSON
+report carries `completeness.reused` and a `reusedFrom` date on each page, SARIF carries
+`pagesReused` — and `eaa-kit diff` refuses to call a reused page fixed, because this run
+did not look at it. The verdicts themselves are real: an engine produced them, from markup
+identical to today's, and a test asserts that a run reusing everything reports exactly what
+the same run reports under `--no-cache`.
+
+The cache is keyed on more than the markup. The tool's own version, axe-core's version, the
+rule tags, the engine, `--fast`, the viewport, `--base-url`, the timeout and any
+`--header` all form part of the key, and a mismatch in any of them discards the whole cache
+rather than reasoning about which entries survived. Upgrading eaa-kit, switching to
+`--browser` or adding a credential therefore re-audits everything, which is the only answer
+that cannot be wrong.
+
+Four things are deliberately never stored: absolute paths and URLs, which are facts about a
+machine rather than a page; how long the audit took, which is not reproducible; whether a
+baseline accepted a violation, which is re-decided on every run; and the result of a page
+that could not be audited, because a timeout is one bad afternoon and freezing it would
+make it permanent. Credentials are part of the key only as a hash, never as text — the same
+line this tool holds for `eaa.config`. An entry that cannot be read is a miss, never a
+stale verdict and never an error, and a cache directory that cannot be written at all
+leaves the run correct and merely as slow as it would have been.
+
+`.eaa-kit/` is in this project's `.gitignore` and should be in yours. Committing it would
+not be unsafe, but it would be a large directory of facts about somebody else's checkout.
+
+`eaa-kit baseline` does not use the cache and never has anything to say about it. A
+baseline is a file somebody commits and then lives with for months, and it is worth the
+1.2 seconds to build one from a run that looked at every page itself.
+
 ## The Issues section
 
 The console report leads with the violations grouped by the element that causes them:
@@ -562,8 +624,8 @@ Findings also name the source file **and line** where the element was written, s
 
 ## How much of WCAG a run reaches
 
-WCAG 2.2 has **55 success criteria** at Levels A and AA. axe-core has rules touching **23**
-of them. Every run says so:
+WCAG 2.2 has **55 success criteria** at Levels A and AA. This tool has rules for **21** of
+them. Every run says so:
 
 ```
 Of the 55 WCAG 2.2 A and AA success criteria, 34 cannot be checked by any
@@ -584,7 +646,7 @@ into a score:
 | **rules ran and found nothing to check** | The rules applied to nothing on this site |
 | **no automated rule exists** | Nothing can check it; a person must |
 
-The last is the majority, and it is the point. A tool that reported "23 of 55" as a
+The last is the majority, and it is the point. A tool that reported "21 of 55" as a
 percentage would be presenting a limit of automated testing as though it were a measurement
 of your site. The denominator here is the standard, not your markup — which is why it is
 worth stating at all, and why it never becomes a grade.

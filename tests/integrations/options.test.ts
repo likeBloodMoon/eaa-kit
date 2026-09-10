@@ -40,4 +40,23 @@ describe('auditBuild', () => {
       reviewMaxAge: 365,
     })
   })
+
+  it('turns cache: false into the flag the audit command takes', async () => {
+    // The one option that changes shape on the way through: an option object
+    // has no flags to negate, so the plugins take it in the positive and the
+    // command takes the refusal.
+    runAuditCommand.mockClear()
+
+    await auditBuild('dist', { cache: false }, { info: () => {}, warn: () => {}, error: () => {} })
+
+    expect(runAuditCommand).toHaveBeenCalledWith('dist', { noCache: true })
+  })
+
+  it('says nothing about the cache when nobody asked', async () => {
+    runAuditCommand.mockClear()
+
+    await auditBuild('dist', { cache: true }, { info: () => {}, warn: () => {}, error: () => {} })
+
+    expect(runAuditCommand).toHaveBeenCalledWith('dist', {})
+  })
 })

@@ -292,6 +292,7 @@ function summaryProperties(
           complete: completeness.complete,
           discovery: completeness.discovery,
           pagesAudited: completeness.audited,
+          pagesReused: completeness.reused,
           pagesErrored: completeness.errored,
           pagesUnreachable: completeness.unreachable.length,
           truncated: completeness.truncated,

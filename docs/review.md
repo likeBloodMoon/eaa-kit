@@ -128,11 +128,14 @@ what the run measured, never a verdict on it.
 
 ## What it does not reach yet
 
-- **The statement does not quote the record.** `eaa-kit statement` takes its conformance
-  claim from the config file, as it always has, and wiring a review into legal wording needs
-  the same care as adding a country. It does now read the record when you pass
-  `--review`, for one purpose: [refusing a claim of full conformance](statement.md#the-claim-is-checked-against-the-evidence)
-  over criteria somebody recorded as `not-met`.
+- **The statement quotes the count, never the verdict.** `eaa-kit statement --review` says
+  [how many criteria a person checked and when](statement.md#what-a-person-checked), in the
+  language the statement is written in, and it takes its conformance claim from the config
+  file as it always has. What a review concluded stays out of the prose: a record of `met`
+  entries and a record of `not-met` entries produce the same sentence. The one thing a
+  `not-met` entry does is
+  [refuse a claim of full conformance](statement.md#the-claim-is-checked-against-the-evidence)
+  before any document is written.
 - **SARIF carries the counts, not the detail.** A criterion nobody has reviewed is not a
   defect at a source location, so nothing here ever becomes an alert; the three counts sit
   in the log's `run.properties`, where the unevaluated counts already do, so a log with no

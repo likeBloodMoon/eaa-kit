@@ -63,6 +63,20 @@ It is based on a self-assessment carried out by {{ provider.legalName }}.
 It is based on an assessment carried out by a third party.
 {{/if}}
 
+{{#if review.isSingle}}
+One of the {{ review.total }} success criteria in WCAG 2.2 at Levels A and AA was checked
+manually.
+{{/if}}
+{{#if review.isPlural}}
+{{ review.answered }} of the {{ review.total }} success criteria in WCAG 2.2 at Levels A and
+AA were checked manually.
+{{/if}}
+{{#if review.hasDate}}
+The most recent of those manual checks was recorded on {{ review.checkedOnFormatted }}.
+{{/if}}
+{{#if hasReview}}
+
+{{/if}}
 {{#if audit.isSinglePage}}
 The automated test run of {{ audit.checkedOnFormatted }} covered one page of this website.
 {{/if}}

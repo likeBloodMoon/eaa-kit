@@ -1,9 +1,98 @@
 # Roadmap
 
-What is planned after 0.5.0, and why. This is intent rather than a promise: there are no
-dates, and anything here can be cut once it turns out to be wrong. What does not change is
-the rule the tool is built on — it reports what it found, and it says what it never looked
-at. Nothing below is allowed to make a run look more complete than it was.
+What is planned, and why, newest release first. This is intent rather than a promise: there
+are no dates, and anything here can be cut once it turns out to be wrong — one item below
+was, and the reasoning is kept rather than the item. What does not change is the rule the
+tool is built on: it reports what it found, and it says what it never looked at. Nothing
+here is allowed to make a run look more complete than it was.
+
+A section for a released version is left in place with what landed marked on it, so the
+record shows what was planned as well as what shipped.
+
+## 0.7.0 — the run that costs nothing, and the loop that closes
+
+0.6.0 added the half no engine can do. 0.7.0 is about three things a user feels: how long a
+run takes, whether the compliance loop closes, and whether the numbers this project quotes
+can be re-run by anybody.
+
+The measurement that set the agenda: a page costs about 80 ms to audit, and everything
+before the first page costs about 900 ms, nearly all of it loading jsdom. So a run over a
+site where nothing changed pays a second to be told nothing changed, and CI re-audits two
+hundred pages for a commit that touched three.
+
+### 1. Auditing only what changed — landed
+
+Built as [0.6.0's item 3](#3-auditing-only-what-changed) specified it, including every
+refusal: reuse is its own count and never part of `audited`, all four formats say how much
+was reused and from when, `diff` will not call a reused page fixed, any input that could
+change a verdict discards the whole cache, and `--no-cache` forces the full run.
+
+One thing the item did not anticipate and the code now does: pages are collected and hashed
+before anything decides an engine is needed, so a run that reuses all of them never imports
+jsdom. Twenty pages, cold to fully reused: ~2,520 ms to ~230 ms, against ~165 ms for
+`eaa-kit --version`.
+
+### 2. `pnpm bench` — landed
+
+Every performance claim in this repository was a number in a doc comment produced by a
+benchmark that no longer existed — `pool.ts`'s thresholds are still calibrated to a 4-core
+box that lives only in a commit message. `scripts/bench.mjs` measures the fixed cost, the
+marginal cost of a page, cached against cold, and the four renderers, and prints a table two
+checkouts can be compared on. Not a CI gate: timing on a shared runner is noise.
+
+### 3. The statement cites the manual review — landed
+
+0.6.0 stopped one step short — `statement --review` read the record only to refuse a claim
+that contradicted it. The document now says how many of the 55 criteria a person checked and
+when, in all fourteen templates, and never says what the review concluded: that is a claim,
+and the place for a claim is the barrier list somebody writes themselves.
+
+### 4. Writing fixes into source files — not viable, and here is the verdict
+
+[Deferred from 0.6.0](#not-in-060) with three preconditions: an opt-in, a dry run, and a
+much stronger story about mis-attribution. Investigated properly for this release, and the
+answer is that it must not be built. The preconditions were the wrong ones — they are about
+consent, and the problem is that there is nothing correct to write:
+
+- **The remediation table is not a fix table.** Of 24 entries, 7 carry an `example`
+  transform and none produces a complete, correct fix. `image-alt` emits
+  `alt="What this image shows"`; `link-name` emits `>Where this link goes<`; `html-has-lang`
+  emits a hardcoded `lang="de"` whatever the page's language; `meta-viewport` overwrites the
+  whole `content` attribute, destroying a legitimate `viewport-fit=cover`. Applying these
+  turns a report green while the barrier stands, which is the failure this whole tool is
+  written against.
+- **The source mapper locates a literal, not an element.** `componentFor` returns where a
+  *string* was found, with no proof it sits inside markup, no element boundaries and no end
+  offset. Its input is axe-core's serialised DOM, truncated at 300 characters with attribute
+  values elided at 20 — enough to say "open this file", impossible as the basis for a
+  byte-level edit.
+- **The emitted HTML is not the source dialect.** Writing `<img … alt="…">` into a `.tsx`
+  file is a build break; into `.vue`, `.svelte`, `.astro`, `.twig` or `.php` it can land
+  inside a binding, a script block or a template expression.
+
+What would have to exist first: a remediation table whose entries are correct without a
+human, and element-precise source ranges. Neither is close, and neither is worth building
+for this. The item is closed rather than deferred again.
+
+### 5. Maintenance — landed
+
+- Node 26 in the CI matrix, which `engines` has claimed since 0.6.0.
+- A test that fails when axe-core's rule set moves. It found the drift it was written for on
+  the day it was added: the published figure "axe-core has rules touching 23 of 55" was two
+  too high, because two of those criteria — Orientation and Label in Name — are covered only
+  by rules axe-core tags experimental, which this tool does not run. The real number is 21,
+  and the README, both docs pages and the module comment now say so.
+
+### Not in 0.7.0
+
+- **The four countries (BE, PL, PT, IE).** Unchanged from 0.6.0 and unchanged in reason:
+  each needs its statute, supervisory body and enforcement route from primary sources, and
+  that is the work. A fabricated citation in a published legal document is the worst failure
+  this tool could have.
+- **A watch mode.** The natural payoff of the cache — a run that costs 230 ms is a run worth
+  repeating on save — but it holds a process open and brings its own failure modes. 0.8.
+- **A score, Level AAA, anything model-generated, a hosted dashboard.** As before, and not
+  later.
 
 ## 0.6.0 — the part a machine cannot do, and the code that does the rest
 
@@ -127,6 +216,8 @@ discovered:
 
 ### 3. Auditing only what changed
 
+**Landed in 0.7.0**, as written.
+
 CI audits the whole build on every push, and most pushes change three pages. A content-hash
 cache under `.eaa-kit/` lets a run reuse the result for a page whose HTML is byte-identical
 to the last run's.
@@ -169,6 +260,8 @@ dates rather than barriers that went away.
 
 ### 6. Maintenance
 
+**The first two landed in 0.7.0.**
+
 - axe-core within 4.x, and a test that fails when its rule set moves, because the WCAG
   coverage claim is computed from that set and is a claim about facts.
 - Node 26 in the CI matrix.
@@ -179,6 +272,7 @@ dates rather than barriers that went away.
 - **Writing fixes into source files.** `remediation` prints the corrected form of your
   markup; editing somebody's components is a different level of trust and needs an opt-in,
   a dry run and a much stronger story about mis-attribution. Revisit for 0.7.
+  **Revisited, and closed**: see [the 0.7.0 verdict](#4-writing-fixes-into-source-files--not-viable-and-here-is-the-verdict).
 - **A score, a percentage or a grade.** Not in 0.6.0 and not later. Most of WCAG cannot be
   automated, and a number would present that as a fact about a site.
 - **Level AAA.**
@@ -191,8 +285,8 @@ dates rather than barriers that went away.
 1. ~~`ponytail` and the examples drift check~~ — done; everything after it is smaller for it.
 2. ~~The `report/` compaction pass~~ — done, before checklist added fields to all four formats.
 3. ~~`checklist` and the review record~~ — done, with the two narrowings noted above.
-4. The page cache. Next, and it carries the fingerprinting a content-based staleness check
-   would need.
+4. ~~The page cache~~ — done in 0.7.0, and it carries the fingerprinting a content-based
+   staleness check would need.
 5. The four countries — independent of the rest, and can land at any point. Each needs its
    statute and supervisory body established from primary sources first, which is the work,
    not the template.

@@ -32,7 +32,17 @@ const statements = [
   // every release would be paid for on every release.
   { args: ['--country', 'FR', '--lang', 'fr'], file: 'examples/statement.fr.md' },
   {
-    args: ['--lang', 'de', '--audit', 'examples/report.json'],
+    // Both kinds of evidence at once, which is the shape a real statement has:
+    // what the run measured, and what a person checked in the two thirds of the
+    // standard no run reaches.
+    args: [
+      '--lang',
+      'de',
+      '--audit',
+      'examples/report.json',
+      '--review',
+      'examples/eaa-review.json',
+    ],
     file: 'examples/statement.audit.de.md',
   },
 ]
@@ -89,7 +99,11 @@ await mkdir('examples', { recursive: true })
 for (const { format, file } of outputs) {
   const result = spawnSync(
     process.execPath,
-    [CLI, 'audit', FIXTURES, '--format', format, '--output', file],
+    // `--no-cache` for the same reason the clock is frozen: these documents
+    // describe the formats, and a run that reused an earlier result says so in
+    // all four of them. Whether a checkout happens to have a cache is not a
+    // property of the format, and CI regenerating these must not depend on it.
+    [CLI, 'audit', FIXTURES, '--format', format, '--no-cache', '--output', file],
     { stdio: ['ignore', 'inherit', 'inherit'] },
   )
 

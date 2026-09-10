@@ -127,12 +127,21 @@ describe('auditInvocation', () => {
     ).toBeUndefined()
   })
 
+  it('takes no cache from either side, the same way', () => {
+    expect(auditInvocation(undefined, { cache: false }, { build: true }).options.noCache).toBe(true)
+    expect(auditInvocation(undefined, {}, { build: true, cache: false }).options.noCache).toBe(true)
+    expect(
+      auditInvocation(undefined, { cache: true }, { build: true, cache: true }).options.noCache,
+    ).toBeUndefined()
+  })
+
   it('does not pass its own two keys on to the audit', () => {
     const { options } = auditInvocation('dist', { dir: 'dist' }, { build: true, config: 'x.json' })
 
     expect(options).not.toHaveProperty('config')
     expect(options).not.toHaveProperty('dir')
     expect(options).not.toHaveProperty('build')
+    expect(options).not.toHaveProperty('cache')
   })
 })
 

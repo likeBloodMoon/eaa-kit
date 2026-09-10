@@ -1,7 +1,7 @@
 import axe from 'axe-core'
 import { collapse, count, escapeAttribute, escapeText, standardsReference } from '../../text.ts'
 import { TOOL_VERSION } from '../../version.ts'
-import { discoveryLabel, missedParts, type RunCompleteness } from '../completeness.ts'
+import { discoveryLabel, missedParts, type RunCompleteness, reusedPart } from '../completeness.ts'
 import { type ComponentLocation, componentPath } from '../component.ts'
 import { buildCoverage, type CriterionCoverage, reviewSummary } from '../coverage.ts'
 import { byImpactThenRule, type ImpactLevel, impactLabel } from '../impact.ts'
@@ -187,6 +187,11 @@ function runDetails(
   if (options.completeness) {
     rows.splice(2, 0, ['Pages found via', discoveryLabel(options.completeness.discovery)])
   }
+  // In the run details rather than in "what this run did not measure": nothing
+  // was missed, and a reader of this document — who was not at the terminal —
+  // still has to be able to tell which pages were measured today.
+  const reused = options.completeness ? reusedPart(options.completeness) : undefined
+  if (reused !== undefined) rows.push(['Reused', reused])
 
   const body = rows
     .map(

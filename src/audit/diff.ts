@@ -60,6 +60,8 @@ const reportSchema = s.object({
       s.object({
         path: s.string(),
         error: s.withDefault(s.nullable(s.string()), () => null),
+        /** Present when the later run reused this page rather than auditing it. */
+        reusedFrom: s.optional(s.string()),
         violations: s.withDefault(
           s.array(
             s.object({
@@ -172,9 +174,26 @@ function entriesOf(report: ParsedReport): Map<string, DiffEntry> {
   return entries
 }
 
-/** Pages a run reached a verdict on. A page that errored is not one of them. */
+/**
+ * Pages a run reached a verdict on *itself*.
+ *
+ * A page that errored is not one of them, and neither is a page whose result
+ * was reused from a cache: this comparison exists to say what changed between
+ * two runs, and a run that did not look at a page learned nothing about it. The
+ * difference matters in one direction only, and it is the direction that lies —
+ * a violation present in the earlier report and absent from a reused page would
+ * otherwise be announced as fixed, which is a changelog of work nobody did.
+ *
+ * A report written before reuse existed carries no marker, and is read exactly
+ * as it was meant when it was written: those runs audited every page they
+ * listed.
+ */
 function auditedPages(report: ParsedReport): Set<string> {
-  return new Set(report.pages.filter((page) => page.error === null).map((page) => page.path))
+  return new Set(
+    report.pages
+      .filter((page) => page.error === null && page.reusedFrom === undefined)
+      .map((page) => page.path),
+  )
 }
 
 function sideOf(report: ParsedReport): DiffSide {

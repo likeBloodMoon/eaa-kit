@@ -41,6 +41,14 @@ export interface IntegrationOptions {
   /** Write the report here instead of the build log. */
   output?: string
   /**
+   * False audits every page, reusing nothing an earlier build measured.
+   *
+   * The cache is on by default here as everywhere, and a build is where it pays
+   * best: most builds change a handful of pages. Turn it off for a release
+   * build that should answer from nothing but the files in front of it.
+   */
+  cache?: boolean
+  /**
    * Report without failing the build. For the week it takes to adopt this on a
    * site that already exists — a baseline is the honest way to go green after
    * that.
@@ -91,8 +99,11 @@ export async function auditBuild(
   logger: IntegrationLogger,
 ): Promise<void> {
   // enabled and failBuild are this layer's own; everything else is what the
-  // audit command already takes, and is handed over unchanged.
-  const { enabled, failBuild, ...auditOptions } = options
+  // audit command already takes, and is handed over unchanged. `cache` is the
+  // one that changes shape: it is written in the positive here, as it is in the
+  // config file, because an option object has no flags to negate.
+  const { enabled, failBuild, cache, ...rest } = options
+  const auditOptions = { ...rest, ...(cache === false ? { noCache: true } : {}) }
   if (enabled === false) {
     logger.info('skipped (enabled: false)')
     return

@@ -5,10 +5,25 @@ import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { BASELINE_SCHEMA_VERSION, readBaseline } from '../../src/audit/baseline.ts'
 import { SCHEMA_VERSION } from '../../src/audit/report/json.ts'
-import { runAuditCommand } from '../../src/cli/audit.ts'
+import { type AuditCommandOptions, runAuditCommand as runAudit } from '../../src/cli/audit.ts'
 import { runBaselineCommand } from '../../src/cli/baseline.ts'
 
 const SITE = fileURLToPath(new URL('../fixtures/site', import.meta.url))
+
+/**
+ * Cold every time.
+ *
+ * A baseline decision is re-made on every run and is deliberately never cached,
+ * so reuse would not change what these assert — but each case copies the same
+ * fixture, and identical markup is a cache hit wherever it sits. Auditing keeps
+ * these about the baseline.
+ */
+function runAuditCommand(
+  dir: string | undefined,
+  options: AuditCommandOptions = {},
+): ReturnType<typeof runAudit> {
+  return runAudit(dir, { noCache: true, ...options })
+}
 
 const dirs: string[] = []
 let stdout: string[]

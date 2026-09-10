@@ -198,6 +198,19 @@ export interface PageAudit {
    * somebody agreed to defer is not a criterion that was met.
    */
   accepted?: Finding[]
+  /**
+   * Set when this result came from the cache rather than from an engine on this
+   * run, with the day it was produced.
+   *
+   * Never set by a runner, for the same reason `accepted` is not: an engine
+   * reports what it found, and whether that finding is fresh is a fact about
+   * the run around it. Everything downstream reads this — the completeness
+   * record counts reused pages apart from audited ones, every report format
+   * says how many and from when, and `diff` refuses to call a reused page
+   * fixed, because a page this run did not look at cannot have been fixed by
+   * anybody between the two reports.
+   */
+  reused?: { on: string }
 }
 
 /**

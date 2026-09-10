@@ -1,6 +1,8 @@
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { WCAG22_AA_CRITERIA } from '../audit/criteria.ts'
+import type { ReviewRecord } from '../audit/review.ts'
 import {
   type Country,
   type EaaConfig,
@@ -30,6 +32,15 @@ export interface RenderStatementOptions {
    * config lists. Left out, the statement says only what the config says.
    */
   audit?: AuditSummary
+  /**
+   * What a person checked, from `eaa-kit checklist`.
+   *
+   * Reaches the document as one fact — how many of WCAG's success criteria were
+   * checked by hand, and when — and never as a verdict. What a review concluded
+   * about a criterion is a claim by a person, and the place for a claim in a
+   * statement is the barrier list, which a person writes.
+   */
+  review?: ReviewRecord
 }
 
 export interface RenderedStatement {
@@ -58,7 +69,7 @@ export async function renderStatement(
   const template = `${country.toLowerCase()}.${locale}`
 
   const source = await loadTemplate(country, locale)
-  const markdown = tidy(renderTemplate(source, buildScope(config, locale, options.audit)))
+  const markdown = tidy(renderTemplate(source, buildScope(config, locale, options)))
   const html = toHtmlDocument(markdown, { lang: locale, fallbackTitle: config.site.name })
 
   return { markdown, html, locale, country, template }
@@ -86,8 +97,10 @@ function defaultLocale(config: EaaConfig): StatementLocale {
 function buildScope(
   config: EaaConfig,
   locale: StatementLocale,
-  audit: AuditSummary | undefined,
+  options: RenderStatementOptions,
 ): TemplateScope {
+  const audit = options.audit
+  const review = options.review ? toReviewScope(options.review, locale) : undefined
   // Configured barriers come first: they are written by a human, in the
   // statement's own language, and are the ones a reader should meet first.
   const issues = [
@@ -112,6 +125,12 @@ function buildScope(
     },
     audit: audit ? toAuditScope(audit, locale) : undefined,
     hasAudit: audit !== undefined,
+    review,
+    // A record exists and nobody has answered anything in it yet is the ordinary
+    // state right after `eaa-kit checklist`, and it is not a review. Generating
+    // the worksheet is not doing the work, which is the same refusal the audit
+    // report makes when it declines to count `unreviewed`.
+    hasReview: review !== undefined,
     hasKnownIssues: issues.length > 0,
     hasNoKnownIssues: issues.length === 0,
   }
@@ -140,6 +159,49 @@ function toAuditScope(audit: AuditSummary, locale: StatementLocale): TemplateSco
     notEvaluatedIsSingle: audit.notEvaluated === 1,
     notEvaluatedIsPlural: audit.notEvaluated > 1,
     checkedOnFormatted: formatDate(audit.generatedAt.slice(0, 10), locale),
+  }
+}
+
+/**
+ * What a person's review contributes to the "preparation" section.
+ *
+ * One fact: how many of WCAG 2.2's success criteria at A and AA somebody
+ * checked by hand, and the last day one of those checks was recorded. It is
+ * there because the automated sentences beside it describe a run that cannot
+ * reach 34 of those 55 criteria, and a reader with no way to tell an unchecked
+ * criterion from an unchecked-by-machine one is being told less than the truth.
+ *
+ * What it never says is what the review concluded. A recorded result is a claim
+ * by a person, and the place for a claim in this document is the barrier list,
+ * where a person writes it in their own words. Turning `not-met` into a
+ * conformance sentence here would be this tool putting a legal position in
+ * somebody's mouth.
+ *
+ * Returns undefined for a record nobody has answered yet — the ordinary state
+ * of the file `eaa-kit checklist` has just written. Generating a worksheet is
+ * not doing the review, and the audit report refuses to count it for the same
+ * reason.
+ */
+function toReviewScope(record: ReviewRecord, locale: StatementLocale): TemplateScope | undefined {
+  const answered = Object.values(record.criteria).filter((entry) => entry.result !== 'unreviewed')
+  if (answered.length === 0) return undefined
+
+  // ISO dates sort lexicographically, which is the one thing this format is
+  // for. An entry with no date contributes nothing to "when": it cannot be
+  // shown to have happened at any particular time, which is why an undated
+  // entry does not count towards `--review-max-age` either.
+  const dates = answered.map((entry) => entry.reviewedOn).filter((on) => on !== undefined)
+  const latest = dates.sort().at(-1)
+
+  return {
+    answered: answered.length,
+    total: WCAG22_AA_CRITERIA.length,
+    // Singular and plural as separate branches, for the reason the audit scope
+    // has them: no template should have to build a number into a sentence.
+    isSingle: answered.length === 1,
+    isPlural: answered.length > 1,
+    hasDate: latest !== undefined,
+    checkedOnFormatted: latest === undefined ? '' : formatDate(latest, locale),
   }
 }
 

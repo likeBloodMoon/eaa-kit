@@ -29,7 +29,7 @@ config with every optional field filled in:
 | [`statement.en.md`](statement.en.md) | `… --lang en` |
 | [`statement.de.html`](statement.de.html) | `… --lang de --output …html` |
 | [`statement.fr.md`](statement.fr.md) | `… --country FR --lang fr` |
-| [`statement.audit.de.md`](statement.audit.de.md) | `… --audit examples/report.json` |
+| [`statement.audit.de.md`](statement.audit.de.md) | `… --audit examples/report.json --review examples/eaa-review.json` |
 
 The French one is generated from the same Austrian config, which is why a French
 document lists barriers written in German: the prose belongs to whoever wrote the
@@ -37,9 +37,13 @@ config, and the template never translates it. `statement.en.md` has the same
 property. What changes with the country is the statute, the enforcement section
 and the language of everything the template itself says.
 
-The last one lists the barriers from the audit report next to it, in the form the
-statement gives them — English rule text and all, which is exactly why it is
-labelled in the document as coming from a tool.
+The last one is a statement with both kinds of evidence behind it. It lists the
+barriers from the audit report next to it, in the form the statement gives them —
+English rule text and all, which is exactly why it is labelled in the document as
+coming from a tool — and its "preparation" section says how many of WCAG's 55
+success criteria a person checked by hand, from the review record above. What that
+person concluded stays out of the prose: the count is a fact about the work, and a
+verdict is a claim only whoever publishes the statement can make.
 
 The README quotes excerpts; these are the complete documents, which is the
 easier way to check the JSON contract against your own tooling.

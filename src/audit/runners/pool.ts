@@ -145,6 +145,10 @@ export async function runPooledAudit(
   return runWorkers(pages, runnerOptions, Math.min(workers, pages.length), entry)
 }
 
+/**
+ * Audit in this process: the fallback for a run with no threads, and the sweep
+ * for pages the threads never reported on.
+ */
 async function auditHere(
   pages: readonly CollectedPage[],
   options: JsdomRunnerOptions,

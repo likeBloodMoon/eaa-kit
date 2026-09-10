@@ -64,6 +64,20 @@ Grundlage ist eine Selbstbewertung durch {{ provider.legalName }}.
 Grundlage ist eine Prüfung durch Dritte.
 {{/if}}
 
+{{#if review.isSingle}}
+Eines der {{ review.total }} Erfolgskriterien der WCAG 2.2 (Stufen A und AA) wurde manuell
+geprüft.
+{{/if}}
+{{#if review.isPlural}}
+{{ review.answered }} der {{ review.total }} Erfolgskriterien der WCAG 2.2 (Stufen A und AA)
+wurden manuell geprüft.
+{{/if}}
+{{#if review.hasDate}}
+Die jüngste dieser manuellen Prüfungen erfolgte am {{ review.checkedOnFormatted }}.
+{{/if}}
+{{#if hasReview}}
+
+{{/if}}
 {{#if audit.isSinglePage}}
 Die automatisierte Prüfung vom {{ audit.checkedOnFormatted }} umfasste eine Seite dieser
 Website.

@@ -211,6 +211,7 @@ program
     parseConcurrency,
   )
   .option('--baseline <path>', 'accept the violations recorded in this file; fail only on new ones')
+  .option('--no-cache', 'audit every page, reusing no result from an earlier run')
   .option('--review <path>', 'what a person checked, from eaa-kit checklist')
   .option('--review-max-age <days>', 'stop counting review entries older than this', parseDepth)
   .option('--config <path>', 'take defaults from this config file, otherwise it is searched for')
@@ -221,6 +222,13 @@ program
     process.exitCode = exitCode
   })
 
+// The page-selection and credential flags below repeat `audit`'s word for word,
+// and stay repeated on purpose. This wiring is read in the order it prints, and
+// the shared flags are contiguous here but interrupted there by four the audit
+// alone has — so a helper would have to be split in three to leave `--help`
+// where it was, which is more indirection than two lists of `.option` calls are
+// worth. Where the two commands share meaning rather than spelling is
+// `auditInvocation` and `baselineInvocation`, and that is shared.
 program
   .command('baseline')
   .description('Record the violations a build already has, so later runs fail only on new ones')
@@ -316,7 +324,7 @@ program
   .option('--audit <path>', 'list the barriers from an eaa-kit audit --format json report')
   .option(
     '--review <path>',
-    'check the conformance claim against a review record; nothing from it is published',
+    'say how many criteria a person checked, and check the conformance claim against them',
   )
   .option(
     '--format <format>',

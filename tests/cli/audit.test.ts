@@ -7,10 +7,26 @@ import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { IMPACT_LEVELS, type ImpactLevel } from '../../src/audit/impact.ts'
 import { SCHEMA_VERSION } from '../../src/audit/report/json.ts'
-import { runAuditCommand } from '../../src/cli/audit.ts'
+import { type AuditCommandOptions, runAuditCommand as runAudit } from '../../src/cli/audit.ts'
 
 const SITE = fileURLToPath(new URL('../fixtures/site', import.meta.url))
 const IMPACTS = fileURLToPath(new URL('../fixtures/impacts', import.meta.url))
+
+/**
+ * Every run in this file audits, rather than reusing what an earlier one found.
+ *
+ * These cases share two fixture directories and the repository as their working
+ * directory, so without this the first case would fill the cache and the rest
+ * would assert against a run that never started an engine. The cache has its
+ * own two files; here it would only make the order of the cases matter, and
+ * make a second `pnpm test` disagree with the first.
+ */
+function runAuditCommand(
+  dir: string | undefined,
+  options: AuditCommandOptions = {},
+): ReturnType<typeof runAudit> {
+  return runAudit(dir, { noCache: true, ...options })
+}
 
 /** Temporary projects, removed after each case. */
 const dirs: string[] = []

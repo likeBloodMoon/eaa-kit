@@ -179,13 +179,18 @@ export async function auditDefaults(
  * the whole feature and the actions are the one part of this CLI a test cannot
  * call: commander owns them.
  */
-export type AuditFlags = Omit<AuditCommandOptions, 'noBuild' | 'cwd' | 'timeoutMs' | 'headers'> & {
+export type AuditFlags = Omit<
+  AuditCommandOptions,
+  'noBuild' | 'noCache' | 'cwd' | 'timeoutMs' | 'headers'
+> & {
   /** `--header`, repeated. Turned into `headers` by the invocation below. */
   header?: string[]
   /** `--basic-auth user:password`, which becomes an Authorization header. */
   basicAuth?: string
   /** commander's form of `--no-build`: true unless somebody typed the flag. */
   build?: boolean
+  /** commander's form of `--no-cache`, and read the same way. */
+  cache?: boolean
   /** Where to read defaults from. Consumed before this point. */
   config?: string
 }
@@ -195,13 +200,14 @@ export function auditInvocation(
   defaults: AuditConfig,
   flags: AuditFlags,
 ): { dir: string | undefined; options: AuditCommandOptions } {
-  const { build, config: _config, header, basicAuth, ...typed } = flags
+  const { build, cache, config: _config, header, basicAuth, ...typed } = flags
   // `headers` is dropped from the config side rather than merely absent from
   // the schema: the rule is that a credential never comes out of a committed
   // file, and a rule worth having is worth holding here as well as there.
   const {
     dir: configDir,
     build: configBuild,
+    cache: configCache,
     headers: _fromFile,
     ...fromConfig
   } = defaults as AuditConfig & { headers?: never }
@@ -221,6 +227,8 @@ export function auditInvocation(
       // it cannot be merged like the rest. Either source asking for no build is
       // asking for no build.
       ...(build === false || configBuild === false ? { noBuild: true } : {}),
+      // The same shape as `--no-build`, and read the same way from either side.
+      ...(cache === false || configCache === false ? { noCache: true } : {}),
       // Two flags, one record. There is deliberately no config key behind this:
       // eaa.config is committed, and a credential in it is a credential in the
       // repository.

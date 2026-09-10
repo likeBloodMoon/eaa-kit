@@ -133,6 +133,11 @@ const auditSchema = s.object({
    * being described, and because a config file has no flags to negate.
    */
   build: s.optional(s.boolean()),
+  /**
+   * False is `--no-cache`: audit every page, reusing nothing an earlier run
+   * measured. Written in the positive for the same reason `build` is.
+   */
+  cache: s.optional(s.boolean()),
 })
 
 export const configSchema = s.object({

@@ -59,6 +59,16 @@ export interface RunCompleteness extends Collection {
   /** Pages the engine reached a verdict on. */
   audited: number
   /**
+   * Pages whose result was reused from the cache rather than produced now.
+   *
+   * Counted apart from `audited` and never added to it. The verdicts are real —
+   * an engine produced them, on markup byte-identical to this run's — but this
+   * run did not produce them, and the difference is the whole reason the number
+   * is printed: a reader deciding whether a report describes the site as it is
+   * today needs to know which parts of it were measured today.
+   */
+  reused: number
+  /**
    * Pages collected and then not audited: a parse failure, or a timeout. They
    * are counted apart from `unreachable` because the markup was in hand and the
    * audit is what failed, which is a different thing to fix.
@@ -83,12 +93,34 @@ export function runCompleteness(
   collection: Collection,
 ): RunCompleteness {
   const errored = audits.filter((audit) => audit.error).length
+  const reused = audits.filter((audit) => audit.reused !== undefined).length
   return {
     ...collection,
-    audited: audits.length - errored,
+    // Reused pages are taken out of `audited` rather than counted twice: the
+    // two together are the pages that have a verdict, and `audited` alone is
+    // the pages that got one from this run.
+    audited: audits.length - errored - reused,
+    reused,
     errored,
+    // Reuse does not make a run incomplete. Every page still has a verdict from
+    // an engine that saw this exact markup; what changed is when. `complete`
+    // answers "was any of the site missed", which is a different question, and
+    // folding the two together would leave nothing able to answer either.
     complete: collection.unreachable.length === 0 && !collection.truncated && errored === 0,
   }
+}
+
+/**
+ * What a run reused, in one phrase, or nothing when it audited everything.
+ *
+ * Its own sentence rather than a clause in `missedParts`: nothing was missed
+ * here. The pages have verdicts; they were reached on an earlier day, on markup
+ * identical to today's, and a reader is entitled to know which.
+ */
+export function reusedPart(completeness: RunCompleteness): string | undefined {
+  if (completeness.reused === 0) return undefined
+  const pages = completeness.reused === 1 ? 'page' : 'pages'
+  return `${completeness.reused} ${pages} unchanged since the last run, so the earlier result was reused`
 }
 
 /**

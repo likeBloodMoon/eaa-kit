@@ -4,10 +4,18 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_REVIEW_FILE, readReview } from '../../src/audit/review.ts'
-import { runAuditCommand } from '../../src/cli/audit.ts'
+import { type AuditCommandOptions, runAuditCommand as runAudit } from '../../src/cli/audit.ts'
 import { runChecklistCommand } from '../../src/cli/checklist.ts'
 
 const SITE = fileURLToPath(new URL('../fixtures/site', import.meta.url))
+
+/** Cold every time: what a review changes is asserted here, not what a cache does. */
+function runAuditCommand(
+  dir: string | undefined,
+  options: AuditCommandOptions = {},
+): ReturnType<typeof runAudit> {
+  return runAudit(dir, { noCache: true, ...options })
+}
 
 const dirs: string[] = []
 let stdout: string[]

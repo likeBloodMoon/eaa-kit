@@ -9,6 +9,119 @@ move: the JSON report's `schemaVersion` and the baseline file's. Both are bumped
 a field is removed, renamed, or changes meaning — new fields may appear without one, so
 consumers must ignore what they do not recognise.
 
+## 0.7.0 — 2026-09-10
+
+### Added
+
+- **A run now reuses what it already measured, and a run with nothing to re-audit never
+  loads an engine.** `.eaa-kit/cache/` holds one result per page, keyed by the page's path
+  and a hash of its markup; a page that has not changed byte for byte is not audited again.
+  `--no-cache`, or `cache: false` in `eaa.config`, turns it off.
+
+  The saving is not marginal. A page costs about 80 ms at the margin, but everything
+  *before* the first page costs about 900 ms, nearly all of it loading jsdom. Pages are
+  collected and hashed before anything decides an engine is needed, so a run whose pages
+  are all reused skips that entirely: twenty pages go from ~2,520 ms to ~230 ms, against
+  ~165 ms for `eaa-kit --version`, and a test asserts the engine is handed no pages rather
+  than merely finding none. On a real site the other half matters more — a commit that
+  touches three templates stops paying to re-audit two hundred pages. Every number here is
+  from `pnpm bench`, below, and can be re-run.
+
+  What makes this worth having rather than merely fast is that a reused result is never
+  presented as a fresh one. Reuse is its own count in the completeness record, never added
+  to `audited`: all four formats say how many pages were reused and from when, the JSON
+  report carries `completeness.reused` and a `reusedFrom` date on each page, and SARIF
+  carries `pagesReused`. `eaa-kit diff` reads that marker and refuses to call a violation
+  fixed on a page the later run did not look at — until now its only test for "this run
+  examined the page" was that the page had no error, which a reused page also does not
+  have, so a cached run could have reported work nobody did. A test asserts that a run
+  reusing everything reports exactly what the same run reports under `--no-cache`; if that
+  ever stops being true, the cache is not a cache but a second opinion.
+
+  Every input that could change a verdict is part of the key — eaa-kit's version,
+  axe-core's version, the rule tags, the engine, `--fast`, the viewport, `--base-url`, the
+  timeout, and any `--header` — and a mismatch in any of them discards the whole cache
+  rather than reasoning about which entries might have survived. Credentials are in the key
+  as a hash and never as text, which is the line this project already holds for
+  `eaa.config`. Four things are deliberately never stored: absolute paths and URLs, because
+  they describe a machine rather than a page; how long the audit took, because it is not
+  reproducible; whether a baseline accepted a violation, because that is re-decided every
+  run; and the result of a page that could not be audited, because a timeout is one bad
+  afternoon and caching it would make it permanent. An unreadable entry is a miss, never a
+  stale verdict, and a cache that cannot be written at all leaves the run correct and
+  merely as slow as it would have been.
+
+  Reachable from where runs actually happen, which is the rule every flag here follows:
+  every build plugin takes `cache`, and the GitHub Action takes `cache` too — where it is
+  worth nothing until the workflow restores `.eaa-kit/cache` between runs, which
+  [docs/integrations.md](docs/integrations.md) now shows how to do. `eaa-kit baseline` is
+  deliberately left out: a baseline is a file somebody commits and lives with for months,
+  and it is worth a second to build one from a run that looked at every page itself.
+
+  `completeness.reused` and `reusedFrom` are new fields, so the JSON report's
+  `schemaVersion` stays at 2. A report written before they existed is read as it was meant:
+  those runs audited every page they listed.
+
+- **The statement says what a person checked.** 0.6.0 gave the manual review somewhere to
+  live and then stopped one step short: `statement --review` read the record only to refuse
+  a claim the record contradicted. The loop closes here. The "preparation" section of the
+  document now carries one more fact, in the language the statement is written in:
+
+  > 4 of the 55 success criteria in WCAG 2.2 at Levels A and AA were checked manually.
+  > The most recent of those manual checks was recorded on 4 April 2026.
+
+  It belongs there because the sentences beside it describe an automated run that cannot
+  reach 34 of those 55 criteria. A reader who cannot tell a criterion nobody checked from
+  one no machine could check is being told less than the truth, and closing that gap is the
+  whole reason the review record exists.
+
+  **What it never says is what the review concluded.** A recorded result is a claim by a
+  person, and the place for a claim in this document is the barrier list, which a person
+  writes in their own words; turning a `not-met` entry into a conformance sentence would be
+  this tool putting a legal position in somebody's mouth. A record of `met` entries and a
+  record of `not-met` entries produce the same document, and a test asserts exactly that.
+  Two more refusals for the same reason: a record nobody has answered yet produces no
+  sentence at all, because generating a worksheet is not doing the review, and a record with
+  no dates gives the count without a date, because an undated entry cannot be shown to have
+  happened at any particular time.
+
+  Written into all fourteen templates, each mirroring the automated-run sentence already in
+  it, so the grammar and the register come from text written for that country rather than
+  from a translation of the English. `examples/statement.audit.de.md` is regenerated with
+  both kinds of evidence behind it.
+
+- **Node 26 in the CI matrix**, which `engines` has claimed since 0.6.0.
+
+- **`pnpm bench`**, so the numbers this project quotes can be re-run by anybody. Until now
+  every performance claim here was a number in a doc comment produced once by a benchmark
+  that no longer existed — the worker pool's thresholds are still calibrated to "a 4-core
+  box" that lives only in a commit message, and a regression in any recorded win would have
+  been invisible.
+
+  `scripts/bench.mjs` measures the fixed cost of a run, the marginal cost of a page, a
+  cached run against a cold one, and the four report renderers, over a twenty-page site it
+  generates itself — its own template rather than a test fixture, so the numbers move when
+  the tool changes and not when a fixture does. Medians of five runs through the built CLI
+  as a separate process, because that is what a user waits for.
+
+  Deliberately not a CI gate: timing on a shared runner is noise, and a gate that goes red
+  on somebody else's neighbour teaches people to ignore it. It prints a table two checkouts
+  can be compared on and stops there.
+
+### Fixed
+
+- **"axe-core has rules touching 23 of the 55 criteria" was two too high**, in the README,
+  two docs pages and a module comment. Two of those 23 — 1.3.4 Orientation and 2.5.3 Label
+  in Name — are covered only by rules axe-core tags experimental, which this tool does not
+  run, so a run cannot reach a verdict on them and never claimed to. The number that
+  matches what the tool does is **21**, and it now says 21. Nothing computed moved: the
+  reports have always counted those two among the criteria a person must check, which is
+  where the contradiction was visible — 55 minus 23 is not 34.
+
+  Caught by a new test that pins both counts, added this release exactly because they are
+  computed from axe-core's rule set and an upgrade can move them. It found the drift it was
+  written for on the day it was written.
+
 ## 0.6.0 — 2026-09-09
 
 ### Added

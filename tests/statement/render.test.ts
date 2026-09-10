@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { ReviewRecord } from '../../src/audit/review.ts'
 import type { Country, EaaConfigInput, StatementLocale } from '../../src/config/define.ts'
 import { parseConfig } from '../../src/config/define.ts'
 import type { AuditFinding, AuditSummary } from '../../src/statement/findings.ts'
@@ -577,6 +578,124 @@ describe('what the audit run covered', () => {
     // The standing caveat about automated testing is not conditional on one.
     expect(statement.markdown).toContain('Automatisierte\nWerkzeuge erkennen nur einen Teil')
   })
+})
+
+describe('what a person checked', () => {
+  /** A record with `count` answered criteria, dated unless told otherwise. */
+  function review(count: number, dated = true): ReviewRecord {
+    const numbers = ['1.2.1', '1.2.2', '1.2.3', '2.1.4', '3.1.2']
+    const criteria: ReviewRecord['criteria'] = {}
+    for (let i = 0; i < count; i += 1) {
+      const number = numbers[i] ?? `9.9.${i}`
+      criteria[number] = {
+        result: 'met',
+        ...(dated ? { reviewedOn: `2026-0${i + 1}-0${i + 1}` } : {}),
+      }
+    }
+    return { schemaVersion: 1, criteria }
+  }
+
+  it('says how many criteria a person reached, and when', async () => {
+    const statement = await renderStatement(config(), { review: review(4) })
+
+    expect(flat(statement.markdown)).toContain(
+      '4 der 55 Erfolgskriterien der WCAG 2.2 (Stufen A und AA) wurden manuell geprüft.',
+    )
+    // The newest of the dates, not the first one read.
+    expect(flat(statement.markdown)).toContain(
+      'Die jüngste dieser manuellen Prüfungen erfolgte am 4. April 2026.',
+    )
+  })
+
+  it('says it in the singular for one criterion', async () => {
+    const statement = await renderStatement(config(), { review: review(1) })
+
+    expect(flat(statement.markdown)).toContain('Eines der 55 Erfolgskriterien')
+    expect(statement.markdown).not.toContain('1 der 55')
+  })
+
+  it('says it in English', async () => {
+    const statement = await renderStatement(config(), { locale: 'en', review: review(4) })
+
+    expect(flat(statement.markdown)).toContain(
+      '4 of the 55 success criteria in WCAG 2.2 at Levels A and AA were checked manually.',
+    )
+    expect(flat(statement.markdown)).toContain(
+      'The most recent of those manual checks was recorded on 4 April 2026.',
+    )
+  })
+
+  it('says how many without saying when, for a record with no dates', async () => {
+    // An undated entry cannot be shown to have happened at any particular time,
+    // which is why it does not count towards --review-max-age either. The count
+    // is still a fact; the date is not available to be one.
+    const statement = await renderStatement(config(), { review: review(2, false) })
+
+    expect(flat(statement.markdown)).toContain('2 der 55 Erfolgskriterien')
+    expect(statement.markdown).not.toContain('Die jüngste dieser manuellen Prüfungen')
+  })
+
+  it('says nothing for a record nobody has answered yet', async () => {
+    // What `eaa-kit checklist` writes before anybody sits down with it.
+    // Generating a worksheet is not doing the review.
+    const statement = await renderStatement(config(), {
+      review: { schemaVersion: 1, criteria: { '1.2.1': { result: 'unreviewed' } } },
+    })
+
+    expect(statement.markdown).not.toContain('Erfolgskriterien')
+  })
+
+  it('says nothing about a review when there was none', async () => {
+    expect((await render()).markdown).not.toContain('Erfolgskriterien')
+  })
+
+  it('never lets what a review concluded reach the text', async () => {
+    // The whole boundary, in one assertion. A criterion recorded as not met is
+    // a claim by a person, and the place for a claim in this document is the
+    // barrier list, which a person writes in their own words. If a verdict ever
+    // does reach the prose, these two documents stop matching.
+    const met = await renderStatement(config(), { review: review(3) })
+    const notMet = await renderStatement(config(), {
+      review: {
+        schemaVersion: 1,
+        criteria: Object.fromEntries(
+          Object.entries(review(3).criteria).map(([number, entry]) => [
+            number,
+            { ...entry, result: 'not-met' as const, note: 'the form has no labels' },
+          ]),
+        ),
+      },
+    })
+
+    expect(notMet.markdown).toEqual(met.markdown)
+    expect(notMet.markdown).not.toContain('no labels')
+  })
+
+  it.each([
+    ['AT', 'de', 'Erfolgskriterien der WCAG 2.2'],
+    ['AT', 'en', 'success criteria in WCAG 2.2'],
+    ['CH', 'de', 'Erfolgskriterien der WCAG 2.2'],
+    ['CH', 'en', 'success criteria in WCAG 2.2'],
+    ['DE', 'de', 'Erfolgskriterien der WCAG 2.2'],
+    ['DE', 'en', 'success criteria in WCAG 2.2'],
+    ['ES', 'es', 'criterios de conformidad de las WCAG 2.2'],
+    ['ES', 'en', 'success criteria in WCAG 2.2'],
+    ['FR', 'fr', 'critères de succès des WCAG 2.2'],
+    ['FR', 'en', 'success criteria in WCAG 2.2'],
+    ['IT', 'it', 'criteri di successo delle WCAG 2.2'],
+    ['IT', 'en', 'success criteria in WCAG 2.2'],
+    ['NL', 'nl', 'succescriteria van WCAG 2.2'],
+    ['NL', 'en', 'success criteria in WCAG 2.2'],
+  ] as Array<[Country, StatementLocale, string]>)(
+    'reaches the document in %s/%s',
+    async (country, locale, phrase) => {
+      const statement = await renderStatement(config(), { country, locale, review: review(4) })
+
+      expect(flat(statement.markdown)).toContain(phrase)
+      expect(flat(statement.markdown)).toMatch(/\b4\b[^.]*55/)
+      expect(statement.markdown).not.toContain('{{')
+    },
+  )
 })
 
 describe('html output', () => {

@@ -128,6 +128,15 @@ inputs:
     required: false
     default: 'false'
 
+  cache:
+    description: >-
+      Reuse the result for any page whose markup has not changed since the last
+      run, from .eaa-kit/cache. On by default, and worth nothing on a fresh
+      runner unless the workflow restores that directory with actions/cache —
+      see docs/integrations.md. Set to false to audit every page regardless.
+    required: false
+    default: 'true'
+
   version:
     description: Version of eaa-kit to run, as an npm dist-tag or version.
     required: false
@@ -175,6 +184,7 @@ runs:
         EAA_VERSION: ${{ inputs.version }}
         EAA_CONCURRENCY: ${{ inputs.concurrency }}
         EAA_FAST: ${{ inputs.fast }}
+        EAA_CACHE: ${{ inputs.cache }}
         EAA_BASELINE: ${{ inputs.baseline }}
         EAA_HEADERS: ${{ inputs.headers }}
         EAA_BASIC_AUTH: ${{ inputs.basic-auth }}
@@ -212,6 +222,9 @@ runs:
         fi
         if [ "$EAA_FAST" = "true" ]; then
           args+=(--fast)
+        fi
+        if [ "$EAA_CACHE" = "false" ]; then
+          args+=(--no-cache)
         fi
         if [ -n "$EAA_BASELINE" ]; then
           args+=(--baseline "$EAA_BASELINE")

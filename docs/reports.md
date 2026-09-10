@@ -90,7 +90,8 @@ A complete generated document is checked in at
     "complete": true,                           // false when anything went unmeasured
     "discovery": "directory",                   // "directory" | "sitemap" | "links"
     "collected": 5,                             // pages handed to the engine
-    "audited": 5,                               // pages that reached a verdict
+    "audited": 5,                               // pages this run reached a verdict on
+    "reused": 0,                                // pages whose result came from the cache
     "errored": 0,                               // collected, then could not be audited
     "truncated": false,                         // stopped at --max-pages
     "unreachable": [                            // known pages never collected
@@ -176,13 +177,33 @@ A complete generated document is checked in at
       "accepted": [],
       "passes": ["document-title", "html-has-lang"],      // rule ids
       "inapplicable": ["area-alt", "blink", "label"],     // rule ids
-      "error": null                             // string when the page could not be audited
+      "error": null,                            // string when the page could not be audited
+      // Present only when this page's result was reused from the cache: the
+      // date the engine actually produced it. Absent means this run measured it.
+      "reusedFrom": "2026-09-08"
     }
   ]
 }
 ```
 
 When `error` is non-null, all four category arrays on that page are empty.
+
+### `reusedFrom`
+
+A page carries this only when its markup was byte-identical to the last run's and the
+stored result was reused rather than measured again. The findings are the findings an
+engine reported for exactly this markup; the date says when.
+
+It exists because two consumers cannot do their job without it. `eaa-kit diff` decides
+whether the later run looked at a page before it will call anything fixed, and until this
+field existed a reused page was indistinguishable from a freshly audited one — so a diff
+across a cached run could have reported a violation as fixed that nobody had checked. And
+anyone reading a report to answer "is this current" needs to know which pages it is current
+about.
+
+New field, so `schemaVersion` stays at 2. Absence means the page was measured by the run
+that wrote the report, which is also the right reading of every report written before the
+field existed: those runs audited every page they listed.
 
 ### `target.source` and `target.directory`
 
@@ -212,6 +233,13 @@ at its limit. A tool deciding whether a clean report means anything should read 
 fetched; an errored one was fetched and then could not be audited. They are different
 failures with different fixes, and summing them would name neither.
 
+`reused` is counted apart from `audited` for a different reason, and is never added to it:
+those pages have verdicts, from an engine that saw markup byte-identical to this run's, but
+this run is not what produced them. `audited + reused` is the number of pages with a
+verdict; `audited` alone is what was measured today, which is what a consumer deciding how
+current a report is needs. Reuse does not make a run incomplete — `complete` answers
+whether any of the site was missed, and nothing was.
+
 `completeness` was added without moving `schemaVersion`: new fields may
 appear without a bump, and consumers must ignore what they do not recognise. A consumer
 written against an earlier version that has never seen this field should treat its absence
@@ -238,8 +266,13 @@ them. `eaa-kit diff` matches on it.
 ### `coverage`
 
 The denominator is the standard, not your markup. WCAG 2.2 has 55 success criteria at
-Levels A and AA; axe-core has rules touching 23 of them, and the rest cannot be checked by
-any automated engine at all.
+Levels A and AA; this tool has rules for 21 of them, and the other 34 need a person.
+
+axe-core's rules touch 23, and the two remaining are Orientation and Label in Name, which
+it covers only with rules tagged experimental. This tool does not run those, so a run
+cannot reach a verdict on those two criteria and does not claim to: they are counted with
+the criteria a person must check. A test pins both numbers, since an axe-core upgrade can
+move them.
 
 Do not divide these. `noAutomatedRule` is the majority of WCAG, so any ratio built from
 these counts would present a limit of automated testing as though it were a measurement of
@@ -282,7 +315,7 @@ findings somebody introduced are somewhere in the middle of it.
 | **new** | In the later run and not the earlier one |
 | **fixed** | In the earlier run, gone from the later one, on a page the later run audited |
 | **unchanged** | In both |
-| **not compared** | In the earlier run, on a page the later run never audited |
+| **not compared** | In the earlier run, on a page the later run never audited itself |
 
 That last one is the reason to trust the other three. A violation missing from the second
 run has two possible explanations — somebody fixed it, or nothing looked at that page — and
@@ -290,6 +323,11 @@ they are not interchangeable. Reporting the second as *fixed* would turn a crawl
 stopped early into a changelog of work nobody did. So a violation is called fixed only when
 the later run actually reached a verdict on the page it was on, and the rest are listed
 apart, with the pages named.
+
+A page whose result the later run [reused from its cache](audit.md#auditing-only-what-changed)
+counts as one it never audited, for the same reason: the markup was identical, so nothing
+about that page can have been fixed, and announcing it as fixed would be the same lie in a
+quieter voice. It is [`reusedFrom`](#reusedfrom) that makes this visible.
 
 Markup that changed counts as a different violation rather than the same one, which is the
 conservative reading: it avoids calling something fixed because its surroundings moved.
