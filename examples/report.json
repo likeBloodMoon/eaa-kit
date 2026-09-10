@@ -40,6 +40,7 @@
     "unreachable": [],
     "truncated": false,
     "audited": 5,
+    "reused": 0,
     "errored": 0,
     "complete": true
   },

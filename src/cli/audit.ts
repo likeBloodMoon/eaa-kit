@@ -13,10 +13,13 @@ import { count } from '../text.ts'
  * pays the same cost either way, a few milliseconds later.
  */
 
+import type { PageCache } from '../audit/cache.ts'
 import type { CollectedPage } from '../audit/collect.ts'
 import { type RunCompleteness, runCompleteness } from '../audit/completeness.ts'
 import type { ComponentLocation } from '../audit/component.ts'
+import { DEFAULT_TAGS } from '../audit/result.ts'
 import type { ReviewOptions } from '../audit/review.ts'
+import { TOOL_VERSION } from '../version.ts'
 import { advise, emitDocument, fail, note, runEngine, warn } from './command.ts'
 import { type CrawlCommandOptions, resolvePages } from './pages.ts'
 
@@ -72,6 +75,12 @@ export interface AuditCommandOptions extends CrawlCommandOptions {
    * about a site's rate of change that this tool cannot make.
    */
   reviewMaxAge?: number
+  /**
+   * Audit every page, reusing nothing. The cache is on by default because the
+   * common case is a build where almost nothing moved; this is for the run that
+   * has to be able to say it looked at everything itself.
+   */
+  noCache?: boolean
 }
 
 export interface AuditCommandResult {
@@ -114,37 +123,69 @@ export async function runAuditCommand(
   // started the project's server, and leaving it running would hold the process
   // open after the report is written.
   try {
-    note(
-      `Auditing ${count(pages.length, 'page')} in ${label}${await describeEngine(pages, options)}…`,
-    )
-
     // An explicit --base-url still wins; the crawl's own origin is the default
     // so that a fetched page is audited under the URL it was fetched from.
     const baseUrl = options.baseUrl ?? origin
 
-    let audits = await runEngine(pages, {
-      cwd: options.cwd ?? process.cwd(),
-      ...(options.headers === undefined ? {} : { headers: options.headers }),
-      ...(baseUrl === undefined ? {} : { baseUrl }),
-      ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
-      ...(options.browser ? { browser: true } : {}),
-      // Only for the browserless engine. A browser can see layout and CSS, so
-      // there is nothing here it cannot decide, and disabling those rules
-      // there would throw away real verdicts rather than wasted work.
-      ...(options.fast && !options.browser ? { fast: true } : {}),
-      ...(options.concurrency === undefined ? {} : { concurrency: options.concurrency }),
-      // The directory the pages were actually read from, not the one the
-      // caller typed: under auto-detection nobody typed one, and passing
-      // undefined told the browser runner these pages had been crawled. It
-      // then skipped the loopback server and navigated Chromium to a bare
-      // filesystem path, which is not a URL — so `eaa-kit audit --browser`
-      // with no directory argument failed every page it was given.
-      //
-      // Still undefined for a real crawl: those pages are audited at the URL
-      // they came from, not served back out of a copy on disk.
-      ...(directory === undefined ? {} : { directory }),
-    })
-    if (!audits) return { audits: [], exitCode: 2 }
+    // Before the engine, deliberately. Every heavy import below it is an
+    // `await import`, so a run whose pages are all cache hits returns without
+    // ever loading jsdom or starting a worker — which is most of what a short
+    // audit costs.
+    const { hits, misses, cache } = await splitByCache(pages, baseUrl, options)
+
+    if (misses.length === 0) {
+      // Said differently because it is a different thing: nothing was audited,
+      // and the run is about to finish without ever starting an engine.
+      note(`Nothing changed in ${label}: reusing ${count(hits.length, 'page')} from the cache.`)
+    } else {
+      note(
+        `Auditing ${count(misses.length, 'page')} in ${label}${await describeEngine(misses, options)}` +
+          `${hits.length === 0 ? '' : `, reusing ${count(hits.length, 'unchanged page')}`}…`,
+      )
+    }
+
+    // The engine is not merely unused when everything is a hit — it is never
+    // imported. `runEngine` would load the pool, and the pool would start a
+    // worker that loads jsdom, to audit nothing.
+    const fresh =
+      misses.length === 0
+        ? []
+        : await runEngine(misses, {
+            cwd: options.cwd ?? process.cwd(),
+            ...(options.headers === undefined ? {} : { headers: options.headers }),
+            ...(baseUrl === undefined ? {} : { baseUrl }),
+            ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
+            ...(options.browser ? { browser: true } : {}),
+            // Only for the browserless engine. A browser can see layout and CSS, so
+            // there is nothing here it cannot decide, and disabling those rules
+            // there would throw away real verdicts rather than wasted work.
+            ...(options.fast && !options.browser ? { fast: true } : {}),
+            ...(options.concurrency === undefined ? {} : { concurrency: options.concurrency }),
+            // The directory the pages were actually read from, not the one the
+            // caller typed: under auto-detection nobody typed one, and passing
+            // undefined told the browser runner these pages had been crawled. It
+            // then skipped the loopback server and navigated Chromium to a bare
+            // filesystem path, which is not a URL — so `eaa-kit audit --browser`
+            // with no directory argument failed every page it was given.
+            //
+            // Still undefined for a real crawl: those pages are audited at the URL
+            // they came from, not served back out of a copy on disk.
+            ...(directory === undefined ? {} : { directory }),
+          })
+    if (!fresh) return { audits: [], exitCode: 2 }
+
+    // Recorded before anything downstream touches them: a baseline moves
+    // violations into `accepted`, and storing that would freeze one project's
+    // decision into a result that describes a page.
+    for (const [index, page] of misses.entries()) {
+      const audit = fresh[index]
+      if (audit) cache?.put(page, audit)
+    }
+    await cache?.flush()
+
+    // Back into the order the pages were collected in, so a report does not
+    // depend on which of them happened to be cached.
+    let audits = inCollectedOrder(pages, [...hits, ...fresh])
 
     const failOn = options.failOn ?? DEFAULT_FAIL_ON
 
@@ -179,6 +220,71 @@ export async function runAuditCommand(
   } finally {
     await cleanup?.()
   }
+}
+
+/**
+ * Which pages already have a result, and which have to be audited.
+ *
+ * Runs before the engine is imported, which is the point: a build where nothing
+ * changed produces no misses, and a run with no misses never loads jsdom. The
+ * cache itself is opened here rather than earlier so that a run given
+ * `--no-cache` does not read one at all.
+ */
+async function splitByCache(
+  pages: readonly CollectedPage[],
+  baseUrl: string | undefined,
+  options: AuditCommandOptions,
+): Promise<{ hits: PageAudit[]; misses: CollectedPage[]; cache: PageCache | undefined }> {
+  if (options.noCache) return { hits: [], misses: [...pages], cache: undefined }
+
+  const { fromEntry, openCache } = await import('../audit/cache.ts')
+  const { pageUrl } = await import('../audit/result.ts')
+  const axe = (await import('axe-core')).default
+
+  const engine = options.browser ? ('browser' as const) : ('jsdom' as const)
+  const cache = await openCache(
+    {
+      toolVersion: TOOL_VERSION,
+      axeVersion: axe.version,
+      tags: DEFAULT_TAGS,
+      engine,
+      fast: options.fast === true && options.browser !== true,
+      ...(baseUrl === undefined ? {} : { baseUrl }),
+      ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
+      ...(options.headers === undefined ? {} : { headers: options.headers }),
+    },
+    { ...(options.cwd === undefined ? {} : { cwd: options.cwd }) },
+  )
+
+  const hits: PageAudit[] = []
+  const misses: CollectedPage[] = []
+  for (const page of pages) {
+    const entry = cache.get(page)
+    if (entry === undefined) misses.push(page)
+    else hits.push(fromEntry(entry, page, { url: pageUrl(page, baseUrl), engine }))
+  }
+  return { hits, misses, cache }
+}
+
+/**
+ * The audits back in the order their pages were collected in.
+ *
+ * Collection sorts by path so two runs of one build produce the same report,
+ * and splitting the pages into hits and misses would otherwise undo that: the
+ * same site would report its pages in a different order depending on which of
+ * them somebody had edited since yesterday.
+ */
+function inCollectedOrder(
+  pages: readonly CollectedPage[],
+  audits: readonly PageAudit[],
+): PageAudit[] {
+  const byPath = new Map(audits.map((audit) => [audit.relativePath, audit]))
+  const ordered: PageAudit[] = []
+  for (const page of pages) {
+    const audit = byPath.get(page.relativePath)
+    if (audit) ordered.push(audit)
+  }
+  return ordered
 }
 
 /**

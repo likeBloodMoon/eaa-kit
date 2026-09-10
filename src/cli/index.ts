@@ -211,6 +211,7 @@ program
     parseConcurrency,
   )
   .option('--baseline <path>', 'accept the violations recorded in this file; fail only on new ones')
+  .option('--no-cache', 'audit every page, reusing no result from an earlier run')
   .option('--review <path>', 'what a person checked, from eaa-kit checklist')
   .option('--review-max-age <days>', 'stop counting review entries older than this', parseDepth)
   .option('--config <path>', 'take defaults from this config file, otherwise it is searched for')

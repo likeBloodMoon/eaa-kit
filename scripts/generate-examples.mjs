@@ -89,7 +89,11 @@ await mkdir('examples', { recursive: true })
 for (const { format, file } of outputs) {
   const result = spawnSync(
     process.execPath,
-    [CLI, 'audit', FIXTURES, '--format', format, '--output', file],
+    // `--no-cache` for the same reason the clock is frozen: these documents
+    // describe the formats, and a run that reused an earlier result says so in
+    // all four of them. Whether a checkout happens to have a cache is not a
+    // property of the format, and CI regenerating these must not depend on it.
+    [CLI, 'audit', FIXTURES, '--format', format, '--no-cache', '--output', file],
     { stdio: ['ignore', 'inherit', 'inherit'] },
   )
 

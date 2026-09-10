@@ -9,6 +9,59 @@ move: the JSON report's `schemaVersion` and the baseline file's. Both are bumped
 a field is removed, renamed, or changes meaning — new fields may appear without one, so
 consumers must ignore what they do not recognise.
 
+## Unreleased
+
+### Added
+
+- **A run now reuses what it already measured, and a run with nothing to re-audit never
+  loads an engine.** `.eaa-kit/cache/` holds one result per page, keyed by the page's path
+  and a hash of its markup; a page that has not changed byte for byte is not audited again.
+  `--no-cache`, or `cache: false` in `eaa.config`, turns it off.
+
+  The saving is not marginal. Auditing a page costs about 60 ms, but *starting* an audit
+  costs the best part of a second, nearly all of it spent loading jsdom before a single
+  page is parsed. Pages are collected and hashed before anything decides an engine is
+  needed, so a run whose pages are all reused skips that entirely: the five-page fixture in
+  this repository goes from ~1,070 ms to ~225 ms, against ~170 ms for `eaa-kit --version`,
+  and a test asserts the engine is handed no pages rather than merely finding none. On a
+  real site the other half matters more — a commit that touches three templates stops
+  paying to re-audit two hundred pages.
+
+  What makes this worth having rather than merely fast is that a reused result is never
+  presented as a fresh one. Reuse is its own count in the completeness record, never added
+  to `audited`: all four formats say how many pages were reused and from when, the JSON
+  report carries `completeness.reused` and a `reusedFrom` date on each page, and SARIF
+  carries `pagesReused`. `eaa-kit diff` reads that marker and refuses to call a violation
+  fixed on a page the later run did not look at — until now its only test for "this run
+  examined the page" was that the page had no error, which a reused page also does not
+  have, so a cached run could have reported work nobody did. A test asserts that a run
+  reusing everything reports exactly what the same run reports under `--no-cache`; if that
+  ever stops being true, the cache is not a cache but a second opinion.
+
+  Every input that could change a verdict is part of the key — eaa-kit's version,
+  axe-core's version, the rule tags, the engine, `--fast`, the viewport, `--base-url`, the
+  timeout, and any `--header` — and a mismatch in any of them discards the whole cache
+  rather than reasoning about which entries might have survived. Credentials are in the key
+  as a hash and never as text, which is the line this project already holds for
+  `eaa.config`. Four things are deliberately never stored: absolute paths and URLs, because
+  they describe a machine rather than a page; how long the audit took, because it is not
+  reproducible; whether a baseline accepted a violation, because that is re-decided every
+  run; and the result of a page that could not be audited, because a timeout is one bad
+  afternoon and caching it would make it permanent. An unreadable entry is a miss, never a
+  stale verdict, and a cache that cannot be written at all leaves the run correct and
+  merely as slow as it would have been.
+
+  Reachable from where runs actually happen, which is the rule every flag here follows:
+  every build plugin takes `cache`, and the GitHub Action takes `cache` too — where it is
+  worth nothing until the workflow restores `.eaa-kit/cache` between runs, which
+  [docs/integrations.md](docs/integrations.md) now shows how to do. `eaa-kit baseline` is
+  deliberately left out: a baseline is a file somebody commits and lives with for months,
+  and it is worth a second to build one from a run that looked at every page itself.
+
+  `completeness.reused` and `reusedFrom` are new fields, so the JSON report's
+  `schemaVersion` stays at 2. A report written before they existed is read as it was meant:
+  those runs audited every page they listed.
+
 ## 0.6.0 — 2026-09-09
 
 ### Added

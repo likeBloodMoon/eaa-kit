@@ -86,6 +86,16 @@ export interface JsonPage {
   inapplicable: string[]
   /** Non-null when the page could not be audited; all four arrays are empty. */
   error: string | null
+  /**
+   * The day this result was produced, when it came from the cache rather than
+   * from this run.
+   *
+   * Absent on a page this run audited. Present, it means an engine reached
+   * these verdicts on byte-identical markup on that day and this run reused
+   * them — which `diff` reads, because a page the later run did not look at
+   * cannot have been fixed between the two reports.
+   */
+  reusedFrom?: string
 }
 
 export interface JsonSummary {
@@ -290,6 +300,7 @@ function toJsonPage(audit: PageAudit): JsonPage {
     passes: [...audit.passes].sort(byRuleId).map((outcome) => outcome.ruleId),
     inapplicable: [...audit.inapplicable].sort(byRuleId).map((outcome) => outcome.ruleId),
     error: audit.error ?? null,
+    ...(audit.reused === undefined ? {} : { reusedFrom: audit.reused.on }),
   }
 }
 

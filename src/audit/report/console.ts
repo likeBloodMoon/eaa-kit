@@ -1,6 +1,6 @@
 import pc from 'picocolors'
 import { collapse, count, plural } from '../../text.ts'
-import type { RunCompleteness } from '../completeness.ts'
+import { type RunCompleteness, reusedPart } from '../completeness.ts'
 import { type ComponentLocation, componentPath } from '../component.ts'
 import { buildCoverage, type Coverage, coverageSummary, reviewSummary } from '../coverage.ts'
 import { byImpactThenRule, DEFAULT_FAIL_ON, type ImpactLevel, impactLabel } from '../impact.ts'
@@ -472,9 +472,15 @@ const STATUS_WORDS: Record<Coverage['criteria'][number]['status'], string> = {
  */
 function completenessLines(ctx: Context): string[] {
   const completeness = ctx.completeness
-  if (completeness === undefined || completeness.complete) return []
+  if (completeness === undefined) return []
 
-  const lines: string[] = []
+  // Said even on a complete run, and before the counts: every page has a
+  // verdict, and which of them were measured today changes how the numbers
+  // below should be read.
+  const reused = reusedPart(completeness)
+  const lines: string[] = reused === undefined ? [] : [line(ctx, `  ${reused}`, ctx.c.dim)]
+
+  if (completeness.complete) return lines
 
   if (completeness.unreachable.length > 0) {
     const noun = plural(completeness.unreachable.length, 'page')

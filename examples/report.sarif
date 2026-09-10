@@ -1178,6 +1178,7 @@
         "complete": true,
         "discovery": "directory",
         "pagesAudited": 5,
+        "pagesReused": 0,
         "pagesErrored": 0,
         "pagesUnreachable": 0,
         "truncated": false

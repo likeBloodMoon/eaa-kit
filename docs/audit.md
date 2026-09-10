@@ -233,6 +233,7 @@ chatter coming along.
 | `--concurrency <n>` | from page and core count | Pages to audit at once — threads without `--browser`, tabs with it; `1` turns both off |
 | `--fast` | off | Skip the rules the browserless engine cannot decide, rather than running them and discarding the answer |
 | `--baseline <path>` | — | Accept the violations recorded in this file; fail only on new ones |
+| `--no-cache` | on | Audit every page, reusing nothing an earlier run measured |
 | `--header <header>` | — | Send this header with every request, e.g. `"Authorization: Bearer …"`. Repeatable |
 | `--basic-auth <user:password>` | — | Send an `Authorization` header for basic auth |
 | `--review <path>` | — | [What a person checked](review.md), for the criteria no engine reaches |
@@ -284,6 +285,7 @@ the schema is required by `statement`, which is the command that publishes a doc
 | `perPage`, `manual`, `coverage` | the console report's three extra sections |
 | `review`, `reviewMaxAge` | `--review`, `--review-max-age` |
 | `build` | `false` is `--no-build` |
+| `cache` | `false` is `--no-cache` |
 
 `baseline` reads the keys that mean the same thing to it — the page selection and the
 engine — and not the ones that do not. `output` is where the report goes for one command
@@ -467,6 +469,65 @@ The default is the safe one; `--concurrency 1` is the setting to be careful with
 site in a memory-capped container. If a run does die with *JavaScript heap out of memory*,
 raise the thread count before anything else, then `NODE_OPTIONS=--max-old-space-size=4096`,
 then split the run with `--include`.
+
+## Auditing only what changed
+
+A run keeps what it measured in `.eaa-kit/cache/`, one file per page, and the next run
+reuses the result for any page whose markup is byte-identical. Nothing about it is
+configured: it is on, `--no-cache` turns it off, and deleting the directory is always safe.
+
+What it buys is most of a run that has nothing to do. The engine is loaded through a
+dynamic import, so a run whose pages are all reused never imports jsdom at all — the
+pages are read and hashed before anything decides an engine is needed, and a test asserts
+that the engine is handed no pages rather than merely finding none. Medians of five runs
+over the five-page fixture in this repository, on one machine:
+
+| | |
+| --- | --- |
+| First run, nothing cached | ~1,070 ms |
+| Second run, one page edited | ~870 ms |
+| Second run, nothing edited | ~225 ms |
+| `eaa-kit --version`, for scale | ~170 ms |
+
+A run that reuses everything costs about what starting the process costs. The 55 ms above
+it is axe-core, which is loaded even then: the console report's coverage table is computed
+from axe's rule set, and that is as true of a reused result as of a fresh one. jsdom, which
+is the expensive one, is not loaded at all.
+
+Editing one page of five saves less because the fixed cost is most of a small run — the
+saving there is the four pages, at roughly 60 ms each. That ratio is what inverts on a real
+site: a commit touching three templates of two hundred pages pays for three.
+
+**A reused result is never presented as a fresh one.** All four report formats count reuse
+apart from auditing — the console and HTML reports name it in the run details, the JSON
+report carries `completeness.reused` and a `reusedFrom` date on each page, SARIF carries
+`pagesReused` — and `eaa-kit diff` refuses to call a reused page fixed, because this run
+did not look at it. The verdicts themselves are real: an engine produced them, from markup
+identical to today's, and a test asserts that a run reusing everything reports exactly what
+the same run reports under `--no-cache`.
+
+The cache is keyed on more than the markup. The tool's own version, axe-core's version, the
+rule tags, the engine, `--fast`, the viewport, `--base-url`, the timeout and any
+`--header` all form part of the key, and a mismatch in any of them discards the whole cache
+rather than reasoning about which entries survived. Upgrading eaa-kit, switching to
+`--browser` or adding a credential therefore re-audits everything, which is the only answer
+that cannot be wrong.
+
+Four things are deliberately never stored: absolute paths and URLs, which are facts about a
+machine rather than a page; how long the audit took, which is not reproducible; whether a
+baseline accepted a violation, which is re-decided on every run; and the result of a page
+that could not be audited, because a timeout is one bad afternoon and freezing it would
+make it permanent. Credentials are part of the key only as a hash, never as text — the same
+line this tool holds for `eaa.config`. An entry that cannot be read is a miss, never a
+stale verdict and never an error, and a cache directory that cannot be written at all
+leaves the run correct and merely as slow as it would have been.
+
+`.eaa-kit/` is in this project's `.gitignore` and should be in yours. Committing it would
+not be unsafe, but it would be a large directory of facts about somebody else's checkout.
+
+`eaa-kit baseline` does not use the cache and never has anything to say about it. A
+baseline is a file somebody commits and then lives with for months, and it is worth the
+1.2 seconds to build one from a run that looked at every page itself.
 
 ## The Issues section
 

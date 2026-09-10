@@ -41,6 +41,7 @@ prints, and fails the build on violations at or above the threshold.
 | `baseline` | — | Accept the violations in this file; fail only on new ones |
 | `review` | — | A [review record](review.md): what a person checked. Never changes whether the build fails |
 | `reviewMaxAge` | — | Days after which a review entry stops counting |
+| `cache` | `true` | Reuse the result for any page whose markup has not changed. `false` audits every page |
 | `format`, `output` | — | Also write a report, as `--format` and `--output` do |
 | `include`, `exclude`, `baseUrl`, `browser`, `fast`, `concurrency` | | As for `audit` |
 
@@ -158,6 +159,7 @@ absence.
 | `failBuild: false` | report without failing — for the week it takes to adopt this on a site that already exists |
 | `enabled: false` | skip entirely, for turning it off per environment without unwiring it |
 | `directory` | audit somewhere other than the build's `outDir` |
+| `cache: false` | audit every page, rather than reusing the result for any whose markup has not changed |
 | `browser`, `fast`, `baseline`, `review`, `reviewMaxAge`, `include`, `exclude`, `format`, `output` | as the CLI |
 
 `outDir` is read from the resolved Vite config, so a project that moved its output needs no
@@ -283,6 +285,7 @@ watching is the wrong default for something whose job is to fail that build.
 | `review-max-age` | — | Days after which a review entry stops counting; undated entries stop counting too |
 | `concurrency` | from page and core count | Worker threads for the browserless engine; `1` for none |
 | `fast` | `false` | Skip the rules the browserless engine cannot decide instead of running them and discarding the answer |
+| `cache` | `true` | Reuse the result for any page whose markup has not changed; worth nothing on a fresh runner unless `.eaa-kit/cache` is restored |
 | `version` | `latest` | Version of eaa-kit to run |
 
 ### Outputs
@@ -294,6 +297,29 @@ watching is the wrong default for something whose job is to fail that build.
 
 An audit that exits `2` never produced a verdict, so no SARIF is written and the upload is
 skipped; the job fails either way.
+
+### Auditing only what changed, on CI
+
+A runner starts empty, so the [page cache](audit.md#auditing-only-what-changed) has nothing
+to reuse unless the workflow restores it. On a site of any size that is the difference
+between auditing every page on every push and auditing the ones the push touched:
+
+```yaml
+      - uses: actions/cache@v4
+        with:
+          path: .eaa-kit/cache
+          key: eaa-kit-${{ github.sha }}
+          restore-keys: eaa-kit-
+```
+
+before the audit step. A restored cache is never a way to miss something: every input that
+could change a verdict is in its key, so an eaa-kit upgrade, a different engine or a
+changed flag discards it wholesale, and a page is reused only when its markup is
+byte-identical. What the report says about it is in the run properties either way — SARIF
+carries `pagesReused`, so a log that reused half the site says so.
+
+Restoring it into a release or nightly job is the case for `cache: false`, which audits
+everything regardless of what is on disk.
 
 ### Without the action
 
