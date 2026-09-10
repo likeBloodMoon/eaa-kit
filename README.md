@@ -9,11 +9,19 @@ in the DACH region — the BFSG in Germany, the BaFG in Austria — and the stat
 the statute and supervisory body of **seven countries**: Austria, Germany, Switzerland,
 Spain, France, Italy and the Netherlands, each in its own language as well as English.
 
-0.6.0 adds the half no engine can do. Of the 55 WCAG 2.2 A and AA success criteria, 34 have
-no automated rule at all: `checklist` writes those down as a review somebody works through,
-`audit --review` reads the answers back beside what the run measured, and `statement` now
-refuses to publish a claim of full conformance that either one contradicts. Sites behind a
-login or a preview protection are auditable too.
+0.7.0 makes a run cost what it should. A page that has not changed byte for byte is not
+audited again, and a run with nothing to re-audit never loads an engine at all: twenty
+pages go from ~2,520 ms to ~230 ms, which is about what starting the process costs. A
+reused result is never passed off as a fresh one — every report says how much was reused
+and from when, and `diff` will not call a page fixed that this run did not look at. The
+statement now also says how many of WCAG's 55 criteria a person checked by hand, and
+`pnpm bench` prints the numbers in this paragraph for your own machine.
+
+0.6.0 added the half no engine can do. Of the 55 WCAG 2.2 A and AA success criteria, 34
+have no automated rule at all: `checklist` writes those down as a review somebody works
+through, `audit --review` reads the answers back beside what the run measured, and
+`statement` refuses to publish a claim of full conformance that either one contradicts.
+Sites behind a login or a preview protection are auditable too.
 
 ```bash
 npx eaa-kit audit                 # WCAG 2.2 AA report; finds your build itself
@@ -121,6 +129,12 @@ your site.
 
 **Says what it did not measure.** A crawl that stopped at its page limit, or could not
 fetch forty URLs, no longer produces a report that looks like a complete one.
+
+**Audits only what changed.** A page whose markup is byte-identical to the last run's keeps
+the result it already had, and a run with nothing to re-audit never loads an engine —
+twenty pages in ~230 ms instead of ~2,520 ms, which is about what starting the process
+costs. Reuse is counted apart from auditing in all four reports, and `diff` will not call a
+page fixed that this run did not look at. `--no-cache` audits everything regardless.
 
 **Reports in four shapes**: a console report for whoever ran it, JSON for other tools,
 SARIF for GitHub code scanning, and a self-contained HTML page for the client whose site
