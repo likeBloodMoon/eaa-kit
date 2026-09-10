@@ -18,14 +18,14 @@ consumers must ignore what they do not recognise.
   and a hash of its markup; a page that has not changed byte for byte is not audited again.
   `--no-cache`, or `cache: false` in `eaa.config`, turns it off.
 
-  The saving is not marginal. Auditing a page costs about 60 ms, but *starting* an audit
-  costs the best part of a second, nearly all of it spent loading jsdom before a single
-  page is parsed. Pages are collected and hashed before anything decides an engine is
-  needed, so a run whose pages are all reused skips that entirely: the five-page fixture in
-  this repository goes from ~1,070 ms to ~225 ms, against ~170 ms for `eaa-kit --version`,
-  and a test asserts the engine is handed no pages rather than merely finding none. On a
-  real site the other half matters more — a commit that touches three templates stops
-  paying to re-audit two hundred pages.
+  The saving is not marginal. A page costs about 80 ms at the margin, but everything
+  *before* the first page costs about 900 ms, nearly all of it loading jsdom. Pages are
+  collected and hashed before anything decides an engine is needed, so a run whose pages
+  are all reused skips that entirely: twenty pages go from ~2,520 ms to ~230 ms, against
+  ~165 ms for `eaa-kit --version`, and a test asserts the engine is handed no pages rather
+  than merely finding none. On a real site the other half matters more — a commit that
+  touches three templates stops paying to re-audit two hundred pages. Every number here is
+  from `pnpm bench`, below, and can be re-run.
 
   What makes this worth having rather than merely fast is that a reused result is never
   presented as a fresh one. Reuse is its own count in the completeness record, never added
@@ -61,6 +61,22 @@ consumers must ignore what they do not recognise.
   `completeness.reused` and `reusedFrom` are new fields, so the JSON report's
   `schemaVersion` stays at 2. A report written before they existed is read as it was meant:
   those runs audited every page they listed.
+
+- **`pnpm bench`**, so the numbers this project quotes can be re-run by anybody. Until now
+  every performance claim here was a number in a doc comment produced once by a benchmark
+  that no longer existed — the worker pool's thresholds are still calibrated to "a 4-core
+  box" that lives only in a commit message, and a regression in any recorded win would have
+  been invisible.
+
+  `scripts/bench.mjs` measures the fixed cost of a run, the marginal cost of a page, a
+  cached run against a cold one, and the four report renderers, over a twenty-page site it
+  generates itself — its own template rather than a test fixture, so the numbers move when
+  the tool changes and not when a fixture does. Medians of five runs through the built CLI
+  as a separate process, because that is what a user waits for.
+
+  Deliberately not a CI gate: timing on a shared runner is noise, and a gate that goes red
+  on somebody else's neighbour teaches people to ignore it. It prints a table two checkouts
+  can be compared on and stops there.
 
 ## 0.6.0 — 2026-09-09
 

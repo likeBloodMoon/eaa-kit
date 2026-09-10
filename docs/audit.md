@@ -479,24 +479,25 @@ configured: it is on, `--no-cache` turns it off, and deleting the directory is a
 What it buys is most of a run that has nothing to do. The engine is loaded through a
 dynamic import, so a run whose pages are all reused never imports jsdom at all — the
 pages are read and hashed before anything decides an engine is needed, and a test asserts
-that the engine is handed no pages rather than merely finding none. Medians of five runs
-over the five-page fixture in this repository, on one machine:
+that the engine is handed no pages rather than merely finding none. Twenty pages, medians
+of five runs, from `pnpm bench` on a four-core Linux box:
 
 | | |
 | --- | --- |
-| First run, nothing cached | ~1,070 ms |
-| Second run, one page edited | ~870 ms |
-| Second run, nothing edited | ~225 ms |
-| `eaa-kit --version`, for scale | ~170 ms |
+| First run, nothing cached | ~2,520 ms |
+| Second run, one page edited | ~1,060 ms |
+| Second run, nothing edited | ~230 ms |
+| `eaa-kit --version`, for scale | ~165 ms |
 
-A run that reuses everything costs about what starting the process costs. The 55 ms above
-it is axe-core, which is loaded even then: the console report's coverage table is computed
-from axe's rule set, and that is as true of a reused result as of a fresh one. jsdom, which
-is the expensive one, is not loaded at all.
+A page costs about 80 ms at the margin; everything before the first page costs about
+900 ms, nearly all of it loading jsdom. That is the shape of the saving: a run that reuses
+everything costs about what starting the process costs, and a run that re-audits one page
+of twenty still pays the 900 ms once. The 65 ms between the reused run and `--version` is
+axe-core, which is loaded either way — the console report's coverage table is computed from
+axe's rule set, and that is as true of a reused result as of a fresh one.
 
-Editing one page of five saves less because the fixed cost is most of a small run — the
-saving there is the four pages, at roughly 60 ms each. That ratio is what inverts on a real
-site: a commit touching three templates of two hundred pages pays for three.
+Those numbers are from one machine on one afternoon. `pnpm bench` prints the same table for
+yours.
 
 **A reused result is never presented as a fresh one.** All four report formats count reuse
 apart from auditing — the console and HTML reports name it in the run details, the JSON
