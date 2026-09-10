@@ -15,10 +15,12 @@ import { type CriterionReview, criterionReview, type ReviewOptions } from './rev
  * than a figure.
  *
  * There is an honest denominator, and it is the standard rather than the DOM.
- * WCAG 2.2 has 55 success criteria at Levels A and AA. axe-core has rules
- * touching 23 of them. That is the number nobody publishes, and it is the most
- * useful thing this tool can say about its own limits: most of WCAG cannot be
- * checked by any automated engine, and no amount of green output changes it.
+ * WCAG 2.2 has 55 success criteria at Levels A and AA. The rules this tool runs
+ * touch 21 of them — axe-core's touch 23, two of those only through rules it
+ * tags experimental, which are not run here. That is the number nobody
+ * publishes, and it is the most useful thing this tool can say about its own
+ * limits: most of WCAG cannot be checked by any automated engine, and no amount
+ * of green output changes it.
  *
  * Four outcomes, and every criterion lands in exactly one — the same discipline
  * `shapeResults` enforces for rules, for the same reason. They must never be

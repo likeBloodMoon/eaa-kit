@@ -90,6 +90,8 @@ consumers must ignore what they do not recognise.
   from a translation of the English. `examples/statement.audit.de.md` is regenerated with
   both kinds of evidence behind it.
 
+- **Node 26 in the CI matrix**, which `engines` has claimed since 0.6.0.
+
 - **`pnpm bench`**, so the numbers this project quotes can be re-run by anybody. Until now
   every performance claim here was a number in a doc comment produced once by a benchmark
   that no longer existed — the worker pool's thresholds are still calibrated to "a 4-core
@@ -105,6 +107,20 @@ consumers must ignore what they do not recognise.
   Deliberately not a CI gate: timing on a shared runner is noise, and a gate that goes red
   on somebody else's neighbour teaches people to ignore it. It prints a table two checkouts
   can be compared on and stops there.
+
+### Fixed
+
+- **"axe-core has rules touching 23 of the 55 criteria" was two too high**, in the README,
+  two docs pages and a module comment. Two of those 23 — 1.3.4 Orientation and 2.5.3 Label
+  in Name — are covered only by rules axe-core tags experimental, which this tool does not
+  run, so a run cannot reach a verdict on them and never claimed to. The number that
+  matches what the tool does is **21**, and it now says 21. Nothing computed moved: the
+  reports have always counted those two among the criteria a person must check, which is
+  where the contradiction was visible — 55 minus 23 is not 34.
+
+  Caught by a new test that pins both counts, added this release exactly because they are
+  computed from axe-core's rule set and an upgrade can move them. It found the drift it was
+  written for on the day it was written.
 
 ## 0.6.0 — 2026-09-09
 

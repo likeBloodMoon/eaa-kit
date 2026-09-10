@@ -68,6 +68,34 @@ describe('buildCoverage', () => {
     expect(coverage.criteria).toHaveLength(WCAG22_AA_CRITERIA.length)
   })
 
+  it('reaches 21 of the 55 criteria and leaves 34 to a person, which the docs quote', () => {
+    // Both numbers are computed from axe-core's rule set, and both are printed
+    // by every run and repeated in README.md, docs/audit.md, docs/reports.md
+    // and docs/review.md. An axe-core upgrade can move them, and a claim about
+    // the standard that has quietly stopped being true is worse than no claim,
+    // so an upgrade fails here and the docs get rewritten in the same commit.
+    // The published figure was wrong by two for a release before this existed.
+    const reachable = coverage.criteria.filter((criterion) => criterion.rules.length > 0)
+
+    expect(reachable).toHaveLength(21)
+    expect(coverage.noAutomatedRule).toBe(34)
+    expect(reachable.length + coverage.noAutomatedRule).toBe(coverage.total)
+  })
+
+  it('counts a criterion axe-core covers only experimentally as one a person must check', () => {
+    // Orientation and Label in Name have an axe rule each, and both are tagged
+    // experimental, so this tool does not run them. A criterion nothing here
+    // will check is a criterion a person has to, whatever the tag says — and
+    // the two together are the difference between the 23 axe-core touches and
+    // the 21 this reaches.
+    for (const number of ['1.3.4', '2.5.3']) {
+      const criterion = coverage.criteria.find((candidate) => candidate.number === number)
+
+      expect(criterion?.status).toBe('no-automated-rule')
+      expect(criterion?.rules).toEqual([])
+    }
+  })
+
   it('reports the majority of WCAG as unautomatable, because it is', () => {
     // The number this exists to publish. If a change to the rule mapping ever
     // makes this small, something has started overclaiming.

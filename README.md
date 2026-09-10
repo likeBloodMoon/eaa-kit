@@ -114,9 +114,10 @@ eaa-kit audit --review eaa-review.json --coverage
 ```
 
 **Says how much of WCAG it could reach.** WCAG 2.2 has 55 success criteria at Levels A and
-AA. axe-core has rules touching 23 of them. Every run says so, and `--coverage` lists all
-55 with what this run reached on each — never as a percentage, because most of WCAG cannot
-be automated and a score would present that as a fact about your site.
+AA. This tool has rules for 21 of them, and 34 need a person. Every run says so, and
+`--coverage` lists all 55 with what this run reached on each — never as a percentage,
+because most of WCAG cannot be automated and a score would present that as a fact about
+your site.
 
 **Says what it did not measure.** A crawl that stopped at its page limit, or could not
 fetch forty URLs, no longer produces a report that looks like a complete one.

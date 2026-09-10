@@ -624,8 +624,8 @@ Findings also name the source file **and line** where the element was written, s
 
 ## How much of WCAG a run reaches
 
-WCAG 2.2 has **55 success criteria** at Levels A and AA. axe-core has rules touching **23**
-of them. Every run says so:
+WCAG 2.2 has **55 success criteria** at Levels A and AA. This tool has rules for **21** of
+them. Every run says so:
 
 ```
 Of the 55 WCAG 2.2 A and AA success criteria, 34 cannot be checked by any
@@ -646,7 +646,7 @@ into a score:
 | **rules ran and found nothing to check** | The rules applied to nothing on this site |
 | **no automated rule exists** | Nothing can check it; a person must |
 
-The last is the majority, and it is the point. A tool that reported "23 of 55" as a
+The last is the majority, and it is the point. A tool that reported "21 of 55" as a
 percentage would be presenting a limit of automated testing as though it were a measurement
 of your site. The denominator here is the standard, not your markup — which is why it is
 worth stating at all, and why it never becomes a grade.

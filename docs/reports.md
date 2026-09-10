@@ -266,8 +266,13 @@ them. `eaa-kit diff` matches on it.
 ### `coverage`
 
 The denominator is the standard, not your markup. WCAG 2.2 has 55 success criteria at
-Levels A and AA; axe-core has rules touching 23 of them, and the rest cannot be checked by
-any automated engine at all.
+Levels A and AA; this tool has rules for 21 of them, and the other 34 need a person.
+
+axe-core's rules touch 23, and the two remaining are Orientation and Label in Name, which
+it covers only with rules tagged experimental. This tool does not run those, so a run
+cannot reach a verdict on those two criteria and does not claim to: they are counted with
+the criteria a person must check. A test pins both numbers, since an axe-core upgrade can
+move them.
 
 Do not divide these. `noAutomatedRule` is the majority of WCAG, so any ratio built from
 these counts would present a limit of automated testing as though it were a measurement of
