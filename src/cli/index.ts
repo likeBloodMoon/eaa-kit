@@ -153,6 +153,7 @@ program
   .name('eaa-kit')
   .description(
     'WCAG 2.2 AA auditor and EU accessibility statement generator for static sites.\n' +
+      'Run it with no command to find your site, audit it and write a report.\n' +
       'Not legal advice.',
   )
   .version(TOOL_VERSION, '-v, --version')
@@ -215,11 +216,32 @@ program
   .option('--review <path>', 'what a person checked, from eaa-kit checklist')
   .option('--review-max-age <days>', 'stop counting review entries older than this', parseDepth)
   .option('--config <path>', 'take defaults from this config file, otherwise it is searched for')
-  .action(async (dir: string | undefined, flags: AuditFlags) => {
+  .option('--watch', 'audit again whenever the build directory changes, until Ctrl-C')
+  .action(async (dir: string | undefined, { watch, ...flags }: AuditFlags & { watch?: true }) => {
     const defaults = await auditDefaults({ ...(flags.config ? { config: flags.config } : {}) })
     const invocation = auditInvocation(dir, defaults, flags)
-    const { exitCode } = await runAuditCommand(invocation.dir, invocation.options)
-    process.exitCode = exitCode
+    if (!watch) {
+      const { exitCode } = await runAuditCommand(invocation.dir, invocation.options)
+      process.exitCode = exitCode
+      return
+    }
+
+    // Refused rather than turned into a poll: a running site changes without
+    // writing anything this process can see.
+    if (invocation.options.url !== undefined) {
+      fail('--watch watches a build directory, and --url audits a running site.')
+      process.exitCode = 2
+      return
+    }
+    const { watchAudit } = await import('./watch.ts')
+    process.exitCode = await watchAudit({
+      run: (directory) => runAuditCommand(directory, invocation.options),
+      directory: invocation.dir,
+      cwd: process.cwd(),
+      // What a run writes into the directory it may be watching: the page
+      // cache, and the report when --output points inside the build.
+      ignore: ['.eaa-kit', ...(invocation.options.output ? [invocation.options.output] : [])],
+    })
   })
 
 // The page-selection and credential flags below repeat `audit`'s word for word,
@@ -279,6 +301,15 @@ program
     const { runChecklistCommand } = await import('./checklist.ts')
     const { exitCode } = await runChecklistCommand(flags)
     process.exitCode = exitCode
+  })
+
+program
+  .command('countries')
+  .description('List the countries a statement can be written for, and what each one names')
+  .option('--json', 'print the list as JSON')
+  .action(async (flags: { json?: true }) => {
+    const { formatCountries } = await import('./countries.ts')
+    process.stdout.write(formatCountries(flags))
   })
 
 program
@@ -342,7 +373,17 @@ program
   })
 
 try {
-  await program.parseAsync(process.argv)
+  // `eaa-kit` on its own: the first thing anybody types, so it does the useful
+  // thing rather than printing the help and exiting 2. Decided before commander
+  // sees the arguments, rather than as a program action, because an action on
+  // the program turns `eaa-kit adit` into "too many arguments" instead of
+  // "unknown command, did you mean audit?".
+  if (process.argv.length <= 2) {
+    const { runFirstRun } = await import('./start.ts')
+    process.exitCode = (await runFirstRun()).exitCode
+  } else {
+    await program.parseAsync(process.argv)
+  }
 } catch (cause) {
   // A config file that exists and cannot be read: the same report `statement`
   // gives, since it is the same file and the same mistake.

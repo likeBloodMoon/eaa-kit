@@ -9,6 +9,55 @@ move: the JSON report's `schemaVersion` and the baseline file's. Both are bumped
 a field is removed, renamed, or changes meaning — new fields may appear without one, so
 consumers must ignore what they do not recognise.
 
+## Unreleased — 0.8.0
+
+### Added
+
+- **`eaa-kit` on its own is now the whole first run.** It used to print the help and exit 2.
+  With nothing set up (no config, no flags), it finds the site, audits it, prints the
+  report, writes the HTML report to `.eaa-kit/report.html`, and ends with what it found
+  out about the project and which command to run next. `.eaa-kit/` gets its own
+  `.gitignore`. A folder with no site in it is left untouched. The exit codes are
+  `audit`'s: a first look at a site with critical barriers does not exit 0.
+- **A folder of hand-written HTML is found.** No `package.json` and HTML at the top level
+  means the folder is the site, and `audit` with no arguments audits it where it stands.
+- **`init` reads what the built site says about itself.** `<html lang>` becomes the
+  default language and, where it points at one, the default country: `pl` is Poland,
+  `fr-BE` is Belgium, `en` and `fr-CA` suggest nothing. The canonical link becomes the
+  default address. These are only defaults: `init` still asks, because a site's language
+  does not settle which country's law applies.
+- **Four more countries: Belgium, Ireland, Poland and Portugal.** `BE` in French, Dutch and
+  English, `IE` in English, `PL` in Polish and English, `PT` in Portuguese and English —
+  fourteen templates to twenty-two, each written under its own country's law rather than
+  translated from another's. Belgium and Portugal say that supervision is split instead of
+  naming one body as if it owned the subject. `pl` and `pt` are new `--lang` values.
+
+  **Given up, and said so:** the statute, the authority and the enforcement route for these
+  four were established from regulators' pages, government portals and law firms. The
+  official gazettes could not be reached from where the templates were written. So they
+  cite less than the older seven, with no article numbers and no fine amounts. They are
+  marked in `eaa-kit countries` and in the docs until somebody has checked them against
+  the primary text, and that check blocks the 0.8.0 tag. Belgium has no German rendering;
+  that is 0.9.
+- **`eaa-kit countries`** lists every country a statement can be written for, with its
+  languages, statute and the authority its template names. `--json` prints the same list
+  for other tools.
+- **`audit --watch`** audits again whenever the build directory changes. Unchanged pages
+  are reused from the cache, so a save costs about as much as the pages it touched.
+  `--watch` with `--url` is an error rather than a poll dressed up as a watch. A watch
+  exits 0 when stopped, whatever it last found. A change that lands mid-run starts another
+  run rather than being dropped.
+
+### Changed
+
+- **`init` no longer turns an unrecognised country into Austria without a word.** It asks
+  again, with the list, and accepts a country's English name as well as its code. After
+  three unrecognised answers it still writes the file, since a typo should not cost every
+  other answer, but it says the country is a default and not what was typed.
+- What the tool knows about each country lives in one registry, `src/config/countries.ts`.
+  A test fails when a template exists without its registry entry, or an entry without its
+  template.
+
 ## 0.7.0 — 2026-09-10
 
 ### Added

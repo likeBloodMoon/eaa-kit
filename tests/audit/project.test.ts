@@ -131,3 +131,32 @@ describe('a CMS is detected and then left alone', () => {
     expect(await autoDetectSource(dir, { noBuild: true })).toBeUndefined()
   })
 })
+
+describe('a site written by hand', () => {
+  it('is audited where it stands when there is no package.json', async () => {
+    // No build, no framework: the folder somebody uploads is the site.
+    const dir = await project({ 'index.html': '<html></html>', 'about/index.html': '' })
+
+    const detected = await autoDetectSource(dir)
+
+    expect(detected?.directory).toBe(dir)
+    expect(detected?.steps.join(' ')).toContain('hand-written HTML')
+  })
+
+  it('is not assumed from HTML nested somewhere below', async () => {
+    const dir = await project({ 'notes/saved/page.html': '' })
+
+    expect(await autoDetectSource(dir)).toBeUndefined()
+  })
+
+  it('is not assumed in a project with a package.json', async () => {
+    // A Vite project has an index.html at its root, and it is the source the
+    // build reads, not a page anybody visits.
+    const dir = await project({
+      'index.html': '<html></html>',
+      'package.json': JSON.stringify({ scripts: {} }),
+    })
+
+    expect(await autoDetectSource(dir, { noBuild: true })).toBeUndefined()
+  })
+})

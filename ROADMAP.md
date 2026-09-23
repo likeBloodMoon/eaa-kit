@@ -9,6 +9,129 @@ here is allowed to make a run look more complete than it was.
 A section for a released version is left in place with what landed marked on it, so the
 record shows what was planned as well as what shipped.
 
+## Towards 1.0
+
+1.0 is the release where somebody who has never read this file can install the tool, answer
+a few questions, and end up with an audit in CI and a statement they can publish, without
+having to learn the tool first. Three releases get there:
+
+- **0.8.0 — reach.** More of the EU single market, and the loop between editing and seeing
+  a result made short enough to use while working rather than after.
+- **0.9.0 — the first ten minutes.** Everything a new user meets before their first useful
+  result: `init` that sets up CI and a baseline as well as a config, errors that say what to
+  type next, and a German rendering for Belgium's third language community. The countries
+  after this release's four — Sweden, Denmark, Finland, Czechia — go here, with the same rule.
+- **1.0.0 — the promise.** The JSON report, the review record, the baseline and the config
+  file frozen as documented contracts under semver, with a migration note for anything that
+  changed on the way. No new surface: 1.0 is 0.9 with the guarantees written down.
+
+## 0.8.0 — reach
+
+0.7.0 made a run cost what it should. 0.8.0 spends that on two things: getting the tool to
+more of the people the EAA applies to, and getting a result to them while they are still
+looking at the code that caused it.
+
+### 1. Four more countries: Belgium, Ireland, Poland, Portugal
+
+On 0.5.0's rule: a statement is written under its country's own law, not translated from
+another's, in the language that law is administered in plus English.
+
+| | Statute | Supervision named | Languages |
+| --- | --- | --- | --- |
+| `BE` | Loi du 5 novembre 2023 / wet van 5 november 2023, amending the Code de droit économique | SPF Économie, Direction générale de l'Inspection économique | `fr`, `nl`, `en` |
+| `IE` | European Union (Accessibility Requirements of Products and Services) Regulations 2023 (S.I. No. 636 of 2023) | CCPC for e-commerce, ComReg and the Central Bank for their sectors | `en` |
+| `PL` | Ustawa z dnia 26 kwietnia 2024 r. o zapewnianiu spełniania wymagań dostępności niektórych produktów i usług przez podmioty gospodarcze (Dz.U. 2024 poz. 731) | Prezes Zarządu PFRON, who receives every report; the minister for digital affairs supervises e-commerce | `pl`, `en` |
+| `PT` | Decreto-Lei n.º 82/2022, de 6 de dezembro | ANACOM for e-commerce; supervisors report to INR | `pt`, `en` |
+
+Belgium is the case the roadmap has been waiting for. Supervision is split, and the
+templates say so rather than naming one body as if it owned the subject. Belgium also has
+three official languages. The German-speaking community gets its rendering in 0.9: the
+federal law is published in French and Dutch, and a German document written without a
+German source text would be exactly the translation this rule forbids.
+
+**What this release could not do, written down rather than hidden:** the session that wrote
+these templates could not reach the official gazettes (irishstatutebook.ie,
+isap.sejm.gov.pl, dre.pt, ejustice.just.fgov.be). Every citation above is corroborated by
+several independent secondary sources: regulators' own pages, law firms and government
+portals, as indexed. Each one still has to be checked against the primary text before 0.8.0
+is tagged. That check is a release blocker, listed under *Done means* below. The templates
+also cite less than the older seven do: no article numbers and no fine amounts, because
+those are the details a secondary source gets wrong.
+
+### 2. One place a country is defined
+
+A country today is spread across `COUNTRIES`, `STATEMENT_LOCALES`, `init`'s locale table,
+the date formats, the docs table and the snapshot list. Adding four more at once would mean
+changing all of them eleven times over. The facts move into one registry (name, languages,
+statute, authority, default site locale) that everything else reads from. A test fails when
+a template exists without its registry entry, or the other way round.
+
+### 3. `eaa-kit countries`
+
+What the statement can be written for, from the terminal: code, name, languages, statute
+and the authority each template names. Today that information lives in a docs table, so
+nobody finds out that `--country PT` exists until they have read the docs.
+
+### 4. `audit --watch`
+
+[Deferred from 0.7.0](#not-in-070). A run over an unchanged build costs about as much as
+starting the process, so it is worth repeating on every save. `--watch` re-audits the
+build directory whenever something in it changes. The page cache means only the changed
+pages are audited again, and the report is printed again after each run.
+
+The refusals:
+
+- **Directories only.** A running site under `--url` changes without writing anything this
+  process can watch, so a watch over it would be a poll that looks like a watch. It is an
+  error, not a quiet fallback.
+- **No exit code on the way.** A watch never exits 1 because a run found something. Its
+  job is to show the result, and CI has the one-shot run for failing a build.
+- **A run is never skipped because another one is in progress.** A change that arrives
+  mid-run starts a new run as soon as the current one ends. A report never shows a build
+  the files on disk have already moved past.
+
+### 5. `init` stops guessing
+
+`init` turns an unrecognised country into `AT` without saying so. That is an Austrian legal
+document for somebody who typed `pl`. An answer it does not recognise is now asked again,
+with the list, and the prompt names each country in full.
+
+### 6. The first run needs no setup
+
+`eaa-kit` on its own printed the help and exited 2, and that is the first command anybody
+types. Now it is the whole first run. It finds the site the way `audit` already does,
+audits it, writes the HTML report to `.eaa-kit/report.html`, and then says what it found
+out about the project and which command comes next, depending on what the project already
+has: `init` if there is no config, `baseline` if there are findings and no baseline.
+
+Two gaps in the detection close with it. A folder of hand-written HTML with no
+`package.json` is audited where it stands. `init` now reads what the built site states
+about itself, `<html lang>` and its canonical address, and offers those as defaults. It
+still only offers what the site states outright: a language tag suggests a country, it
+does not decide one, and `init` still asks.
+
+The refusals: the first run writes nothing into the project outside `.eaa-kit/`, and gives
+that directory a `.gitignore` of its own instead of editing the project's. A folder with no
+site in it is left exactly as it was found. The first run also keeps `audit`'s exit codes.
+Exiting 0 on a site with critical barriers, because this happened to be somebody's first
+look, would tell them it was clean.
+
+### Not in 0.8.0
+
+- **Belgium in German, and the Nordic and Czech statements.** 0.9, for the reason above.
+- **Watching a running site.** See the refusal above.
+- **A score, Level AAA, anything model-generated, a hosted dashboard.** As before, and not
+  later.
+
+### Done means
+
+- `lint`, `typecheck`, `test`, `smoke` and the packaged-CLI run green across the CI matrix.
+- **Every citation in the four new countries' templates checked against the primary
+  text**, and the checking recorded in the changelog: who checked it, against which
+  consolidated version. Until then 0.8.0 is not tagged.
+- `examples/` regenerated and drift-checked.
+- A changelog entry saying what was given up as well as what was added.
+
 ## 0.7.0 — the run that costs nothing, and the loop that closes
 
 0.6.0 added the half no engine can do. 0.7.0 is about three things a user feels: how long a

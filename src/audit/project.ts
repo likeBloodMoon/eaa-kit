@@ -83,6 +83,12 @@ export async function findBuildOutput(cwd: string): Promise<string | undefined> 
   return undefined
 }
 
+/** Whether a folder has an HTML file directly in it, not only somewhere below. */
+async function holdsTopLevelHtml(cwd: string): Promise<boolean> {
+  const found = await glob(['*.html', '*.htm'], { cwd, onlyFiles: true, dot: false })
+  return found.length > 0
+}
+
 /**
  * How to invoke a package-manager script on this platform.
  *
@@ -285,7 +291,16 @@ export async function autoDetectSource(
     return { steps }
   }
 
-  if (pkg === undefined) return undefined
+  if (pkg === undefined) {
+    // No package.json and no framework: a site written by hand, whose source is
+    // the site. Only the top level is looked at, so a home directory full of
+    // saved web pages somewhere below it is not mistaken for a project.
+    if (detected === undefined && (await holdsTopLevelHtml(cwd))) {
+      step('Found hand-written HTML in this folder')
+      return { directory: cwd, steps }
+    }
+    return undefined
+  }
 
   const scripts = pkg.scripts ?? {}
   if (options.noBuild) return undefined

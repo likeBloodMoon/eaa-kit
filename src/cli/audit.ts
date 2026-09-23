@@ -81,10 +81,22 @@ export interface AuditCommandOptions extends CrawlCommandOptions {
    * has to be able to say it looked at everything itself.
    */
   noCache?: boolean
+  /**
+   * Also write the HTML report here, beside whatever `format` produces. The
+   * first run uses it: the console report is for whoever ran the command, and
+   * the HTML page is the one they can open, keep, and send on.
+   */
+  htmlReport?: string
 }
 
 export interface AuditCommandResult {
   audits: PageAudit[]
+  /**
+   * The directory the pages were read from, as the run found it — which under
+   * auto-detection is the only place anybody learns it. Undefined for a crawl
+   * and for a run that stopped before it found anything. `--watch` watches it.
+   */
+  directory?: string
   /**
    * 0 clean, 1 violations at or above the --fail-on threshold, 2 the audit
    * could not run or could not finish.
@@ -112,6 +124,7 @@ export async function runAuditCommand(
   const resolved = await resolvePages(dir, options)
   if (!resolved) return { audits: [], exitCode: 2 }
   const { pages, origin, label, cleanup, directory, completeness: collection } = resolved
+  const found = directory === undefined ? {} : { directory }
 
   // A credential handed to a run that never makes a request is not a credential
   // anybody needed, and silently ignoring it would leave somebody believing a
@@ -172,7 +185,7 @@ export async function runAuditCommand(
             // they came from, not served back out of a copy on disk.
             ...(directory === undefined ? {} : { directory }),
           })
-    if (!fresh) return { audits: [], exitCode: 2 }
+    if (!fresh) return { audits: [], ...found, exitCode: 2 }
 
     // Recorded before anything downstream touches them: a baseline moves
     // violations into `accepted`, and storing that would freeze one project's
@@ -191,7 +204,7 @@ export async function runAuditCommand(
 
     if (options.baseline) {
       const applied = await acceptBaseline(audits, options)
-      if (!applied) return { audits, exitCode: 2 }
+      if (!applied) return { audits, ...found, exitCode: 2 }
       audits = applied
     }
 
@@ -200,7 +213,7 @@ export async function runAuditCommand(
     const review = await loadReview(options)
     // A review asked for and not readable is exit 2 for the same reason a
     // missing baseline is: the run did not report what it was told to report.
-    if (review === FAILED) return { audits, exitCode: 2 }
+    if (review === FAILED) return { audits, ...found, exitCode: 2 }
 
     // label, not dir: it is what the run actually audited. dir is undefined
     // under auto-detection, and was the unused ./dist default under --url,
@@ -213,10 +226,10 @@ export async function runAuditCommand(
     const unaudited = audits.filter((audit) => audit.error)
     if (unaudited.length > 0) {
       fail(`${unaudited.length} of ${audits.length} pages could not be audited`)
-      return { audits, exitCode: 2 }
+      return { audits, ...found, exitCode: 2 }
     }
 
-    return { audits, exitCode: countAtOrAbove(audits, failOn) > 0 ? 1 : 0 }
+    return { audits, ...found, exitCode: countAtOrAbove(audits, failOn) > 0 ? 1 : 0 }
   } finally {
     await cleanup?.()
   }
@@ -410,6 +423,19 @@ async function emit(
   // a caller that says where relative paths start means it for all of them.
   await emitDocument(body, options.output, options.cwd ?? process.cwd())
   if (options.output !== undefined) note(`Report written to ${options.output}`)
+
+  if (options.htmlReport !== undefined) {
+    const html = await render(
+      audits,
+      dir,
+      failOn,
+      completeness,
+      true,
+      { ...options, format: 'html' },
+      review,
+    )
+    await emitDocument(html, options.htmlReport, options.cwd ?? process.cwd())
+  }
 }
 
 async function render(

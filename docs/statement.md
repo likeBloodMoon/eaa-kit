@@ -17,8 +17,8 @@ eaa-kit statement --review eaa-review.json          # say what a person checked
 | Flag | Default | Meaning |
 | --- | --- | --- |
 | `--config <path>` | searched for | Path to the config file |
-| `--lang <locale>` | from `site.locale` | `de`, `en`, `es`, `fr`, `it` or `nl` — see the table below for which countries have which |
-| `--country <code>` | from `enforcement.country` | `AT`, `CH`, `DE`, `ES`, `FR`, `IT` or `NL` |
+| `--lang <locale>` | from `site.locale` | `de`, `en`, `es`, `fr`, `it`, `nl`, `pl` or `pt` — see the table below for which countries have which |
+| `--country <code>` | from `enforcement.country` | `AT`, `BE`, `CH`, `DE`, `ES`, `FR`, `IE`, `IT`, `NL`, `PL` or `PT` — `eaa-kit countries` lists them |
 | `--audit <path>` | — | A report from `eaa-kit audit --format json`; its violations are listed as non-accessible content |
 | `--review <path>` | — | A [review record](review.md); the statement says how many criteria a person checked, and refuses a false claim of conformance |
 | `--format <format>` | from `--output` | `markdown` or `html` |
@@ -107,7 +107,7 @@ export default defineConfig({
     ],
   },
   enforcement: {
-    country: 'AT',   // AT, CH, DE, ES, FR, IT or NL
+    country: 'AT',   // AT, BE, CH, DE, ES, FR, IE, IT, NL, PL or PT
   },
 })
 ```
@@ -162,6 +162,24 @@ is the French statement, and there is no French rendering of the Austrian one.
 | `FR` | `fr`, `en` | Ordonnance n° 2023-859 du 6 septembre 2023, and art. 47 of loi n° 2005-102 | the Défenseur des droits, and [Arcom](https://www.arcom.fr) |
 | `IT` | `it`, `en` | D.lgs. 27 maggio 2022, n. 82, amending the legge Stanca (l. 4/2004) | [AgID](https://www.agid.gov.it) |
 | `NL` | `nl`, `en` | Implementatiewet toegankelijkheidsvoorschriften producten en diensten | [ACM](https://www.acm.nl) for services, RDI for products |
+| `BE` † | `fr`, `nl`, `en` | Code de droit économique / Wetboek van economisch recht, as amended by the law of 5 November 2023 | [SPF Économie / FOD Economie](https://economie.fgov.be), Economic Inspection, and says supervision is split |
+| `IE` † | `en` | European Union (Accessibility Requirements of Products and Services) Regulations 2023 (S.I. No. 636 of 2023) | [CCPC](https://www.ccpc.ie); ComReg and the Central Bank for their sectors |
+| `PL` † | `pl`, `en` | Ustawa z dnia 26 kwietnia 2024 r. (Dz.U. 2024 poz. 731) | [Prezes Zarządu PFRON](https://www.pfron.org.pl), who passes e-commerce reports to the minister for digital affairs |
+| `PT` † | `pt`, `en` | Decreto-Lei n.º 82/2022, de 6 de dezembro | [ANACOM](https://www.anacom.pt) for e-commerce, and says supervision is split |
+
+`eaa-kit countries` prints the same list in the terminal, and `--json` prints it for
+anything that wants to build on it.
+
+† **New in 0.8.0, and checked less than the others.** The statute, the authority and the
+enforcement route for these four were established from regulators' own pages, government
+portals and law firms. The official gazettes could not be reached when these templates were
+written. For that reason these templates cite less than the older seven: no article
+numbers and no fine amounts, which are the details a secondary source most often gets wrong.
+They will be checked against the primary text before 0.8.0 is released. Until then, read
+the enforcement section with that in mind, and if you find something wrong,
+[open an issue](https://github.com/likeBloodMoon/eaa-kit/issues).
+Belgium has no German rendering yet: the federal law is published in French and Dutch, and
+a German one written without a German source text would be a translation.
 
 Asking for a language a country does not have is an error naming the ones it does, rather
 than a fall back to another language: a legal document silently published in a language

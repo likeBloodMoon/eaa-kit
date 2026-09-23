@@ -3,6 +3,7 @@ import path from 'node:path'
 import { createInterface } from 'node:readline/promises'
 import pc from 'picocolors'
 import { DEFAULT_FAIL_ON } from '../audit/impact.ts'
+import { COUNTRY_INFO, countryForLocale, findCountry } from '../config/countries.ts'
 import { COUNTRIES, type Country } from '../config/define.ts'
 import { CONFIG_FILENAMES } from '../config/load.ts'
 import { exists } from '../fs.ts'
@@ -53,16 +54,6 @@ interface Detected {
   country?: Country
 }
 
-const COUNTRY_LOCALES: Record<Country, string> = {
-  AT: 'de-AT',
-  DE: 'de-DE',
-  CH: 'de-CH',
-  ES: 'es-ES',
-  FR: 'fr-FR',
-  IT: 'it-IT',
-  NL: 'nl-NL',
-}
-
 /**
  * Everything the project already says about itself.
  *
@@ -87,7 +78,33 @@ export async function detectDefaults(cwd: string): Promise<Detected> {
   } catch {
     // no package.json, or not JSON: nothing to read
   }
+
+  // The built site, when there is one, states more than package.json does:
+  // its language on <html lang> and its address on the canonical link. Both
+  // win over package.json, whose homepage is as often the repository as the
+  // site. Nothing is built or started to find them; a project with no build
+  // yet simply gets the package.json answers.
+  const site = await builtSite(cwd)
+  if (site !== undefined) {
+    const { readSiteFacts } = await import('../audit/site.ts')
+    const facts = await readSiteFacts(site)
+    if (facts.url !== undefined) detected.url = facts.url
+    if (facts.title !== undefined && detected.name === undefined) detected.name = facts.title
+    if (facts.lang !== undefined) {
+      detected.locale = facts.lang
+      const country = countryForLocale(facts.lang)
+      if (country !== undefined) detected.country = country
+    }
+  }
   return detected
+}
+
+/** The built site's directory, from the same search `audit` makes, without building. */
+async function builtSite(cwd: string): Promise<string | undefined> {
+  const { autoDetectSource } = await import('../audit/project.ts')
+  const found = await autoDetectSource(cwd, { noBuild: true })
+  await found?.cleanup?.()
+  return found?.directory
 }
 
 /** Whether a config is already there, so init never overwrites one silently. */
@@ -144,10 +161,16 @@ export async function runInitCommand(options: InitCommandOptions = {}): Promise<
 
   const name = await ask('Site name', detected.name ?? '')
   const url = await ask('Site URL', detected.url ?? 'https://example.com')
-  const country = normaliseCountry(
-    await ask(`Country whose law applies (${COUNTRIES.join('/')})`, 'AT'),
+  const country = await askCountry(ask, rl !== undefined, detected.country)
+  const locale = await ask(
+    'Language of the site',
+    // The site's own tag, when the country chosen is the one it points at.
+    // Somebody who picks another country is saying the site is not what it
+    // looks like, and gets that country's language instead.
+    detected.locale !== undefined && detected.country === country
+      ? detected.locale
+      : COUNTRY_INFO[country].siteLocale,
   )
-  const locale = await ask('Language of the site', COUNTRY_LOCALES[country])
   const legalName = await ask('Legal entity answerable for the site', name)
   const email = await ask('Feedback email', '')
   const feedbackUrl = await ask('Feedback or contact form URL (optional)', '')
@@ -208,8 +231,40 @@ export async function runInitCommand(options: InitCommandOptions = {}): Promise<
   return { file: target, exitCode: 0 }
 }
 
-/** Falls back rather than failing: a typo should not throw away the answers. */
-function normaliseCountry(value: string): Country {
-  const upper = value.trim().toUpperCase()
-  return (COUNTRIES as readonly string[]).includes(upper) ? (upper as Country) : 'AT'
+/** How often an answer that is not a country is asked again before giving up on it. */
+const COUNTRY_ATTEMPTS = 3
+
+/**
+ * The country whose law the statement is written under.
+ *
+ * An answer that is not a country is asked again, with the list. It used to
+ * become Austria without a word, which is how somebody who typed `pl` got an
+ * Austrian legal document. Once the attempts run out the default is used,
+ * because a typo should not throw away every other answer, but it is said out
+ * loud, so the file is not left looking like the answer somebody gave.
+ */
+async function askCountry(
+  ask: (question: string, fallback: string) => Promise<string>,
+  interactive: boolean,
+  suggested: Country | undefined,
+): Promise<Country> {
+  const fallback: Country = suggested ?? 'AT'
+  const choices = COUNTRIES.map((code) => `${code} ${COUNTRY_INFO[code].name}`).join(', ')
+  if (interactive) process.stderr.write(pc.dim(`Countries: ${choices}\n`))
+
+  let answer = ''
+  for (let attempt = 0; attempt < COUNTRY_ATTEMPTS; attempt += 1) {
+    answer = await ask('Country whose law applies', fallback)
+    const country = findCountry(answer)
+    if (country !== undefined) return country
+    warn(
+      `${answer} is not one of the countries a statement can be written for: ${COUNTRIES.join(', ')}`,
+    )
+  }
+
+  warn(
+    `enforcement.country is set to ${fallback} because ${answer} was not recognised. ` +
+      'Change it before generating a statement.',
+  )
+  return fallback
 }
