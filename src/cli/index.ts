@@ -215,11 +215,32 @@ program
   .option('--review <path>', 'what a person checked, from eaa-kit checklist')
   .option('--review-max-age <days>', 'stop counting review entries older than this', parseDepth)
   .option('--config <path>', 'take defaults from this config file, otherwise it is searched for')
-  .action(async (dir: string | undefined, flags: AuditFlags) => {
+  .option('--watch', 'audit again whenever the build directory changes, until Ctrl-C')
+  .action(async (dir: string | undefined, { watch, ...flags }: AuditFlags & { watch?: true }) => {
     const defaults = await auditDefaults({ ...(flags.config ? { config: flags.config } : {}) })
     const invocation = auditInvocation(dir, defaults, flags)
-    const { exitCode } = await runAuditCommand(invocation.dir, invocation.options)
-    process.exitCode = exitCode
+    if (!watch) {
+      const { exitCode } = await runAuditCommand(invocation.dir, invocation.options)
+      process.exitCode = exitCode
+      return
+    }
+
+    // Refused rather than turned into a poll: a running site changes without
+    // writing anything this process can see.
+    if (invocation.options.url !== undefined) {
+      fail('--watch watches a build directory, and --url audits a running site.')
+      process.exitCode = 2
+      return
+    }
+    const { watchAudit } = await import('./watch.ts')
+    process.exitCode = await watchAudit({
+      run: (directory) => runAuditCommand(directory, invocation.options),
+      directory: invocation.dir,
+      cwd: process.cwd(),
+      // What a run writes into the directory it may be watching: the page
+      // cache, and the report when --output points inside the build.
+      ignore: ['.eaa-kit', ...(invocation.options.output ? [invocation.options.output] : [])],
+    })
   })
 
 // The page-selection and credential flags below repeat `audit`'s word for word,
