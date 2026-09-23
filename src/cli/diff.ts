@@ -8,7 +8,7 @@ import {
 } from '../audit/diff.ts'
 import { DEFAULT_FAIL_ON, type ImpactLevel, meetsThreshold } from '../audit/impact.ts'
 import { collapse, count } from '../text.ts'
-import { emitDocument, fail, failWith, note, warn } from './command.ts'
+import { emitDocument, failWith, note, warn } from './command.ts'
 
 /**
  * `eaa-kit diff <before.json> <after.json>`.
