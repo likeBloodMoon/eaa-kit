@@ -1,6 +1,7 @@
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { stripVTControlCharacters } from 'node:util'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { FIRST_RUN_REPORT, runFirstRun } from '../../src/cli/start.ts'
 
@@ -50,7 +51,9 @@ describe('eaa-kit with no command', () => {
     const cwd = await folder({ 'index.html': PAGE })
 
     await runFirstRun({ cwd })
-    const said = stderr.join('')
+    // Without the colour codes, which CI turns on and which split a line like
+    // "pl-PL → …" in two.
+    const said = stripVTControlCharacters(stderr.join(''))
 
     expect(said).toContain('this folder, 1 page')
     expect(said).toContain("pl-PL → a statement under Poland's law")
