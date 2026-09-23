@@ -15,7 +15,7 @@ consumers must ignore what they do not recognise.
 
 - **Four more countries: Belgium, Ireland, Poland and Portugal.** `BE` in French, Dutch and
   English, `IE` in English, `PL` in Polish and English, `PT` in Portuguese and English —
-  eighteen templates to twenty-six, each written under its own country's law rather than
+  fourteen templates to twenty-two, each written under its own country's law rather than
   translated from another's. Belgium and Portugal say that supervision is split instead of
   naming one body as if it owned the subject. `pl` and `pt` are new `--lang` values.
 
