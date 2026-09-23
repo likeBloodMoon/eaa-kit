@@ -479,6 +479,21 @@ function completenessLines(ctx: Context): string[] {
   // below should be read.
   const reused = reusedPart(completeness)
   const lines: string[] = reused === undefined ? [] : [line(ctx, `  ${reused}`, ctx.c.dim)]
+  // Before anything else: every number below is about the site the redirect
+  // led to, and a reader who asked for another one has to know that first.
+  const redirect = completeness.entryRedirect
+  if (redirect !== undefined) {
+    const why = { 'same-site': 'same site', flag: '--redirects follow', prompt: 'approved' }[
+      redirect.followedBecause
+    ]
+    // An address per line, so the terminal's width cuts neither of them off.
+    lines.unshift(
+      line(ctx, `  Redirected (${redirect.statuses.join(' → ')}, ${why}):`, ctx.c.yellow),
+      line(ctx, `    from ${redirect.requested}`, ctx.c.yellow),
+      line(ctx, `    to   ${redirect.auditedFrom}`, ctx.c.yellow),
+      line(ctx, '  Everything below is about the second address.', ctx.c.dim),
+    )
+  }
 
   if (completeness.complete) return lines
 

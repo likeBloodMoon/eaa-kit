@@ -44,7 +44,7 @@ const REQUEST_CONCURRENCY = 4
  * document, and a page that would be declined off disk should not be accepted
  * because it arrived over HTTP instead.
  */
-const MAX_BODY_BYTES = 32 * 1024 * 1024
+export const MAX_BODY_BYTES = 32 * 1024 * 1024
 
 export class CrawlError extends Error {
   override readonly name = 'CrawlError'

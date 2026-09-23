@@ -84,6 +84,33 @@ Finland's Swedish rendering is not in this release. Swedish is an official langu
 and the law exists in Swedish, but a Finnish statement in Swedish is a document of its
 own, and it waits for a source text.
 
+### 4. Redirects and sign-in walls, found before the crawl
+
+Two things put a crawl somewhere other than where it was sent. Before this release, one
+was found too late and the other only by guessing.
+
+- **A redirect to another site.** `https://www.gtainside.de` answers with a 301 to
+  `https://www.gtainside.com`. The crawl refused every page as "redirected off" and ended
+  on an error that did not say what to do. Now the entry is followed one redirect at a
+  time before the crawl, and a redirect to another site stops the run with where it went
+  and the two commands that go on: audit the destination, or `--redirects follow`. In a
+  terminal the default, `ask`, puts the question instead. A redirect within the same site
+  (`www.`, http to https) is followed without a question. Every redirect the run followed
+  is written into all four report formats, because a reader who asked for one site and
+  is reading about another has to find that out before the first finding.
+- **A sign-in wall.** A 401 or 403, a redirect to an identity provider, a redirect to a
+  page that is a sign-in page by name, or a redirect to a page with a password field
+  stops the run with exit 2 and the credentials flag to use. Before, the run audited the
+  login form and reported it as the site. The weaker signal found during the crawl, many
+  pages landing on one address, is now called a sign-in page when that page has a
+  password field, and "looks like one" otherwise.
+
+The refusals: a redirect to another site is never followed without a flag or a yes. The
+destination passes the same `--allow-remote` gate as the entry. Credentials are only sent
+while the redirect chain stays on the entry's origin. A redirect the run did not follow
+produces no report, because a report about the wrong site is the failure being
+prevented.
+
 ### Done means
 
 - `lint`, `typecheck`, `test` (with colour forced as well as without), `smoke` and the

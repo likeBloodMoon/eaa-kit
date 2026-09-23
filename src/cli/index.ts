@@ -8,6 +8,7 @@ import { DEFAULT_REVIEW_FILE } from '../audit/review.ts'
 import {
   COUNTRIES,
   ConfigError,
+  REDIRECT_MODES,
   STATEMENT_LOCALES,
   type StatementLocale,
 } from '../config/define.ts'
@@ -174,6 +175,11 @@ program
   .option('--allow-remote', 'allow --url to crawl a host that is not localhost')
   .option('--ignore-robots', 'crawl paths robots.txt disallows')
   .option('--sitemap <path>', 'where the site lists its pages, if not /sitemap.xml')
+  .option(
+    '--redirects <mode>',
+    `when the URL redirects to another site: ${REDIRECT_MODES.join('|')} (default: ask)`,
+    oneOf(REDIRECT_MODES),
+  )
   .option('--max-pages <n>', 'stop the crawl after this many pages', parsePositive)
   .option('--max-depth <n>', 'how far from the entry URL to follow links', parseDepth)
   .option(
@@ -266,6 +272,11 @@ program
   .option('--allow-remote', 'allow --url to crawl a host that is not localhost')
   .option('--ignore-robots', 'crawl paths robots.txt disallows')
   .option('--sitemap <path>', 'where the site lists its pages, if not /sitemap.xml')
+  .option(
+    '--redirects <mode>',
+    `when the URL redirects to another site: ${REDIRECT_MODES.join('|')} (default: ask)`,
+    oneOf(REDIRECT_MODES),
+  )
   .option('--max-pages <n>', 'stop the crawl after this many pages', parsePositive)
   .option('--max-depth <n>', 'how far from the entry URL to follow links', parseDepth)
   .option(

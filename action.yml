@@ -39,6 +39,14 @@ inputs:
       link following alone finds only what the navigation links to.
     required: false
     default: ''
+  redirects:
+    description: >-
+      What to do when "url" redirects to another site: ask, follow or stop.
+      A workflow has nobody to ask, so ask behaves as stop there, and the run
+      fails with where the site went. Set follow to go on and have the SARIF
+      log record the redirect. Only used with "url".
+    required: false
+    default: ''
   max-pages:
     description: Stop the crawl after this many pages.
     required: false
@@ -177,6 +185,7 @@ runs:
         EAA_URL: ${{ inputs.url }}
         EAA_ALLOW_REMOTE: ${{ inputs.allow-remote }}
         EAA_SITEMAP: ${{ inputs.sitemap }}
+        EAA_REDIRECTS: ${{ inputs.redirects }}
         EAA_MAX_PAGES: ${{ inputs.max-pages }}
         EAA_FAIL_ON: ${{ inputs.fail-on }}
         EAA_SARIF: ${{ inputs.sarif-file }}
@@ -202,6 +211,9 @@ runs:
           fi
           if [ -n "$EAA_SITEMAP" ]; then
             args+=(--sitemap "$EAA_SITEMAP")
+          fi
+          if [ -n "$EAA_REDIRECTS" ]; then
+            args+=(--redirects "$EAA_REDIRECTS")
           fi
           if [ -n "$EAA_MAX_PAGES" ]; then
             args+=(--max-pages "$EAA_MAX_PAGES")

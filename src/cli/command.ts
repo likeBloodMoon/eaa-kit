@@ -301,6 +301,7 @@ function baselineDefaults(config: AuditConfig) {
     'allowRemote',
     'ignoreRobots',
     'sitemap',
+    'redirects',
     'maxPages',
     'maxDepth',
     'browser',

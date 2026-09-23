@@ -240,6 +240,14 @@ verdict; `audited` alone is what was measured today, which is what a consumer de
 current a report is needs. Reuse does not make a run incomplete — `complete` answers
 whether any of the site was missed, and nothing was.
 
+`entryRedirect` is there only when the crawl's entry URL redirected to another address and
+the run followed it: `requested` is the URL the run was given, `auditedFrom` is where it
+started instead, `statuses` lists each hop's HTTP status, and `followedBecause` is
+`same-site`, `flag` or `prompt`. Every page in the report belongs to `auditedFrom`, so a
+consumer comparing reports over time should check it before treating two runs as the same
+site. A redirect the run did not follow never reaches a report, because that run stops
+first.
+
 `completeness` was added without moving `schemaVersion`: new fields may
 appear without a bump, and consumers must ignore what they do not recognise. A consumer
 written against an earlier version that has never seen this field should treat its absence
