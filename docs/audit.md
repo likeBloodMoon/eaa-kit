@@ -239,6 +239,7 @@ chatter coming along.
 | `--review <path>` | — | [What a person checked](review.md), for the criteria no engine reaches |
 | `--review-max-age <days>` | — | Stop counting review entries older than this |
 | `--config <path>` | searched for | Take defaults from this config file rather than the one found by searching |
+| `--watch` | off | [Audit again](#watching-a-build) whenever the build directory changes, until Ctrl-C |
 
 Dot directories such as build caches are skipped by default. `--include` and `--exclude`
 replace the defaults rather than adding to them.
@@ -529,6 +530,27 @@ not be unsafe, but it would be a large directory of facts about somebody else's 
 `eaa-kit baseline` does not use the cache and never has anything to say about it. A
 baseline is a file somebody commits and then lives with for months, and it is worth the
 1.2 seconds to build one from a run that looked at every page itself.
+
+### Watching a build
+
+```bash
+eaa-kit audit ./dist --watch
+```
+
+Because unchanged pages come from the cache, a run is cheap enough to repeat on every save.
+`--watch` audits once, then audits again whenever anything in the build directory changes,
+and prints the report each time. Only the pages whose markup changed are audited again.
+Keep your build tool's own watch running in another terminal; this watches what it writes.
+
+- **Directories only.** `--watch` with `--url` is an error. A running site changes without
+  writing anything this process can see, so watching it would really mean polling it.
+- **No verdict.** A watch exits 0 when you stop it, whatever the last run found. Failing a
+  build is what the one-shot run in CI is for.
+- **No change is dropped.** A change that lands during a run starts another run as soon
+  as that one finishes, so the report on screen is never for a build that has already
+  been replaced.
+- A directory that does not exist yet is waited for, and the page cache and an `--output`
+  inside the build are not treated as changes.
 
 ## The Issues section
 
