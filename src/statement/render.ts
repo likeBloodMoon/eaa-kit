@@ -267,14 +267,18 @@ function reasonScope(reason: KnownIssue['reason']): TemplateScope {
  * 20 August 2026, not August 20, 2026, in a European legal document.
  */
 const DATE_LOCALES: Record<StatementLocale, string> = {
+  cs: 'cs-CZ',
+  da: 'da-DK',
   de: 'de-AT',
   en: 'en-GB',
   es: 'es-ES',
+  fi: 'fi-FI',
   fr: 'fr-FR',
   it: 'it-IT',
   nl: 'nl-NL',
   pl: 'pl-PL',
   pt: 'pt-PT',
+  sv: 'sv-SE',
 }
 
 /**

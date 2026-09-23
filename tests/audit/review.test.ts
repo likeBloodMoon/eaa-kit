@@ -230,7 +230,11 @@ describe('the file', () => {
   it('says how to make one when there is none', async () => {
     const dir = await workspace()
 
-    await expect(readReview(DEFAULT_REVIEW_FILE, dir)).rejects.toThrow(/eaa-kit checklist/)
+    // The how is the error's next step, printed by the CLI under the message.
+    const error = await readReview(DEFAULT_REVIEW_FILE, dir).catch((cause: unknown) => cause)
+    expect(error).toMatchObject({
+      next: { command: expect.stringMatching(/^eaa-kit checklist --record /) },
+    })
   })
 
   it('refuses a result it does not recognise rather than treating it as met', async () => {

@@ -6,7 +6,23 @@ import * as s from '../schema.ts'
  * Countries with their own supervisory body and statute text. What is known
  * about each one is in `countries.ts`.
  */
-export const COUNTRIES = ['AT', 'BE', 'CH', 'DE', 'ES', 'FR', 'IE', 'IT', 'NL', 'PL', 'PT'] as const
+export const COUNTRIES = [
+  'AT',
+  'BE',
+  'CH',
+  'CZ',
+  'DE',
+  'DK',
+  'ES',
+  'FI',
+  'FR',
+  'IE',
+  'IT',
+  'NL',
+  'PL',
+  'PT',
+  'SE',
+] as const
 export type Country = (typeof COUNTRIES)[number]
 
 /**
@@ -17,7 +33,20 @@ export type Country = (typeof COUNTRIES)[number]
  * has the language it is published in and English. `renderStatement` says which
  * ones a country has when asked for one it does not.
  */
-export const STATEMENT_LOCALES = ['de', 'en', 'es', 'fr', 'it', 'nl', 'pl', 'pt'] as const
+export const STATEMENT_LOCALES = [
+  'cs',
+  'da',
+  'de',
+  'en',
+  'es',
+  'fi',
+  'fr',
+  'it',
+  'nl',
+  'pl',
+  'pt',
+  'sv',
+] as const
 export type StatementLocale = (typeof STATEMENT_LOCALES)[number]
 
 /**

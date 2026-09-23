@@ -6,9 +6,9 @@ Build-time WCAG 2.2 AA auditor and EU accessibility statement generator for stat
 built for the freelancers and small agencies who have to comply with the European
 Accessibility Act (in force since 28 June 2025) without an accessibility budget. It started
 in the DACH region — the BFSG in Germany, the BaFG in Austria — and the statement now names
-the statute and supervisory body of **eleven countries**: Austria, Belgium, Germany,
-Switzerland, Spain, France, Ireland, Italy, the Netherlands, Poland and Portugal, each in
-its own language as well as English.
+the statute and supervisory body of **fifteen countries**: Austria, Belgium, Czechia,
+Denmark, Finland, France, Germany, Ireland, Italy, the Netherlands, Poland, Portugal,
+Spain, Sweden and Switzerland, each in its own language as well as English.
 
 0.7.0 makes a run cost what it should. A page that has not changed byte for byte is not
 audited again, and a run with nothing to re-audit never loads an engine at all: twenty
@@ -28,8 +28,8 @@ Sites behind a login or a preview protection are auditable too.
 npx eaa-kit                       # nothing to set up: finds your site, audits it, writes a report
 npx eaa-kit audit                 # WCAG 2.2 AA report; finds your build itself
 npx eaa-kit diff a.json b.json    # what a change made worse, and what it fixed
-npx eaa-kit init                  # write an eaa.config.json
-npx eaa-kit statement             # accessibility statement, in one of eleven countries
+npx eaa-kit init                  # the config, a baseline and a CI workflow
+npx eaa-kit statement             # accessibility statement, in one of fifteen countries
 npx eaa-kit countries             # which ones, in which languages, under which law
 npx eaa-kit checklist             # the manual review no engine can do for you
 ```
@@ -75,7 +75,7 @@ listing the barriers a real audit found.
 
 ```bash
 eaa-kit statement --output src/content/a11y.md
-eaa-kit statement --country PL --lang pl    # eaa-kit countries lists all eleven
+eaa-kit statement --country PL --lang pl    # eaa-kit countries lists all fifteen
 ```
 
 Each country's statement is a document under its own law rather than a translation of
@@ -193,7 +193,7 @@ eaa-kit audit --url https://preview.example.com --basic-auth user:password
 | --- | --- |
 | [Auditing a build](docs/audit.md) | The `audit` command, both engines, exit codes, and what an automated run can and cannot tell you |
 | [Defaults from eaa.config](docs/audit.md#defaults-from-eaaconfig) | Writing the flags down once, and what still overrides them |
-| [The statement command](docs/statement.md) | The config file, the eleven countries, and filling a statement from audit results |
+| [The statement command](docs/statement.md) | The config file, the fifteen countries, and filling a statement from audit results |
 | [Baselines](docs/baseline.md) | Adopting the tool on a site that already has violations |
 | [Comparing two runs](docs/reports.md#comparing-two-runs) | The `diff` command, and what it refuses to call fixed |
 | [Coverage of WCAG](docs/audit.md#how-much-of-wcag-a-run-reaches) | What an automated engine can reach at all, and what it cannot |
