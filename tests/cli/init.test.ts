@@ -117,11 +117,37 @@ describe('runInitCommand', () => {
     expect((await written(cwd)).site).toMatchObject({ locale: 'de-CH' })
   })
 
-  it('falls back rather than throwing away the answers on a bad country', async () => {
+  it('takes a country by its English name, in any case', async () => {
     const cwd = await project()
-    await runInitCommand({ cwd, ask: answers('S', 'https://s.at', 'Austria', '', 'S', 'a@s.at') })
+    await runInitCommand({ cwd, ask: answers('S', 'https://s.pl', 'poland', '', 'S', 'a@s.pl') })
+
+    expect((await written(cwd)).enforcement).toMatchObject({ country: 'PL' })
+    expect((await written(cwd)).site).toMatchObject({ locale: 'pl-PL' })
+  })
+
+  it('asks again rather than turning an unknown country into Austria', async () => {
+    const cwd = await project()
+    await runInitCommand({
+      cwd,
+      ask: answers('S', 'https://s.pt', 'Narnia', 'pt', '', 'S', 'a@s.pt'),
+    })
+
+    expect((await written(cwd)).enforcement).toMatchObject({ country: 'PT' })
+    expect(stderr.join('')).toContain('Narnia is not one of the countries')
+  })
+
+  it('falls back out loud rather than throwing away the answers', async () => {
+    // Three wrong answers in a row, and the rest are still worth keeping. The
+    // default is written, and said to be a default rather than an answer.
+    const cwd = await project()
+    await runInitCommand({
+      cwd,
+      ask: answers('S', 'https://s.at', 'x', 'y', 'z', '', 'S', 'a@s.at'),
+    })
 
     expect((await written(cwd)).enforcement).toMatchObject({ country: 'AT' })
+    expect((await written(cwd)).provider).toMatchObject({ email: 'a@s.at' })
+    expect(stderr.join('')).toContain('enforcement.country is set to AT because z')
   })
 
   it('leaves the optional feedback URL out rather than writing an empty one', async () => {

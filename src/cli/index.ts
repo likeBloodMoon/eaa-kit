@@ -282,6 +282,15 @@ program
   })
 
 program
+  .command('countries')
+  .description('List the countries a statement can be written for, and what each one names')
+  .option('--json', 'print the list as JSON')
+  .action(async (flags: { json?: true }) => {
+    const { formatCountries } = await import('./countries.ts')
+    process.stdout.write(formatCountries(flags))
+  })
+
+program
   .command('diff')
   .description('Compare two JSON reports: what a change made worse, and what it fixed')
   .argument('<before>', 'JSON report from before the change')

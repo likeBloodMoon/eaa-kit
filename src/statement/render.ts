@@ -273,6 +273,8 @@ const DATE_LOCALES: Record<StatementLocale, string> = {
   fr: 'fr-FR',
   it: 'it-IT',
   nl: 'nl-NL',
+  pl: 'pl-PL',
+  pt: 'pt-PT',
 }
 
 /**

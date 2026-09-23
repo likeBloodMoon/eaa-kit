@@ -114,7 +114,7 @@ describe('template selection', () => {
 
     await expect(renderStatement(config(), missing)).rejects.toThrow(StatementError)
     await expect(renderStatement(config(), missing)).rejects.toThrow(
-      /Available: at\.de, at\.en, ch\.de, ch\.en, de\.de, de\.en, es\.en/,
+      /Available: at\.de, at\.en, be\.en, be\.fr, be\.nl, ch\.de, ch\.en, de\.de/,
     )
   })
 })
@@ -283,6 +283,40 @@ describe('enforcement body', () => {
     expect(statement.markdown).toContain('Marktüberwachungsstelle der Länder')
     expect(statement.markdown).not.toContain('Sozialministeriumservice')
   })
+
+  it.each([
+    ['BE', 'fr', 'SPF Économie'],
+    ['BE', 'nl', 'FOD Economie'],
+    ['BE', 'en', 'FPS Economy'],
+    ['IE', 'en', 'Competition and Consumer Protection Commission (CCPC)'],
+    ['PL', 'pl', 'Prezesowi Zarządu Państwowego Funduszu Rehabilitacji'],
+    ['PL', 'en', 'State Fund for Rehabilitation of Disabled Persons (PFRON)'],
+    ['PT', 'pt', 'Autoridade Nacional de Comunicações (ANACOM)'],
+    ['PT', 'en', 'National Communications Authority (ANACOM)'],
+  ] as Array<[Country, StatementLocale, string]>)(
+    'names the %s authority in %s',
+    async (country, locale, authority) => {
+      const statement = await renderStatement(config(), { country, locale })
+
+      expect(flat(statement.markdown)).toContain(authority)
+      expect(statement.markdown).not.toContain('Sozialministeriumservice')
+    },
+  )
+
+  it.each([
+    ['BE', 'fr'],
+    ['BE', 'nl'],
+    ['BE', 'en'],
+    ['PT', 'pt'],
+    ['PT', 'en'],
+  ] as Array<[Country, StatementLocale]>)(
+    'says supervision is split in %s/%s rather than naming one body as the whole of it',
+    async (country, locale) => {
+      const statement = await renderStatement(config(), { country, locale })
+
+      expect(flat(statement.markdown)).toMatch(/réparti|verdeeld|split|repartida/)
+    },
+  )
 })
 
 describe('every template', () => {
@@ -686,6 +720,14 @@ describe('what a person checked', () => {
     ['IT', 'en', 'success criteria in WCAG 2.2'],
     ['NL', 'nl', 'succescriteria van WCAG 2.2'],
     ['NL', 'en', 'success criteria in WCAG 2.2'],
+    ['BE', 'fr', 'critères de succès des WCAG 2.2'],
+    ['BE', 'nl', 'succescriteria van WCAG 2.2'],
+    ['BE', 'en', 'success criteria in WCAG 2.2'],
+    ['IE', 'en', 'success criteria in WCAG 2.2'],
+    ['PL', 'pl', 'kryteriów sukcesu WCAG 2.2'],
+    ['PL', 'en', 'success criteria in WCAG 2.2'],
+    ['PT', 'pt', 'critérios de sucesso das WCAG 2.2'],
+    ['PT', 'en', 'success criteria in WCAG 2.2'],
   ] as Array<[Country, StatementLocale, string]>)(
     'reaches the document in %s/%s',
     async (country, locale, phrase) => {
