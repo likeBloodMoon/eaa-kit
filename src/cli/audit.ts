@@ -81,6 +81,12 @@ export interface AuditCommandOptions extends CrawlCommandOptions {
    * has to be able to say it looked at everything itself.
    */
   noCache?: boolean
+  /**
+   * Also write the HTML report here, beside whatever `format` produces. The
+   * first run uses it: the console report is for whoever ran the command, and
+   * the HTML page is the one they can open, keep, and send on.
+   */
+  htmlReport?: string
 }
 
 export interface AuditCommandResult {
@@ -417,6 +423,19 @@ async function emit(
   // a caller that says where relative paths start means it for all of them.
   await emitDocument(body, options.output, options.cwd ?? process.cwd())
   if (options.output !== undefined) note(`Report written to ${options.output}`)
+
+  if (options.htmlReport !== undefined) {
+    const html = await render(
+      audits,
+      dir,
+      failOn,
+      completeness,
+      true,
+      { ...options, format: 'html' },
+      review,
+    )
+    await emitDocument(html, options.htmlReport, options.cwd ?? process.cwd())
+  }
 }
 
 async function render(

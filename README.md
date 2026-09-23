@@ -25,6 +25,7 @@ through, `audit --review` reads the answers back beside what the run measured, a
 Sites behind a login or a preview protection are auditable too.
 
 ```bash
+npx eaa-kit                       # nothing to set up: finds your site, audits it, writes a report
 npx eaa-kit audit                 # WCAG 2.2 AA report; finds your build itself
 npx eaa-kit diff a.json b.json    # what a change made worse, and what it fixed
 npx eaa-kit init                  # write an eaa.config.json

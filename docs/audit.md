@@ -4,9 +4,40 @@
 with axe-core. This page covers the command, both engines, and how to read what it returns.
 
 ```bash
+eaa-kit                          # first run: find the site, audit it, write a report
 eaa-kit audit                    # works out what to audit
 eaa-kit audit ./dist             # or say so
 ```
+
+## The first run
+
+`eaa-kit` with no command needs no config file, no flags and no setup. It finds the site
+the way `audit` does (below), audits it, and prints the console report. It also writes the
+HTML report to `.eaa-kit/report.html`, a page you can open, keep, and send to whoever owns
+the site. Then it says what it worked out about the project and what to run next:
+
+```
+What eaa-kit found about this project
+  Site       dist/ (Astro), 12 pages
+  Language   pl-PL → a statement under Poland's law
+  Address    https://sklep.pl
+  Report     file:///…/.eaa-kit/report.html
+
+Next
+  eaa-kit init            write the config for your statement, with Poland filled in
+  eaa-kit baseline        accept today's findings; later runs fail only on new ones
+  eaa-kit audit --watch   check again on every build while you fix things
+  eaa-kit checklist       the 34 criteria no automated test can check
+```
+
+The language and address come from the site itself: `<html lang>` and the canonical link on
+its home page. `eaa-kit init` offers them as its defaults. A language tag suggests a country
+and does not decide one. `de` could be Germany, Austria or Switzerland, and the country
+whose law applies depends on where you sell, so `init` still asks.
+
+Nothing is written into the project except under `.eaa-kit/`, which also gets a `.gitignore`
+so the report and the cache stay out of version control. A folder where no site is found is
+left untouched. Exit codes are those of `audit`.
 
 ## With no arguments
 
@@ -23,6 +54,9 @@ eaa-kit audit ./dist             # or say so
    server — a Next.js app with an API route, middleware or ISR, and anything else that
    cannot be exported. It starts `start`, `preview` or `serve`, crawls what that serves,
    and stops it again afterwards.
+
+A folder with no `package.json` and HTML files at its top level is a site written by hand,
+and is audited where it stands.
 
 Naming a directory or passing `--url` skips all of it, and `--no-build` stops it running
 anything, leaving step 1 only.

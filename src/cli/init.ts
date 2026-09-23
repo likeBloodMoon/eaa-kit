@@ -3,7 +3,7 @@ import path from 'node:path'
 import { createInterface } from 'node:readline/promises'
 import pc from 'picocolors'
 import { DEFAULT_FAIL_ON } from '../audit/impact.ts'
-import { COUNTRY_INFO, findCountry } from '../config/countries.ts'
+import { COUNTRY_INFO, countryForLocale, findCountry } from '../config/countries.ts'
 import { COUNTRIES, type Country } from '../config/define.ts'
 import { CONFIG_FILENAMES } from '../config/load.ts'
 import { exists } from '../fs.ts'
@@ -78,7 +78,33 @@ export async function detectDefaults(cwd: string): Promise<Detected> {
   } catch {
     // no package.json, or not JSON: nothing to read
   }
+
+  // The built site, when there is one, states more than package.json does:
+  // its language on <html lang> and its address on the canonical link. Both
+  // win over package.json, whose homepage is as often the repository as the
+  // site. Nothing is built or started to find them; a project with no build
+  // yet simply gets the package.json answers.
+  const site = await builtSite(cwd)
+  if (site !== undefined) {
+    const { readSiteFacts } = await import('../audit/site.ts')
+    const facts = await readSiteFacts(site)
+    if (facts.url !== undefined) detected.url = facts.url
+    if (facts.title !== undefined && detected.name === undefined) detected.name = facts.title
+    if (facts.lang !== undefined) {
+      detected.locale = facts.lang
+      const country = countryForLocale(facts.lang)
+      if (country !== undefined) detected.country = country
+    }
+  }
   return detected
+}
+
+/** The built site's directory, from the same search `audit` makes, without building. */
+async function builtSite(cwd: string): Promise<string | undefined> {
+  const { autoDetectSource } = await import('../audit/project.ts')
+  const found = await autoDetectSource(cwd, { noBuild: true })
+  await found?.cleanup?.()
+  return found?.directory
 }
 
 /** Whether a config is already there, so init never overwrites one silently. */
@@ -135,8 +161,16 @@ export async function runInitCommand(options: InitCommandOptions = {}): Promise<
 
   const name = await ask('Site name', detected.name ?? '')
   const url = await ask('Site URL', detected.url ?? 'https://example.com')
-  const country = await askCountry(ask, rl !== undefined)
-  const locale = await ask('Language of the site', COUNTRY_INFO[country].siteLocale)
+  const country = await askCountry(ask, rl !== undefined, detected.country)
+  const locale = await ask(
+    'Language of the site',
+    // The site's own tag, when the country chosen is the one it points at.
+    // Somebody who picks another country is saying the site is not what it
+    // looks like, and gets that country's language instead.
+    detected.locale !== undefined && detected.country === country
+      ? detected.locale
+      : COUNTRY_INFO[country].siteLocale,
+  )
   const legalName = await ask('Legal entity answerable for the site', name)
   const email = await ask('Feedback email', '')
   const feedbackUrl = await ask('Feedback or contact form URL (optional)', '')
@@ -212,8 +246,9 @@ const COUNTRY_ATTEMPTS = 3
 async function askCountry(
   ask: (question: string, fallback: string) => Promise<string>,
   interactive: boolean,
+  suggested: Country | undefined,
 ): Promise<Country> {
-  const fallback: Country = 'AT'
+  const fallback: Country = suggested ?? 'AT'
   const choices = COUNTRIES.map((code) => `${code} ${COUNTRY_INFO[code].name}`).join(', ')
   if (interactive) process.stderr.write(pc.dim(`Countries: ${choices}\n`))
 

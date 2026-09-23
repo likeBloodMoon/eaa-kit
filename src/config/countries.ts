@@ -134,3 +134,26 @@ export function findCountry(value: string): Country | undefined {
   }
   return undefined
 }
+
+/**
+ * The country a site's language tag points at, when it points at one.
+ *
+ * The region decides where there is one: `de-AT` is Austria, `fr-BE` is
+ * Belgium, and a region with no country listed here gives nothing. A bare language counts only where that language's own country is
+ * listed, so `pl` is Poland and `fr` is France. English has no such country, so
+ * `en` gives nothing. This is a default for `init` to offer, not an answer.
+ * Which country's law applies depends on where the business sells, and a site's
+ * language only suggests that.
+ */
+export function countryForLocale(tag: string): Country | undefined {
+  const [language, region] = tag.toLowerCase().split('-')
+  if (language === undefined) return undefined
+  const codes = Object.keys(COUNTRY_INFO) as Country[]
+
+  // A region this tool has no country for is a site aimed somewhere else, and
+  // `fr-CA` is not a reason to offer France.
+  if (region !== undefined) return codes.find((code) => code.toLowerCase() === region)
+  return codes.find(
+    (code) => COUNTRY_INFO[code].siteLocale.toLowerCase() === `${language}-${language}`,
+  )
+}

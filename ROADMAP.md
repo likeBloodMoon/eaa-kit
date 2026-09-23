@@ -96,6 +96,26 @@ The refusals:
 document for somebody who typed `pl`. An answer it does not recognise is now asked again,
 with the list, and the prompt names each country in full.
 
+### 6. The first run needs no setup
+
+`eaa-kit` on its own printed the help and exited 2, and that is the first command anybody
+types. Now it is the whole first run. It finds the site the way `audit` already does,
+audits it, writes the HTML report to `.eaa-kit/report.html`, and then says what it found
+out about the project and which command comes next, depending on what the project already
+has: `init` if there is no config, `baseline` if there are findings and no baseline.
+
+Two gaps in the detection close with it. A folder of hand-written HTML with no
+`package.json` is audited where it stands. `init` now reads what the built site states
+about itself, `<html lang>` and its canonical address, and offers those as defaults. It
+still only offers what the site states outright: a language tag suggests a country, it
+does not decide one, and `init` still asks.
+
+The refusals: the first run writes nothing into the project outside `.eaa-kit/`, and gives
+that directory a `.gitignore` of its own instead of editing the project's. A folder with no
+site in it is left exactly as it was found. The first run also keeps `audit`'s exit codes.
+Exiting 0 on a site with critical barriers, because this happened to be somebody's first
+look, would tell them it was clean.
+
 ### Not in 0.8.0
 
 - **Belgium in German, and the Nordic and Czech statements.** 0.9, for the reason above.

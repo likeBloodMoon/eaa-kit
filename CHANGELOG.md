@@ -13,6 +13,19 @@ consumers must ignore what they do not recognise.
 
 ### Added
 
+- **`eaa-kit` on its own is now the whole first run.** It used to print the help and exit 2.
+  With nothing set up (no config, no flags), it finds the site, audits it, prints the
+  report, writes the HTML report to `.eaa-kit/report.html`, and ends with what it found
+  out about the project and which command to run next. `.eaa-kit/` gets its own
+  `.gitignore`. A folder with no site in it is left untouched. The exit codes are
+  `audit`'s: a first look at a site with critical barriers does not exit 0.
+- **A folder of hand-written HTML is found.** No `package.json` and HTML at the top level
+  means the folder is the site, and `audit` with no arguments audits it where it stands.
+- **`init` reads what the built site says about itself.** `<html lang>` becomes the
+  default language and, where it points at one, the default country: `pl` is Poland,
+  `fr-BE` is Belgium, `en` and `fr-CA` suggest nothing. The canonical link becomes the
+  default address. These are only defaults: `init` still asks, because a site's language
+  does not settle which country's law applies.
 - **Four more countries: Belgium, Ireland, Poland and Portugal.** `BE` in French, Dutch and
   English, `IE` in English, `PL` in Polish and English, `PT` in Portuguese and English —
   fourteen templates to twenty-two, each written under its own country's law rather than

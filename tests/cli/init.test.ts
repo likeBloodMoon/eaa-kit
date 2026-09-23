@@ -42,6 +42,34 @@ async function written(dir: string): Promise<Record<string, unknown>> {
 }
 
 describe('detectDefaults', () => {
+  it('reads the language, country and address the built site states', async () => {
+    const cwd = await project({ 'package.json': JSON.stringify({ name: 'sklep' }) })
+    const { mkdir } = await import('node:fs/promises')
+    await mkdir(path.join(cwd, 'dist'))
+    await writeFile(
+      path.join(cwd, 'dist', 'index.html'),
+      '<html lang="pl-PL"><link rel="canonical" href="https://sklep.pl/"></html>',
+    )
+
+    expect(await detectDefaults(cwd)).toEqual({
+      name: 'sklep',
+      url: 'https://sklep.pl',
+      locale: 'pl-PL',
+      country: 'PL',
+    })
+  })
+
+  it('offers the detected country and language as the defaults', async () => {
+    const cwd = await project()
+    await writeFile(path.join(cwd, 'index.html'), '<html lang="pt-PT"><title>Loja</title></html>')
+
+    await runInitCommand({ cwd, ask: answers('', '', '', '', '', 'a@loja.pt') })
+
+    const config = await written(cwd)
+    expect(config.enforcement).toMatchObject({ country: 'PT' })
+    expect(config.site).toMatchObject({ name: 'Loja', locale: 'pt-PT' })
+  })
+
   it('takes the name and homepage a project states outright', async () => {
     const cwd = await project({
       'package.json': JSON.stringify({ name: 'gradska-web', homepage: 'https://gradska.at' }),
