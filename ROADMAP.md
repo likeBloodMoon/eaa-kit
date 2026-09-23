@@ -37,8 +37,9 @@ other two are a baseline, so CI fails on new barriers rather than on every exist
 and the CI job itself. `init` now offers both after writing the config:
 
 - **A baseline**, when there is a built site to record it from. `init` never runs a build
-  to get one. The prompt says how many barriers the baseline accepts, and they are still
-  reported on every run, as accepted barriers always have been.
+  to get one. Recording it says how many barriers it accepts, the config's `audit` block
+  points at it so a local `eaa-kit audit` reads it too, and the accepted barriers are still
+  reported on every run, as they always have been.
 - **A GitHub Actions workflow** at `.github/workflows/accessibility.yml`, when the project
   is in a git repository. It is written for this project: the package manager from the
   lockfile, the build script if there is one, the build directory `init` found, the

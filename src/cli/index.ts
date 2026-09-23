@@ -340,11 +340,28 @@ program
   .option('--output <path>', 'write here instead of eaa.config.json')
   .option('--force', 'overwrite a config that is already there')
   .option('-y, --yes', 'take every default without asking')
-  .action(async (flags: { output?: string; force?: true; yes?: true }) => {
-    const { runInitCommand } = await import('./init.ts')
-    const { exitCode } = await runInitCommand(flags)
-    process.exitCode = exitCode
-  })
+  .option('--no-ci', 'never offer the GitHub Actions workflow')
+  .option('--no-baseline', 'never offer to record a baseline')
+  .action(
+    async (flags: {
+      output?: string
+      force?: true
+      yes?: true
+      ci: boolean
+      baseline: boolean
+    }) => {
+      const { ci, baseline, ...rest } = flags
+      const { runInitCommand } = await import('./init.ts')
+      // Commander sets both to true unless the --no- form was typed, and true
+      // means "ask", which is what init does anyway.
+      const { exitCode } = await runInitCommand({
+        ...rest,
+        ...(ci ? {} : { ci: false as const }),
+        ...(baseline ? {} : { baseline: false as const }),
+      })
+      process.exitCode = exitCode
+    },
+  )
 
 program
   .command('statement')
