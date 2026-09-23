@@ -1,5 +1,6 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import type { NextStep } from '../next.ts'
 import * as s from '../schema.ts'
 import { isoDate } from '../text.ts'
 
@@ -76,6 +77,14 @@ export type ReviewRecord = s.Infer<typeof reviewSchema>
 
 export class ReviewError extends Error {
   override readonly name = 'ReviewError'
+
+  constructor(
+    message: string,
+    /** The command that fixes it, printed under the message. */
+    readonly next?: NextStep,
+  ) {
+    super(message)
+  }
 }
 
 /** How a review record is applied to a run. */
@@ -246,9 +255,10 @@ export async function readReview(file: string, cwd = process.cwd()): Promise<Rev
   try {
     raw = await readFile(target, 'utf8')
   } catch {
-    throw new ReviewError(
-      `Could not read the review record at ${file}. Create one with: eaa-kit checklist`,
-    )
+    throw new ReviewError(`Could not read the review record at ${file}`, {
+      command: `eaa-kit checklist --record ${file}`,
+      why: 'write the record and the worksheet that goes with it',
+    })
   }
 
   let value: unknown

@@ -340,10 +340,17 @@ async function loadTemplate(country: Country, locale: StatementLocale): Promise<
       .filter((entry) => entry.startsWith(prefix))
       .map((entry) => entry.slice(prefix.length))
 
+    const first = forCountry[0]
     throw new StatementError(
-      forCountry.length > 0
+      first !== undefined
         ? `No ${country} statement in ${locale}. ${country} has: ${forCountry.join(', ')}`
         : `No statement template for ${name}. Available: ${templates.join(', ')}`,
+      first !== undefined
+        ? {
+            command: `eaa-kit statement --lang ${first}`,
+            why: `the ${country} statement in ${first}`,
+          }
+        : { command: 'eaa-kit countries', why: 'the countries a statement can be written for' },
     )
   }
 }

@@ -5,6 +5,7 @@ import type { CollectedPage } from '../audit/collect.ts'
 import { requestHeaders } from '../audit/headers.ts'
 import type { PageAudit } from '../audit/runners/jsdom.ts'
 import type { AuditConfig } from '../config/define.ts'
+import { type NextStep, nextStepOf } from '../next.ts'
 import type { AuditCommandOptions } from './audit.ts'
 import type { BaselineCommandOptions } from './baseline.ts'
 
@@ -27,8 +28,22 @@ export function warn(message: string): void {
   process.stderr.write(`${pc.yellow('warning')} ${message}\n`)
 }
 
-export function fail(message: string): void {
+export function fail(message: string, next?: NextStep): void {
   process.stderr.write(`${pc.red('error')} ${message}\n`)
+  if (next !== undefined) nextStep(next)
+}
+
+/**
+ * An error a command stops on: its message, then the command that fixes it
+ * when the error carries one.
+ */
+export function failWith(cause: Error): void {
+  fail(cause.message, nextStepOf(cause))
+}
+
+/** The line under an error that says what to type. */
+export function nextStep(next: NextStep): void {
+  process.stderr.write(`  ${pc.cyan('→')} ${pc.bold(next.command)}  ${pc.dim(next.why)}\n`)
 }
 
 /**
@@ -108,7 +123,7 @@ export async function runEngine(
     })
   } catch (cause) {
     if (cause instanceof BrowserUnavailableError) {
-      fail(cause.message)
+      failWith(cause)
       return undefined
     }
     throw cause

@@ -8,7 +8,7 @@ import {
 } from '../audit/collect.ts'
 import type { Collection, Unmeasured } from '../audit/completeness.ts'
 import { count } from '../text.ts'
-import { fail, note, warn } from './command.ts'
+import { fail, failWith, note, warn } from './command.ts'
 
 /**
  * Where the pages a command audits come from.
@@ -141,7 +141,7 @@ export async function resolvePages(
     // mistake to whoever typed the path, so they get the same advice. This is
     // what somebody sees pointing the tool at ./dist in a Next.js project,
     // which is the commonest way to arrive here at all.
-    fail(cause.message)
+    failWith(cause)
     note(await emptyDirectoryHint(shown, cwd))
     return undefined
   }
@@ -220,7 +220,7 @@ async function crawlPages(
     entry = parseEntryUrl(url, options.allowRemote ?? false)
   } catch (cause) {
     if (cause instanceof CrawlError) {
-      fail(cause.message)
+      failWith(cause)
       return undefined
     }
     throw cause

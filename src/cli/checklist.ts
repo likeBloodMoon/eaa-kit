@@ -2,7 +2,7 @@ import { access } from 'node:fs/promises'
 import path from 'node:path'
 import { DEFAULT_REVIEW_FILE } from '../audit/review.ts'
 import { count } from '../text.ts'
-import { emitDocument, fail, note } from './command.ts'
+import { emitDocument, failWith, note } from './command.ts'
 
 /**
  * `eaa-kit checklist`.
@@ -52,7 +52,7 @@ export async function runChecklistCommand(
   } catch (cause) {
     if (!(cause instanceof ReviewError)) throw cause
     if (await exists(path.resolve(cwd, recordPath))) {
-      fail(cause.message)
+      failWith(cause)
       return { exitCode: 2 }
     }
   }

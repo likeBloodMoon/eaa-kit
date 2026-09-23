@@ -1,4 +1,5 @@
 import { IMPACT_LEVELS } from '../audit/impact.ts'
+import type { NextStep } from '../next.ts'
 import * as s from '../schema.ts'
 
 /**
@@ -270,6 +271,8 @@ export class ConfigError extends Error {
   constructor(
     message: string,
     readonly issues: string[] = [],
+    /** The command that fixes it, printed under the message and the issues. */
+    readonly next?: NextStep,
   ) {
     super(message)
   }

@@ -308,9 +308,13 @@ describe('the file', () => {
   it('says how to make one when it is not there', async () => {
     const dir = await project()
 
-    await expect(readBaseline('missing.json', dir)).rejects.toThrow(
-      /Could not read the baseline at missing\.json.*eaa-kit baseline/s,
-    )
+    // The how is the error's next step, which the CLI prints under the message
+    // as a line somebody can copy.
+    const error = await readBaseline('missing.json', dir).catch((cause: unknown) => cause)
+    expect(error).toMatchObject({
+      message: expect.stringMatching(/Could not read the baseline at missing\.json/),
+      next: { command: 'eaa-kit baseline --output missing.json' },
+    })
   })
 
   it('rejects a file that is not JSON', async () => {

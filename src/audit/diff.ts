@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
+import type { NextStep } from '../next.ts'
 import * as s from '../schema.ts'
 import { elementFingerprint } from './fingerprint.ts'
 import { type ImpactLevel, impactRank, isImpactLevel } from './impact.ts'
@@ -32,6 +33,14 @@ export const SUPPORTED_REPORT_SCHEMA = 2
 
 export class DiffError extends Error {
   override readonly name = 'DiffError'
+
+  constructor(
+    message: string,
+    /** The command that fixes it, printed under the message. */
+    readonly next?: NextStep,
+  ) {
+    super(message)
+  }
 }
 
 /**
@@ -265,7 +274,10 @@ export async function readReport(file: string, cwd = process.cwd()): Promise<Par
   try {
     raw = await readFile(target, 'utf8')
   } catch {
-    throw new DiffError(`Report not found: ${file}`)
+    throw new DiffError(`Report not found: ${file}`, {
+      command: `eaa-kit audit --format json --output ${file}`,
+      why: 'write it from the build as it is now',
+    })
   }
 
   let parsed: unknown
@@ -289,6 +301,10 @@ export async function readReport(file: string, cwd = process.cwd()): Promise<Par
     throw new DiffError(
       `${file} is schemaVersion ${result.data.schemaVersion}; this version of eaa-kit reads ${SUPPORTED_REPORT_SCHEMA}.\n` +
         '  Write both reports with the same version of eaa-kit before comparing them.',
+      {
+        command: `eaa-kit audit --format json --output ${file}`,
+        why: 'write it again with this version',
+      },
     )
   }
 

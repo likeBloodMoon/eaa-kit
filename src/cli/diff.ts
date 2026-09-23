@@ -8,7 +8,7 @@ import {
 } from '../audit/diff.ts'
 import { DEFAULT_FAIL_ON, type ImpactLevel, meetsThreshold } from '../audit/impact.ts'
 import { collapse, count } from '../text.ts'
-import { emitDocument, fail, note, warn } from './command.ts'
+import { emitDocument, fail, failWith, note, warn } from './command.ts'
 
 /**
  * `eaa-kit diff <before.json> <after.json>`.
@@ -66,7 +66,7 @@ export async function runDiffCommand(
     diff = diffReports(before, after)
   } catch (cause) {
     if (cause instanceof DiffError) {
-      fail(cause.message)
+      failWith(cause)
       return { exitCode: 2 }
     }
     throw cause

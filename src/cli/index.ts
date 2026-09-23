@@ -22,6 +22,7 @@ import {
   type BaselineFlags,
   baselineInvocation,
   fail,
+  nextStep,
   note,
 } from './command.ts'
 import { DIFF_FORMATS, type DiffCommandOptions, runDiffCommand } from './diff.ts'
@@ -229,7 +230,10 @@ program
     // Refused rather than turned into a poll: a running site changes without
     // writing anything this process can see.
     if (invocation.options.url !== undefined) {
-      fail('--watch watches a build directory, and --url audits a running site.')
+      fail('--watch watches a build directory, and --url audits a running site.', {
+        command: 'eaa-kit audit ./dist --watch',
+        why: 'watch the build instead, with your build directory in place of ./dist',
+      })
       process.exitCode = 2
       return
     }
@@ -390,6 +394,7 @@ try {
   if (cause instanceof ConfigError) {
     fail(cause.message)
     for (const issue of cause.issues) note(`  ${issue}`)
+    if (cause.next !== undefined) nextStep(cause.next)
     process.exitCode = 2
     // Commander's own errors carry an exitCode; this one does not, and the
     // branch below would print a stack trace for a typo in a config file.
@@ -398,9 +403,25 @@ try {
 
   // --help and --version land here too, with exitCode 0; everything else is a
   // usage error, which this CLI reports as 2.
-  const error = cause as { exitCode?: number; message?: string }
+  const error = cause as { exitCode?: number; message?: string; code?: string }
   if (typeof error.exitCode === 'number') {
     process.exitCode = error.exitCode === 0 ? 0 : 2
+    // Commander has printed what was wrong. What it does not say is where the
+    // right spelling is, which for a mistyped flag is that command's help.
+    // An unknown command is left alone: commander already suggests the
+    // nearest one, and a second suggestion would compete with it.
+    if (error.exitCode !== 0 && error.code !== 'commander.unknownCommand') {
+      const typed = process.argv[2]
+      const known = program.commands.find((command) => command.name() === typed)
+      nextStep(
+        // A country nobody has written a statement for has its own list.
+        error.message?.includes("'--country") === true
+          ? { command: 'eaa-kit countries', why: 'the countries a statement can be written for' }
+          : known === undefined
+            ? { command: 'eaa-kit --help', why: 'the commands, and what each one does' }
+            : { command: `eaa-kit ${known.name()} --help`, why: 'every flag it takes' },
+      )
+    }
   } else {
     process.stderr.write(`${cause instanceof Error ? cause.stack : String(cause)}\n`)
     process.exitCode = 2

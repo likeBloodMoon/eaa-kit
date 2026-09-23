@@ -1,5 +1,6 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import type { NextStep } from '../next.ts'
 import * as s from '../schema.ts'
 import { isoDate } from '../text.ts'
 import { elementFingerprint } from './fingerprint.ts'
@@ -74,6 +75,14 @@ export type Baseline = s.Infer<typeof baselineSchema>
 
 export class BaselineError extends Error {
   override readonly name = 'BaselineError'
+
+  constructor(
+    message: string,
+    /** The command that fixes it, printed under the message. */
+    readonly next?: NextStep,
+  ) {
+    super(message)
+  }
 }
 
 /** What applying a baseline to a run did. */
@@ -279,9 +288,10 @@ export async function readBaseline(file: string, cwd = process.cwd()): Promise<B
   try {
     raw = await readFile(target, 'utf8')
   } catch {
-    throw new BaselineError(
-      `Could not read the baseline at ${file}. Create one with: eaa-kit baseline`,
-    )
+    throw new BaselineError(`Could not read the baseline at ${file}`, {
+      command: `eaa-kit baseline --output ${file}`,
+      why: 'record what the build has today',
+    })
   }
 
   let value: unknown
@@ -305,9 +315,9 @@ export async function readBaseline(file: string, cwd = process.cwd()): Promise<B
   if (result.data.schemaVersion !== BASELINE_SCHEMA_VERSION) {
     throw new BaselineError(
       `${path.basename(target)} has schemaVersion ${result.data.schemaVersion}; this version of eaa-kit reads ${BASELINE_SCHEMA_VERSION}.\n` +
-        `  Record it again on the current build: eaa-kit baseline\n` +
         '  Read the new file before committing it: it lists what this run found, which is\n' +
         '  not necessarily what the old one accepted.',
+      { command: `eaa-kit baseline --output ${file}`, why: 'record it again on the current build' },
     )
   }
 

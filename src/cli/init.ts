@@ -7,7 +7,7 @@ import { COUNTRY_INFO, countryForLocale, findCountry } from '../config/countries
 import { COUNTRIES, type Country } from '../config/define.ts'
 import { CONFIG_FILENAMES } from '../config/load.ts'
 import { exists } from '../fs.ts'
-import { fail, note, warn } from './command.ts'
+import { fail, nextStep, note, warn } from './command.ts'
 
 /**
  * `eaa-kit init`.
@@ -140,7 +140,8 @@ export async function runInitCommand(options: InitCommandOptions = {}): Promise<
 
   const already = await existingConfig(cwd)
   if (already !== undefined && !options.force) {
-    warn(`${already} already exists. Pass --force to overwrite it.`)
+    warn(`${already} already exists, and init never overwrites one without being told to.`)
+    nextStep({ command: 'eaa-kit init --force', why: `start ${already} again from scratch` })
     return { exitCode: 1 }
   }
 

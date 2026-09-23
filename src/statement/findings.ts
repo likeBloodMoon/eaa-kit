@@ -107,6 +107,10 @@ export function summariseAuditReport(value: unknown, source = 'audit report'): A
   if (report.schemaVersion !== SUPPORTED_REPORT_SCHEMA) {
     throw new StatementError(
       `${source} has schemaVersion ${report.schemaVersion}; this version of eaa-kit reads ${SUPPORTED_REPORT_SCHEMA}`,
+      {
+        command: `eaa-kit audit --format json --output ${source}`,
+        why: 'write it again with this version',
+      },
     )
   }
 
@@ -167,7 +171,10 @@ export async function readAuditReport(file: string, cwd = process.cwd()): Promis
   try {
     raw = await readFile(target, 'utf8')
   } catch {
-    throw new StatementError(`Could not read the audit report at ${file}`)
+    throw new StatementError(`Could not read the audit report at ${file}`, {
+      command: `eaa-kit audit --format json --output ${file}`,
+      why: 'write the report the statement reads its barriers from',
+    })
   }
 
   let value: unknown
