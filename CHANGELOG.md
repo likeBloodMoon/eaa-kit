@@ -9,7 +9,18 @@ move: the JSON report's `schemaVersion` and the baseline file's. Both are bumped
 a field is removed, renamed, or changes meaning — new fields may appear without one, so
 consumers must ignore what they do not recognise.
 
-## Unreleased — 0.9.0
+## 0.9.0 — 2026-09-24
+
+The first release since 0.7.0, and it carries 0.8.0 as well: 0.8.0 was tagged but never
+published, so its entry below is part of this release.
+
+Released with the citation check still open. The eight countries added in 0.8.0 and 0.9.0
+(Belgium, Czechia, Denmark, Finland, Ireland, Poland, Portugal, Sweden) ship with the
+`unverified` marker that `eaa-kit countries` and `docs/statement.md` show, and their
+templates cite the statute and the supervisor without article numbers or fines. Their
+citations were established from secondary sources and cross-checked against search
+excerpts from the official sites, which agree with every one of them. The check against
+the full primary text is still to be done, and the marker comes off where it is.
 
 ### Added
 
@@ -67,7 +78,11 @@ consumers must ignore what they do not recognise.
 - The baseline and review-record errors no longer put their fix in the message text. It
   moved to the error's `next` field, which the CLI prints under the message.
 
-## Unreleased — 0.8.0
+## 0.8.0 — not published
+
+Tagged on 2026-09-24, but the tag was on a commit where `package.json` still said 0.7.0,
+the release workflow stopped at its version check, and nothing reached npm. The tag was
+withdrawn and everything here shipped in 0.9.0.
 
 ### Added
 
