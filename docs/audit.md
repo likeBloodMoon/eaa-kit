@@ -88,6 +88,42 @@ a crawl that stopped early says so.
 | `--max-depth <n>` | how far from the entry URL to follow links (default 3) |
 | `--allow-remote` | crawl a host that is not localhost |
 | `--ignore-robots` | crawl paths `robots.txt` disallows |
+| `--redirects <mode>` | when the URL [redirects to another site](#when-the-url-redirects-somewhere-else): `ask` (default), `follow` or `stop` |
+
+### When the URL redirects somewhere else
+
+Before crawling, the entry URL is fetched one redirect at a time, so the run knows where it
+really leads before it audits anything. A site that redirects to another one is the
+case this is for:
+
+```
+$ eaa-kit audit --url https://www.gtainside.de --allow-remote
+error https://www.gtainside.de/ redirects to https://www.gtainside.com/ (301), which is a
+      different site, so nothing was audited.
+  → eaa-kit audit --url https://www.gtainside.com/ --allow-remote  audit the address it leads to
+  → eaa-kit audit --url https://www.gtainside.de/ --allow-remote --redirects follow  or follow it on every run
+```
+
+- **`ask`**, the default, asks at the terminal whether to audit the new address instead.
+  With nobody at the terminal, in CI for example, the answer is no, and the run stops as
+  above.
+- **`follow`** goes on to the new address without asking.
+- **`stop`** never goes on, not even to the same site at another address.
+
+A redirect within the same site is followed under `ask` and `follow` without a question.
+The same site means the same host, give or take a leading `www.`, over http or https.
+
+**A redirect the run followed is in every report.** Four report formats say it:
+
+- the console report lists both addresses above the counts;
+- the HTML report has a *Redirected* row under what was audited;
+- the JSON report records it as `completeness.entryRedirect`;
+- the SARIF log records it as the `entryRedirect` run property.
+
+A reader who asked for one site and is reading about another finds that out before the
+first finding. The destination has to pass the same `--allow-remote` gate as the entry, so
+a local URL cannot redirect its way onto the internet. `redirects` in the config's `audit`
+block sets the mode for every run.
 
 ### Sites behind a login or a preview protection
 
@@ -108,25 +144,39 @@ three, and a crawl that loses the sitemap quietly audits less. Under `--browser`
 on the browser context, so stylesheets and images load too; a protected page audited without
 its CSS is a page audited wrong.
 
-**A sign-in page in front of the site is caught rather than audited.** The dangerous shape
-is not the one that answers 401 — that fails loudly. It is the site whose unauthenticated
-requests are *redirected* to a login form, which answers 200: every request succeeds, and a
-tool that is not looking will audit the login page and report it as the site. When several
-requested URLs all answer at one address, or a whole crawl comes back as the single page it
-was redirected to, the run says so and records those URLs as pages it never reached — so the
-report cannot come back complete:
+**A sign-in page in front of the site stops the run instead of being audited.** A tool
+that is not looking audits the login form, reports it as the site, and hands back a clean
+result for pages it never saw. So the entry URL is checked before the crawl, and the run
+stops, with exit 2, when any of these shows that a sign-in wall is there:
+
+- the server answers **401** or **403**;
+- the entry redirects to a **known identity provider**, such as Google, Microsoft, Okta,
+  Auth0, Cognito or Apple;
+- it redirects to a page that is a **sign-in page by name**: `/login`, `/sign-in`, `/sso`,
+  `/wp-login.php`, `/users/sign_in`, `/anmelden` and the like;
+- it redirects to a page with a **password field** on it.
 
 ```
-warning Every page requested answered at https://staging.example.com/login, which is not
-        where it was asked.
-  A sign-in page in front of the site looks like this.
-  If it is behind one, pass --basic-auth user:password or --header "Cookie: …".
+error https://staging.example.com/ is behind a sign-in wall: it sends visitors to a
+      sign-in page at https://staging.example.com/users/sign_in.
+  eaa-kit will not audit a sign-in form as though it were the site, so nothing was audited.
+  → eaa-kit audit --url https://staging.example.com/ --header "Cookie: <session>"
 ```
+
+A 401 points at `--basic-auth` instead. When credentials were sent and the wall is still
+there, the message says they were not accepted. On the way through the redirects, the
+credentials are only sent while the chain stays on the entry's origin, so a hop to an
+identity provider never receives them.
+
+The walls that only show once the crawl is under way are still caught: several requested
+pages all answering at one address, or a whole crawl coming back as the one page it was
+redirected to. Those pages are recorded as never reached, so the report cannot come back
+complete. When the page they landed on has a password field, the warning and the report
+call it a sign-in page. Otherwise they say it only looks like one, because a one-page
+site looks the same from here.
 
 Ordinary redirects are left alone: a locale prefix on the entry, trailing-slash
-normalisation, anything where each URL lands somewhere of its own. A redirect that leaves
-the origin — an identity provider, as Cloudflare Access uses — was already refused, since
-auditing somebody else's sign-in page is not auditing your site.
+normalisation, anything where each URL lands somewhere of its own.
 
 **These are credentials, and the tool never writes one down.** Nothing reaches a report, a
 baseline, a SARIF log or the completeness record, and a malformed `--header` is reported by
@@ -313,7 +363,7 @@ the schema is required by `statement`, which is the command that publishes a doc
 | Key | Same as |
 | --- | --- |
 | `dir` | the positional argument, which wins over it |
-| `include`, `exclude`, `baseUrl`, `url`, `sitemap`, `maxPages`, `maxDepth` | the flags of those names |
+| `include`, `exclude`, `baseUrl`, `url`, `sitemap`, `redirects`, `maxPages`, `maxDepth` | the flags of those names |
 | `allowRemote`, `ignoreRobots` | `--allow-remote`, `--ignore-robots` |
 | `failOn`, `format`, `output`, `baseline` | `--fail-on`, `--format`, `--output`, `--baseline` |
 | `browser`, `fast`, `concurrency` | the engine flags |

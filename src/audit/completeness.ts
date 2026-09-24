@@ -34,6 +34,32 @@ export interface Unmeasured {
 }
 
 /**
+ * The entry URL answered somewhere else, and the run went there.
+ *
+ * Carried into every report because it changes what the report is about: a
+ * reader who asked for `www.gtainside.de` is reading about
+ * `www.gtainside.com`, and nothing in a list of pages says so. A redirect the
+ * run did not follow is not here: that run stops before it has a report.
+ */
+export interface EntryRedirect {
+  /** The URL the run was given. */
+  requested: string
+  /** Where the redirects ended, and where the crawl started instead. */
+  auditedFrom: string
+  /** Every hop's status, first to last, e.g. [301, 302]. */
+  statuses: number[]
+  /**
+   * Why the run went on to another address.
+   *
+   * - `same-site`: the same host, give or take `www.` and http or https, which
+   *   is a site tidying its own address.
+   * - `flag`: `--redirects follow`, or `redirects: "follow"` in the config.
+   * - `prompt`: somebody said yes when asked.
+   */
+  followedBecause: 'same-site' | 'flag' | 'prompt'
+}
+
+/**
  * What the collection stage found, and what it could not get.
  *
  * Produced before anything is audited, by whichever collector ran, and handed
@@ -47,6 +73,8 @@ export interface Collection {
   unreachable: Unmeasured[]
   /** True when collection stopped at a limit rather than running out of pages. */
   truncated: boolean
+  /** Set when the entry URL redirected to another address and the run followed it. */
+  entryRedirect?: EntryRedirect
 }
 
 /** A collection that reached everything it knew about. */
@@ -121,6 +149,25 @@ export function reusedPart(completeness: RunCompleteness): string | undefined {
   if (completeness.reused === 0) return undefined
   const pages = completeness.reused === 1 ? 'page' : 'pages'
   return `${completeness.reused} ${pages} unchanged since the last run, so the earlier result was reused`
+}
+
+/**
+ * Where a followed entry redirect took the run, in one sentence every format
+ * prints. Undefined when the run went where it was sent.
+ */
+export function redirectPart(completeness: Collection): string | undefined {
+  const redirect = completeness.entryRedirect
+  if (redirect === undefined) return undefined
+  return `${redirect.requested} redirected to ${redirect.auditedFrom} (${redirect.statuses.join(' → ')}; ${redirectReason(redirect)}), so this report is about ${redirect.auditedFrom}`
+}
+
+/** Why a redirect was followed, in words. */
+export function redirectReason(redirect: EntryRedirect): string {
+  return {
+    'same-site': 'the same site at another address',
+    flag: 'followed because --redirects follow was set',
+    prompt: 'followed because it was approved when asked',
+  }[redirect.followedBecause]
 }
 
 /**

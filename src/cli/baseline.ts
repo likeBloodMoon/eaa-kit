@@ -10,7 +10,7 @@ import {
 } from '../audit/baseline.ts'
 import type { PageAudit } from '../audit/runners/jsdom.ts'
 import { count } from '../text.ts'
-import { advise, fail, note, runEngine } from './command.ts'
+import { advise, fail, failWith, note, runEngine } from './command.ts'
 import { type CrawlCommandOptions, resolvePages } from './pages.ts'
 
 export interface BaselineCommandOptions extends CrawlCommandOptions {
@@ -104,7 +104,7 @@ export async function runBaselineCommand(
     await writeBaseline(target, baseline, cwd)
   } catch (cause) {
     if (cause instanceof BaselineError) {
-      fail(cause.message)
+      failWith(cause)
       return { entries: 0, exitCode: 2 }
     }
     throw cause
@@ -145,7 +145,7 @@ async function prune(
     existing = await readBaseline(target, cwd)
   } catch (cause) {
     if (cause instanceof BaselineError) {
-      fail(cause.message)
+      failWith(cause)
       return { entries: 0, exitCode: 2 }
     }
     throw cause

@@ -296,6 +296,9 @@ function summaryProperties(
           pagesErrored: completeness.errored,
           pagesUnreachable: completeness.unreachable.length,
           truncated: completeness.truncated,
+          ...(completeness.entryRedirect === undefined
+            ? {}
+            : { entryRedirect: completeness.entryRedirect }),
         }
       : {}),
   }

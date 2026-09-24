@@ -9,6 +9,64 @@ move: the JSON report's `schemaVersion` and the baseline file's. Both are bumped
 a field is removed, renamed, or changes meaning — new fields may appear without one, so
 consumers must ignore what they do not recognise.
 
+## Unreleased — 0.9.0
+
+### Added
+
+- **`init` sets up the baseline and the CI workflow as well as the config.** After the
+  config it offers a baseline, when a built site is already there, and points the
+  config's `audit` block at it. It also offers a GitHub Actions workflow, when the project
+  is in a git repository. The workflow is written for the project: package manager, build
+  script, build directory, baseline, `working-directory` in a monorepo, and the action
+  pinned to this release. An existing workflow is never overwritten. `--no-baseline` and
+  `--no-ci` turn either offer off.
+- **Errors say what to type next.** The exit-2 paths a new user is likely to meet end with
+  the command that fixes them, on a line of their own:
+  - a missing config points at `eaa-kit init`;
+  - a language the country does not have points at `--lang` with one it does;
+  - an unknown country points at `eaa-kit countries`;
+  - a missing report, baseline or review record points at the command that writes one;
+  - a mistyped flag points at that command's `--help`.
+
+  Errors carry this as a `next` field, so the message still says only what went wrong.
+- **Five more statement templates: Belgium in German, and Czechia, Denmark, Finland and
+  Sweden.** Each new country has its own language and English; `cs`, `da`, `fi` and `sv`
+  are new `--lang` values. That makes fifteen countries and thirty-one templates.
+  `init` now reads `sv`, `da` and `cs` as their countries too.
+
+  **Given up, as in 0.8.0:** these citations come from regulators' pages, government
+  portals and law firms, because the official gazettes could not be reached. They are
+  marked unverified and cite no article numbers and no fines. Finland has no Swedish
+  rendering yet.
+
+- **Redirects are found before the crawl, and a redirect to another site is never
+  followed without agreement.** The entry URL is followed one hop at a time first. When
+  it leads to another site, as `www.gtainside.de` does to `www.gtainside.com`, the new
+  `--redirects` option decides what happens:
+  - `ask`, the default, asks at the terminal, and stops when there is nobody to ask;
+  - `follow` goes on;
+  - `stop` never does.
+
+  Stopping names the two commands that go on. A redirect within the same site (`www.`,
+  http to https) is followed without a question. A followed redirect is recorded in every
+  report: two console lines above the counts, a *Redirected* row in the HTML report,
+  `completeness.entryRedirect` in the JSON report and an `entryRedirect` property in SARIF.
+  There is a `redirects` config key and a `redirects` input on the GitHub Action.
+- **A sign-in wall stops the run instead of being audited as the site.** It is caught
+  from evidence the site gives: a 401 or 403, a redirect to an identity provider, a
+  redirect to a sign-in path, or a redirect to a page with a password field. The run
+  exits 2 with the credentials flag to use. Credentials are no longer sent past a hop
+  that leaves the entry's origin. Pages that all land on one address during the crawl are
+  now called a sign-in page when that page has a password field.
+
+### Changed
+
+- A crawl whose entry URL redirects to another site used to fail every page as
+  "redirected off" and end with "Could not fetch". It now stops before crawling, says
+  where the site went, and names the commands to go on. The exit code is 2 either way.
+- The baseline and review-record errors no longer put their fix in the message text. It
+  moved to the error's `next` field, which the CLI prints under the message.
+
 ## Unreleased — 0.8.0
 
 ### Added

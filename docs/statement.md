@@ -17,8 +17,8 @@ eaa-kit statement --review eaa-review.json          # say what a person checked
 | Flag | Default | Meaning |
 | --- | --- | --- |
 | `--config <path>` | searched for | Path to the config file |
-| `--lang <locale>` | from `site.locale` | `de`, `en`, `es`, `fr`, `it`, `nl`, `pl` or `pt` — see the table below for which countries have which |
-| `--country <code>` | from `enforcement.country` | `AT`, `BE`, `CH`, `DE`, `ES`, `FR`, `IE`, `IT`, `NL`, `PL` or `PT` — `eaa-kit countries` lists them |
+| `--lang <locale>` | from `site.locale` | `cs`, `da`, `de`, `en`, `es`, `fi`, `fr`, `it`, `nl`, `pl`, `pt` or `sv` — see the table below for which countries have which |
+| `--country <code>` | from `enforcement.country` | `AT`, `BE`, `CH`, `CZ`, `DE`, `DK`, `ES`, `FI`, `FR`, `IE`, `IT`, `NL`, `PL`, `PT` or `SE` — `eaa-kit countries` lists them |
 | `--audit <path>` | — | A report from `eaa-kit audit --format json`; its violations are listed as non-accessible content |
 | `--review <path>` | — | A [review record](review.md); the statement says how many criteria a person checked, and refuses a false claim of conformance |
 | `--format <format>` | from `--output` | `markdown` or `html` |
@@ -38,11 +38,25 @@ enforcement procedure, and when the statement was prepared.
 eaa-kit init
 ```
 
-Asks for the few things it cannot work out — who is answerable for the site, where
-feedback goes, whose law applies — takes the site name and URL from `package.json` where
-they are stated, and writes an `eaa.config.json` the loader accepts. It refuses to
-overwrite a config that is already there without `--force`, and `--yes` takes every
-default without asking.
+Asks for the few things it cannot work out: who is answerable for the site, where
+feedback goes, and whose law applies. It takes the site name, URL and language from what
+the project and its built site already state, and writes an `eaa.config.json` the loader
+accepts. It refuses to overwrite a config that is already there without `--force`, and
+`--yes` takes every default without asking.
+
+Then it offers the other two things a project needs:
+
+- **A baseline**, when a built site is already there. `init` never runs a build to get
+  one. The config's `audit` block points at the baseline, so `eaa-kit audit` reads it
+  without being told.
+- **A GitHub Actions workflow** at `.github/workflows/accessibility.yml`, when the project
+  is in a git repository. It is written for the project: the package manager from the
+  lockfile, the `build` script, the build directory, the baseline, and the action pinned
+  to the release that wrote it. It sits in a subdirectory's `working-directory` when the
+  project is below the repository root.
+
+An existing workflow is never overwritten. `--no-baseline` and `--no-ci` keep `init` from
+offering either one.
 
 What it writes is `partially-compliant`, never `compliant`. The file is written before any
 audit has run, and a statement claiming full conformance for a site nobody has assessed is
@@ -107,7 +121,7 @@ export default defineConfig({
     ],
   },
   enforcement: {
-    country: 'AT',   // AT, BE, CH, DE, ES, FR, IE, IT, NL, PL or PT
+    country: 'AT',   // any code eaa-kit countries lists
   },
 })
 ```
@@ -162,24 +176,28 @@ is the French statement, and there is no French rendering of the Austrian one.
 | `FR` | `fr`, `en` | Ordonnance n° 2023-859 du 6 septembre 2023, and art. 47 of loi n° 2005-102 | the Défenseur des droits, and [Arcom](https://www.arcom.fr) |
 | `IT` | `it`, `en` | D.lgs. 27 maggio 2022, n. 82, amending the legge Stanca (l. 4/2004) | [AgID](https://www.agid.gov.it) |
 | `NL` | `nl`, `en` | Implementatiewet toegankelijkheidsvoorschriften producten en diensten | [ACM](https://www.acm.nl) for services, RDI for products |
-| `BE` † | `fr`, `nl`, `en` | Code de droit économique / Wetboek van economisch recht, as amended by the law of 5 November 2023 | [SPF Économie / FOD Economie](https://economie.fgov.be), Economic Inspection, and says supervision is split |
+| `BE` † | `fr`, `nl`, `de`, `en` | Code de droit économique / Wetboek van economisch recht, as amended by the law of 5 November 2023 | [SPF Économie / FOD Economie](https://economie.fgov.be), Economic Inspection, and says supervision is split |
 | `IE` † | `en` | European Union (Accessibility Requirements of Products and Services) Regulations 2023 (S.I. No. 636 of 2023) | [CCPC](https://www.ccpc.ie); ComReg and the Central Bank for their sectors |
 | `PL` † | `pl`, `en` | Ustawa z dnia 26 kwietnia 2024 r. (Dz.U. 2024 poz. 731) | [Prezes Zarządu PFRON](https://www.pfron.org.pl), who passes e-commerce reports to the minister for digital affairs |
 | `PT` † | `pt`, `en` | Decreto-Lei n.º 82/2022, de 6 de dezembro | [ANACOM](https://www.anacom.pt) for e-commerce, and says supervision is split |
+| `CZ` † | `cs`, `en` | Zákon č. 424/2023 Sb., o požadavcích na přístupnost některých výrobků a služeb | [Česká obchodní inspekce](https://coi.gov.cz) (ČOI) |
+| `DK` † | `da`, `en` | Lov nr. 801 af 7. juni 2022 om tilgængelighedskrav for produkter og tjenester | [Sikkerhedsstyrelsen](https://www.sik.dk) for e-commerce, and says supervision is split |
+| `FI` † | `fi`, `en` | Laki digitaalisten palvelujen tarjoamisesta (306/2019), as amended for the Directive | [Traficom](https://www.traficom.fi) |
+| `SE` † | `sv`, `en` | Lag (2023:254) om vissa produkters och tjänsters tillgänglighet | [Post- och telestyrelsen](https://pts.se) (PTS) |
 
 `eaa-kit countries` prints the same list in the terminal, and `--json` prints it for
 anything that wants to build on it.
 
-† **New in 0.8.0, and checked less than the others.** The statute, the authority and the
-enforcement route for these four were established from regulators' own pages, government
-portals and law firms. The official gazettes could not be reached when these templates were
-written. For that reason these templates cite less than the older seven: no article
-numbers and no fine amounts, which are the details a secondary source most often gets wrong.
-They will be checked against the primary text before 0.8.0 is released. Until then, read
-the enforcement section with that in mind, and if you find something wrong,
-[open an issue](https://github.com/likeBloodMoon/eaa-kit/issues).
-Belgium has no German rendering yet: the federal law is published in French and Dutch, and
-a German one written without a German source text would be a translation.
+† **New in 0.8.0 or 0.9.0, and checked less than the others.** The statute, the authority
+and the enforcement route for these nine were established from regulators' own pages,
+government portals and law firms. The official gazettes could not be reached when these
+templates were written. For that reason these templates cite less than the older ones: no
+article numbers and no fine amounts, which are the details a secondary source most often
+gets wrong. They will be checked against the primary text before the release that carries
+them is tagged. Until then, read the enforcement section with that in mind, and if you find
+something wrong, [open an issue](https://github.com/likeBloodMoon/eaa-kit/issues).
+Finland has no Swedish rendering yet, although Swedish is an official language there: a
+Finnish statement in Swedish is a document of its own, and it waits for a source text.
 
 Asking for a language a country does not have is an error naming the ones it does, rather
 than a fall back to another language: a legal document silently published in a language

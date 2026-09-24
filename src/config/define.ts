@@ -1,11 +1,28 @@
 import { IMPACT_LEVELS } from '../audit/impact.ts'
+import type { NextStep } from '../next.ts'
 import * as s from '../schema.ts'
 
 /**
  * Countries with their own supervisory body and statute text. What is known
  * about each one is in `countries.ts`.
  */
-export const COUNTRIES = ['AT', 'BE', 'CH', 'DE', 'ES', 'FR', 'IE', 'IT', 'NL', 'PL', 'PT'] as const
+export const COUNTRIES = [
+  'AT',
+  'BE',
+  'CH',
+  'CZ',
+  'DE',
+  'DK',
+  'ES',
+  'FI',
+  'FR',
+  'IE',
+  'IT',
+  'NL',
+  'PL',
+  'PT',
+  'SE',
+] as const
 export type Country = (typeof COUNTRIES)[number]
 
 /**
@@ -16,7 +33,20 @@ export type Country = (typeof COUNTRIES)[number]
  * has the language it is published in and English. `renderStatement` says which
  * ones a country has when asked for one it does not.
  */
-export const STATEMENT_LOCALES = ['de', 'en', 'es', 'fr', 'it', 'nl', 'pl', 'pt'] as const
+export const STATEMENT_LOCALES = [
+  'cs',
+  'da',
+  'de',
+  'en',
+  'es',
+  'fi',
+  'fr',
+  'it',
+  'nl',
+  'pl',
+  'pt',
+  'sv',
+] as const
 export type StatementLocale = (typeof STATEMENT_LOCALES)[number]
 
 /**
@@ -67,6 +97,18 @@ const knownIssueSchema = s.union(
 )
 
 /**
+ * What a crawl does when its entry URL redirects to another site.
+ *
+ * `ask` puts the question to whoever is at the terminal and, with nobody there,
+ * stops. `follow` goes on to the new address, and every report says so. `stop`
+ * never goes on, not even to the same site at another address. A redirect
+ * within the same host, give or take `www.` and http or https, is followed
+ * under `ask` and `follow` without a question, and is still reported.
+ */
+export const REDIRECT_MODES = ['ask', 'follow', 'stop'] as const
+export type RedirectMode = (typeof REDIRECT_MODES)[number]
+
+/**
  * Report formats the `audit` block accepts.
  *
  * Spelled out here rather than imported from `src/cli/audit.ts`, which pulls
@@ -105,6 +147,8 @@ const auditSchema = s.object({
   ignoreRobots: s.optional(s.boolean()),
   /** Where the site lists its pages, when that is not /sitemap.xml. */
   sitemap: s.optional(s.string({ min: 1 })),
+  /** What to do when the entry URL redirects to another site. */
+  redirects: s.optional(s.enumeration(REDIRECT_MODES)),
   maxPages: s.optional(s.integer({ min: 1 })),
   /** 0 audits the entry page alone. */
   maxDepth: s.optional(s.integer({ min: 0 })),
@@ -270,6 +314,8 @@ export class ConfigError extends Error {
   constructor(
     message: string,
     readonly issues: string[] = [],
+    /** The command that fixes it, printed under the message and the issues. */
+    readonly next?: NextStep,
   ) {
     super(message)
   }

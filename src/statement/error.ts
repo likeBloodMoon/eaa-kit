@@ -1,3 +1,5 @@
+import type { NextStep } from '../next.ts'
+
 /**
  * Lives in its own module so that both the renderer and the audit-report reader
  * can throw it without importing each other.
@@ -9,4 +11,12 @@
  */
 export class StatementError extends Error {
   override readonly name = 'StatementError'
+
+  constructor(
+    message: string,
+    /** The command that fixes it, printed under the message. */
+    readonly next?: NextStep,
+  ) {
+    super(message)
+  }
 }

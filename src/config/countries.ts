@@ -44,7 +44,7 @@ export const COUNTRY_INFO: Record<Country, CountryInfo> = {
   },
   BE: {
     name: 'Belgium',
-    languages: ['fr', 'nl', 'en'],
+    languages: ['fr', 'nl', 'de', 'en'],
     siteLocale: 'fr-BE',
     statute: 'Loi du 5 novembre 2023 / wet van 5 november 2023 (Code de droit économique)',
     authority: 'SPF Économie / FOD Economie, Economic Inspection',
@@ -57,12 +57,28 @@ export const COUNTRY_INFO: Record<Country, CountryInfo> = {
     statute: 'Behindertengleichstellungsgesetz (BehiG), not an EAA transposition',
     authority: 'the courts; there is no supervisory body',
   },
+  CZ: {
+    name: 'Czechia',
+    languages: ['cs', 'en'],
+    siteLocale: 'cs-CZ',
+    statute: 'Zákon č. 424/2023 Sb., o požadavcích na přístupnost některých výrobků a služeb',
+    authority: 'Česká obchodní inspekce (ČOI)',
+    unverified: true,
+  },
   DE: {
     name: 'Germany',
     languages: ['de', 'en'],
     siteLocale: 'de-DE',
     statute: 'Barrierefreiheitsstärkungsgesetz (BFSG)',
     authority: 'Marktüberwachungsstelle der Länder (MLBF)',
+  },
+  DK: {
+    name: 'Denmark',
+    languages: ['da', 'en'],
+    siteLocale: 'da-DK',
+    statute: 'Lov nr. 801 af 7. juni 2022 om tilgængelighedskrav for produkter og tjenester',
+    authority: 'Sikkerhedsstyrelsen for e-commerce; supervision is split',
+    unverified: true,
   },
   ES: {
     name: 'Spain',
@@ -71,6 +87,14 @@ export const COUNTRY_INFO: Record<Country, CountryInfo> = {
     statute: 'Ley 11/2023, de 8 de mayo',
     authority:
       "the competent market surveillance authority, usually the autonomous community's consumer body",
+  },
+  FI: {
+    name: 'Finland',
+    languages: ['fi', 'en'],
+    siteLocale: 'fi-FI',
+    statute: 'Laki digitaalisten palvelujen tarjoamisesta (306/2019), as amended',
+    authority: 'Liikenne- ja viestintävirasto Traficom',
+    unverified: true,
   },
   FR: {
     name: 'France',
@@ -117,6 +141,14 @@ export const COUNTRY_INFO: Record<Country, CountryInfo> = {
     authority: 'ANACOM for e-commerce services',
     unverified: true,
   },
+  SE: {
+    name: 'Sweden',
+    languages: ['sv', 'en'],
+    siteLocale: 'sv-SE',
+    statute: 'Lag (2023:254) om vissa produkters och tjänsters tillgänglighet',
+    authority: 'Post- och telestyrelsen (PTS)',
+    unverified: true,
+  },
 }
 
 /**
@@ -153,7 +185,18 @@ export function countryForLocale(tag: string): Country | undefined {
   // A region this tool has no country for is a site aimed somewhere else, and
   // `fr-CA` is not a reason to offer France.
   if (region !== undefined) return codes.find((code) => code.toLowerCase() === region)
-  return codes.find(
+
+  // `fr` is France and `de` is Germany: the country the language is named for.
+  const own = codes.find(
     (code) => COUNTRY_INFO[code].siteLocale.toLowerCase() === `${language}-${language}`,
   )
+  if (own !== undefined) return own
+
+  // `sv`, `da` and `cs` are not spelled like their countries, so a language
+  // only one listed country is written in stands for that country. English is
+  // left out: every country here has an English statement, so an English site
+  // says nothing about where it sells.
+  if (language === 'en') return undefined
+  const speakers = codes.filter((code) => COUNTRY_INFO[code].siteLocale.startsWith(`${language}-`))
+  return speakers.length === 1 ? speakers[0] : undefined
 }

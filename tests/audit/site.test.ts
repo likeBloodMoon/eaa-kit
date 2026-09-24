@@ -63,11 +63,16 @@ describe('countryForLocale', () => {
     ['pl', 'PL'],
     ['pt-PT', 'PT'],
     ['en-IE', 'IE'],
+    ['sv', 'SE'],
+    ['da', 'DK'],
+    ['cs', 'CZ'],
+    ['fi', 'FI'],
+    ['de-BE', 'BE'],
   ])('reads %s as %s', (tag, country) => {
     expect(countryForLocale(tag)).toBe(country)
   })
 
-  it.each(['en', 'en-GB', 'fr-CA', 'pt-BR', 'sv-SE'])('offers nothing for %s', (tag) => {
+  it.each(['en', 'en-GB', 'fr-CA', 'pt-BR', 'nb-NO'])('offers nothing for %s', (tag) => {
     // English has no country of its own here, and a region this tool has no
     // country for is a site aimed somewhere else.
     expect(countryForLocale(tag)).toBeUndefined()

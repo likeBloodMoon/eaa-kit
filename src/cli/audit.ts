@@ -20,7 +20,7 @@ import type { ComponentLocation } from '../audit/component.ts'
 import { DEFAULT_TAGS } from '../audit/result.ts'
 import type { ReviewOptions } from '../audit/review.ts'
 import { TOOL_VERSION } from '../version.ts'
-import { advise, emitDocument, fail, note, runEngine, warn } from './command.ts'
+import { advise, emitDocument, fail, failWith, note, runEngine, warn } from './command.ts'
 import { type CrawlCommandOptions, resolvePages } from './pages.ts'
 
 export const OUTPUT_FORMATS = ['console', 'json', 'sarif', 'html'] as const
@@ -339,7 +339,7 @@ async function acceptBaseline(
     return outcome.audits
   } catch (cause) {
     if (cause instanceof BaselineError) {
-      fail(cause.message)
+      failWith(cause)
       return undefined
     }
     throw cause
@@ -370,7 +370,7 @@ async function loadReview(
     }
   } catch (cause) {
     if (cause instanceof ReviewError) {
-      fail(cause.message)
+      failWith(cause)
       return FAILED
     }
     throw cause

@@ -1,13 +1,15 @@
-import { readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { createInterface } from 'node:readline/promises'
 import pc from 'picocolors'
+import { DEFAULT_BASELINE_FILE } from '../audit/baseline.ts'
 import { DEFAULT_FAIL_ON } from '../audit/impact.ts'
 import { COUNTRY_INFO, countryForLocale, findCountry } from '../config/countries.ts'
 import { COUNTRIES, type Country } from '../config/define.ts'
 import { CONFIG_FILENAMES } from '../config/load.ts'
 import { exists } from '../fs.ts'
-import { fail, note, warn } from './command.ts'
+import { fail, nextStep, note, warn } from './command.ts'
+import { findGitRoot, WORKFLOW_FILE, workflowFor } from './setup.ts'
 
 /**
  * `eaa-kit init`.
@@ -37,6 +39,10 @@ export interface InitCommandOptions {
   yes?: boolean
   /** Injectable so the prompts can be tested without a terminal. */
   ask?: (question: string, fallback: string) => Promise<string>
+  /** `--no-ci`: never offer the GitHub Actions workflow. */
+  ci?: false
+  /** `--no-baseline`: never offer to record a baseline. */
+  baseline?: false
 }
 
 export interface InitCommandResult {
@@ -140,7 +146,8 @@ export async function runInitCommand(options: InitCommandOptions = {}): Promise<
 
   const already = await existingConfig(cwd)
   if (already !== undefined && !options.force) {
-    warn(`${already} already exists. Pass --force to overwrite it.`)
+    warn(`${already} already exists, and init never overwrites one without being told to.`)
+    nextStep({ command: 'eaa-kit init --force', why: `start ${already} again from scratch` })
     return { exitCode: 1 }
   }
 
@@ -174,9 +181,42 @@ export async function runInitCommand(options: InitCommandOptions = {}): Promise<
   const legalName = await ask('Legal entity answerable for the site', name)
   const email = await ask('Feedback email', '')
   const feedbackUrl = await ask('Feedback or contact form URL (optional)', '')
+
+  // The other two things a project needs before the tool is doing its job.
+  // Each is only offered where it can work: a baseline needs a build that is
+  // already there, since init never runs one, and a workflow needs a git
+  // repository and no workflow of the same name, which is never overwritten.
+  const site = options.baseline === false ? undefined : await builtSite(cwd)
+  const recordBaseline =
+    site !== undefined &&
+    isYes(
+      await ask(
+        'Record a baseline of the barriers the site has today, so CI fails only on new ones? (y/n)',
+        'y',
+      ),
+    )
+  const root = options.ci === false ? undefined : await findGitRoot(cwd)
+  const workflowPath = root === undefined ? undefined : path.join(root, WORKFLOW_FILE)
+  const writeWorkflow =
+    workflowPath !== undefined &&
+    !(await exists(workflowPath)) &&
+    isYes(await ask('Add a GitHub Actions workflow that audits every push? (y/n)', 'y'))
+
   // Before any writing: an open stdin handle keeps the process alive after the
   // file is written, and the reader is left looking at a prompt that has gone.
   terminal?.close()
+
+  // Before the config, so the config can point at it: a baseline the project
+  // records is one `eaa-kit audit` should read without being told.
+  let baseline: string | undefined
+  if (recordBaseline && site !== undefined) {
+    const { runBaselineCommand } = await import('./baseline.ts')
+    const recorded = await runBaselineCommand(path.relative(cwd, site) || '.', { cwd })
+    if (recorded.exitCode === 0) baseline = DEFAULT_BASELINE_FILE
+  } else if (await exists(path.join(cwd, DEFAULT_BASELINE_FILE))) {
+    // One recorded earlier is still one the workflow and the audit should read.
+    baseline = DEFAULT_BASELINE_FILE
+  }
 
   const config = {
     site: { name, url, locale },
@@ -199,7 +239,7 @@ export async function runInitCommand(options: InitCommandOptions = {}): Promise<
     // invocation would otherwise repeat. This one restates the built-in
     // threshold rather than changing anything: it is here to be found and
     // edited, since a block nobody knows about is a feature nobody has.
-    audit: { failOn: DEFAULT_FAIL_ON },
+    audit: { failOn: DEFAULT_FAIL_ON, ...(baseline === undefined ? {} : { baseline }) },
   }
 
   try {
@@ -223,12 +263,38 @@ export async function runInitCommand(options: InitCommandOptions = {}): Promise<
   }
   note(
     'Read it before publishing anything from it: status is partially-compliant,\n' +
-      'which is the honest default before an audit has run.\n' +
-      '\n' +
-      'Next:  eaa-kit audit  ·  eaa-kit statement',
+      'which is the honest default before an audit has run.',
   )
 
+  if (writeWorkflow && root !== undefined && workflowPath !== undefined) {
+    const workflow = await workflowFor({
+      cwd,
+      root,
+      ...(site === undefined ? {} : { site }),
+      ...(baseline === undefined ? {} : { baseline }),
+      failOn: DEFAULT_FAIL_ON,
+    })
+    try {
+      await mkdir(path.dirname(workflowPath), { recursive: true })
+      await writeFile(workflowPath, workflow, 'utf8')
+      process.stderr.write(`Wrote ${path.relative(cwd, workflowPath)}\n`)
+    } catch (cause) {
+      // The config is written and is the part that matters; a workflow that
+      // could not be is reported, not turned into a failed init.
+      warn(
+        `Could not write ${WORKFLOW_FILE}: ${cause instanceof Error ? cause.message : String(cause)}`,
+      )
+    }
+  }
+
+  note(
+    `\nNext:  eaa-kit statement${writeWorkflow ? '  ·  commit and push to run the workflow' : '  ·  eaa-kit audit'}`,
+  )
   return { file: target, exitCode: 0 }
+}
+
+function isYes(answer: string): boolean {
+  return /^y(es)?$/i.test(answer.trim())
 }
 
 /** How often an answer that is not a country is asked again before giving up on it. */

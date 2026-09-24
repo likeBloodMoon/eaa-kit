@@ -1,7 +1,13 @@
 import axe from 'axe-core'
 import { collapse, count, escapeAttribute, escapeText, standardsReference } from '../../text.ts'
 import { TOOL_VERSION } from '../../version.ts'
-import { discoveryLabel, missedParts, type RunCompleteness, reusedPart } from '../completeness.ts'
+import {
+  discoveryLabel,
+  missedParts,
+  type RunCompleteness,
+  redirectPart,
+  reusedPart,
+} from '../completeness.ts'
 import { type ComponentLocation, componentPath } from '../component.ts'
 import { buildCoverage, type CriterionCoverage, reviewSummary } from '../coverage.ts'
 import { byImpactThenRule, type ImpactLevel, impactLabel } from '../impact.ts'
@@ -192,6 +198,11 @@ function runDetails(
   // still has to be able to tell which pages were measured today.
   const reused = options.completeness ? reusedPart(options.completeness) : undefined
   if (reused !== undefined) rows.push(['Reused', reused])
+  // Second, straight under what was audited: the address the reader typed is
+  // not the site this document describes, and they will not find that out from
+  // the list of pages.
+  const redirected = options.completeness ? redirectPart(options.completeness) : undefined
+  if (redirected !== undefined) rows.splice(1, 0, ['Redirected', redirected])
 
   const body = rows
     .map(

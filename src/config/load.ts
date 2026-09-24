@@ -49,11 +49,15 @@ export async function loadConfig(options: LoadConfigOptions = {}): Promise<Loade
     throw new ConfigError(
       `No config file found in ${cwd} or its parent directories`,
       CONFIG_FILENAMES.map((name) => `looked for ${name}`),
+      { command: 'eaa-kit init', why: 'write one, filled in from what the site already states' },
     )
   }
 
   if (!(await isFile(file))) {
-    throw new ConfigError(`Config file not found: ${file}`)
+    throw new ConfigError(`Config file not found: ${file}`, [], {
+      command: `eaa-kit init --output ${path.relative(cwd, file) || path.basename(file)}`,
+      why: 'write it there',
+    })
   }
 
   return { config: parseConfig(await readConfigFile(file), path.basename(file)), path: file }
@@ -84,7 +88,10 @@ export async function loadAuditConfig(
 
   if (!file) return undefined
   if (!(await isFile(file))) {
-    throw new ConfigError(`Config file not found: ${file}`)
+    throw new ConfigError(`Config file not found: ${file}`, [], {
+      command: `eaa-kit init --output ${path.relative(cwd, file) || path.basename(file)}`,
+      why: 'write it there',
+    })
   }
 
   return { audit: parseAuditConfig(await readConfigFile(file), path.basename(file)), path: file }

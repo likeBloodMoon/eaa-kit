@@ -6,7 +6,7 @@ import { checkStatementEvidence, refuses } from '../statement/evidence.ts'
 import { type AuditSummary, readAuditReport } from '../statement/findings.ts'
 import { renderStatement } from '../statement/render.ts'
 import { count } from '../text.ts'
-import { advise, emitDocument, fail, note } from './command.ts'
+import { advise, emitDocument, fail, nextStep, note } from './command.ts'
 
 /** Markdown for a content directory, HTML for dropping straight onto a site. */
 export const STATEMENT_FORMATS = ['markdown', 'html'] as const
@@ -131,6 +131,7 @@ export async function runStatementCommand(
       if (cause instanceof ConfigError) {
         for (const issue of cause.issues) note(`  ${issue}`)
       }
+      if (cause.next !== undefined) nextStep(cause.next)
       return { document: '', format, exitCode: 2 }
     }
     throw cause

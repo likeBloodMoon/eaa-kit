@@ -278,6 +278,7 @@ watching is the wrong default for something whose job is to fail that build.
 | `sarif-file` | `eaa-kit.sarif` | Where to write the SARIF log |
 | `upload-sarif` | `true` | Upload to GitHub code scanning |
 | `sitemap` | — | Where the site lists its pages, if not `/sitemap.xml`; with `url` only |
+| `redirects` | — | When `url` redirects to another site: `ask`, `follow` or `stop`. A workflow has nobody to ask, so the default stops the run; `follow` goes on and records the redirect in the SARIF log |
 | `baseline` | — | Path to a baseline file; fail only on violations it does not list |
 | `headers` | — | Extra request headers for a protected site, one `Name: value` per line. Read from `secrets` |
 | `basic-auth` | — | `user:password` for a site behind basic auth. Read from `secrets` |

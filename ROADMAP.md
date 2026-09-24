@@ -19,11 +19,104 @@ having to learn the tool first. Three releases get there:
   a result made short enough to use while working rather than after.
 - **0.9.0 — the first ten minutes.** Everything a new user meets before their first useful
   result: `init` that sets up CI and a baseline as well as a config, errors that say what to
-  type next, and a German rendering for Belgium's third language community. The countries
-  after this release's four — Sweden, Denmark, Finland, Czechia — go here, with the same rule.
+  type next, a German rendering for Belgium's third language community, and Sweden,
+  Denmark, Finland and Czechia.
 - **1.0.0 — the promise.** The JSON report, the review record, the baseline and the config
   file frozen as documented contracts under semver, with a migration note for anything that
   changed on the way. No new surface: 1.0 is 0.9 with the guarantees written down.
+
+## 0.9.0 — the first ten minutes
+
+0.8.0 made the first command do the useful thing. 0.9.0 is about the next few: the ones a
+new user runs after the first report, and what they read when one of those goes wrong.
+
+### 1. `init` sets up the project, not only the config
+
+A config file is one of three things a project needs before the tool is doing its job. The
+other two are a baseline, so CI fails on new barriers rather than on every existing one,
+and the CI job itself. `init` now offers both after writing the config:
+
+- **A baseline**, when there is a built site to record it from. `init` never runs a build
+  to get one. Recording it says how many barriers it accepts, the config's `audit` block
+  points at it so a local `eaa-kit audit` reads it too, and the accepted barriers are still
+  reported on every run, as they always have been.
+- **A GitHub Actions workflow** at `.github/workflows/accessibility.yml`, when the project
+  is in a git repository. It is written for this project: the package manager from the
+  lockfile, the build script if there is one, the build directory `init` found, the
+  baseline if one was just recorded, and the action pinned to this exact release.
+
+The refusals: an existing workflow file is never overwritten. Nothing is set up that was
+not offered. `--no-ci` and `--no-baseline` answer for a script. With `--yes` the defaults
+apply, which means a workflow only inside a git repository and a baseline only when a
+build is already there.
+
+### 2. Errors say what to type next
+
+Every exit-2 path a new user is likely to hit ends with the command that fixes it:
+
+- No config: `eaa-kit init`.
+- No template in that language: `--lang` with the languages the country has.
+- An unknown country: `eaa-kit countries`.
+- A missing or outdated report, baseline or review record: the command that writes one.
+- A mistyped flag: the command's `--help`.
+
+The rule is the one `start` already follows. An error that the reader cannot act on
+without opening the docs is half an error.
+
+### 3. Belgium in German, and four more countries: Sweden, Denmark, Finland, Czechia
+
+| | Statute | Supervision named | Languages |
+| --- | --- | --- | --- |
+| `BE` | as 0.8.0 | as 0.8.0, in German | `de` added |
+| `CZ` | Zákon č. 424/2023 Sb., o požadavcích na přístupnost některých výrobků a služeb | Česká obchodní inspekce (ČOI) | `cs`, `en` |
+| `DK` | Lov nr. 801 af 7. juni 2022 om tilgængelighedskrav for produkter og tjenester | Sikkerhedsstyrelsen for e-commerce; supervision is split | `da`, `en` |
+| `FI` | Laki digitaalisten palvelujen tarjoamisesta (306/2019), as amended for the Directive | Traficom | `fi`, `en` |
+| `SE` | Lag (2023:254) om vissa produkters och tjänsters tillgänglighet | Post- och telestyrelsen (PTS) | `sv`, `en` |
+
+**Written from secondary sources, like 0.8.0's four.** The official gazettes are still not
+reachable from where this work is done, and the decision was to go ahead rather than wait.
+All five are marked unverified in the registry, in `eaa-kit countries` and in the docs.
+Their citations are kept to the statute and the supervisor, with no article numbers and
+no fines, for the same reason as 0.8.0's. Nine countries' citations now need checking
+against the primary text before the release that carries them is tagged.
+
+Finland's Swedish rendering is not in this release. Swedish is an official language there
+and the law exists in Swedish, but a Finnish statement in Swedish is a document of its
+own, and it waits for a source text.
+
+### 4. Redirects and sign-in walls, found before the crawl
+
+Two things put a crawl somewhere other than where it was sent. Before this release, one
+was found too late and the other only by guessing.
+
+- **A redirect to another site.** `https://www.gtainside.de` answers with a 301 to
+  `https://www.gtainside.com`. The crawl refused every page as "redirected off" and ended
+  on an error that did not say what to do. Now the entry is followed one redirect at a
+  time before the crawl, and a redirect to another site stops the run with where it went
+  and the two commands that go on: audit the destination, or `--redirects follow`. In a
+  terminal the default, `ask`, puts the question instead. A redirect within the same site
+  (`www.`, http to https) is followed without a question. Every redirect the run followed
+  is written into all four report formats, because a reader who asked for one site and
+  is reading about another has to find that out before the first finding.
+- **A sign-in wall.** A 401 or 403, a redirect to an identity provider, a redirect to a
+  page that is a sign-in page by name, or a redirect to a page with a password field
+  stops the run with exit 2 and the credentials flag to use. Before, the run audited the
+  login form and reported it as the site. The weaker signal found during the crawl, many
+  pages landing on one address, is now called a sign-in page when that page has a
+  password field, and "looks like one" otherwise.
+
+The refusals: a redirect to another site is never followed without a flag or a yes. The
+destination passes the same `--allow-remote` gate as the entry. Credentials are only sent
+while the redirect chain stays on the entry's origin. A redirect the run did not follow
+produces no report, because a report about the wrong site is the failure being
+prevented.
+
+### Done means
+
+- `lint`, `typecheck`, `test` (with colour forced as well as without), `smoke` and the
+  packaged-CLI run green across the CI matrix.
+- The citation check for 0.8.0's four countries and this release's five, recorded in the
+  changelog, before either version is tagged.
 
 ## 0.8.0 — reach
 

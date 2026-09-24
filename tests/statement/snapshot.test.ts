@@ -38,15 +38,22 @@ function stable(html: string): string {
 const COMBINATIONS = [
   { country: 'AT', locale: 'de' },
   { country: 'AT', locale: 'en' },
+  { country: 'BE', locale: 'de' },
   { country: 'BE', locale: 'en' },
   { country: 'BE', locale: 'fr' },
   { country: 'BE', locale: 'nl' },
   { country: 'CH', locale: 'de' },
   { country: 'CH', locale: 'en' },
+  { country: 'CZ', locale: 'cs' },
+  { country: 'CZ', locale: 'en' },
   { country: 'DE', locale: 'de' },
   { country: 'DE', locale: 'en' },
+  { country: 'DK', locale: 'da' },
+  { country: 'DK', locale: 'en' },
   { country: 'ES', locale: 'en' },
   { country: 'ES', locale: 'es' },
+  { country: 'FI', locale: 'en' },
+  { country: 'FI', locale: 'fi' },
   { country: 'FR', locale: 'en' },
   { country: 'FR', locale: 'fr' },
   { country: 'IE', locale: 'en' },
@@ -58,6 +65,8 @@ const COMBINATIONS = [
   { country: 'PL', locale: 'pl' },
   { country: 'PT', locale: 'en' },
   { country: 'PT', locale: 'pt' },
+  { country: 'SE', locale: 'en' },
+  { country: 'SE', locale: 'sv' },
 ] as const
 
 async function fixtures() {

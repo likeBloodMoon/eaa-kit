@@ -114,7 +114,7 @@ describe('template selection', () => {
 
     await expect(renderStatement(config(), missing)).rejects.toThrow(StatementError)
     await expect(renderStatement(config(), missing)).rejects.toThrow(
-      /Available: at\.de, at\.en, be\.en, be\.fr, be\.nl, ch\.de, ch\.en, de\.de/,
+      /Available: at\.de, at\.en, be\.de, be\.en, be\.fr, be\.nl, ch\.de, ch\.en/,
     )
   })
 })
@@ -293,6 +293,15 @@ describe('enforcement body', () => {
     ['PL', 'en', 'State Fund for Rehabilitation of Disabled Persons (PFRON)'],
     ['PT', 'pt', 'Autoridade Nacional de Comunicações (ANACOM)'],
     ['PT', 'en', 'National Communications Authority (ANACOM)'],
+    ['BE', 'de', 'FÖD Wirtschaft'],
+    ['CZ', 'cs', 'Českou obchodní inspekci (ČOI)'],
+    ['CZ', 'en', 'Czech Trade Inspection Authority (ČOI)'],
+    ['DK', 'da', 'Sikkerhedsstyrelsen'],
+    ['DK', 'en', 'Danish Safety Technology Authority (Sikkerhedsstyrelsen)'],
+    ['FI', 'fi', 'Traficomiin'],
+    ['FI', 'en', 'Finnish Transport and Communications Agency (Traficom)'],
+    ['SE', 'sv', 'Post- och telestyrelsen (PTS)'],
+    ['SE', 'en', 'Swedish Post and Telecom Authority (PTS)'],
   ] as Array<[Country, StatementLocale, string]>)(
     'names the %s authority in %s',
     async (country, locale, authority) => {
@@ -307,6 +316,9 @@ describe('enforcement body', () => {
     ['BE', 'fr'],
     ['BE', 'nl'],
     ['BE', 'en'],
+    ['BE', 'de'],
+    ['DK', 'da'],
+    ['DK', 'en'],
     ['PT', 'pt'],
     ['PT', 'en'],
   ] as Array<[Country, StatementLocale]>)(
@@ -314,7 +326,9 @@ describe('enforcement body', () => {
     async (country, locale) => {
       const statement = await renderStatement(config(), { country, locale })
 
-      expect(flat(statement.markdown)).toMatch(/réparti|verdeeld|split|repartida/)
+      expect(flat(statement.markdown)).toMatch(
+        /réparti|verdeeld|split|repartida|aufgeteilt|fordelt/,
+      )
     },
   )
 })
@@ -728,6 +742,15 @@ describe('what a person checked', () => {
     ['PL', 'en', 'success criteria in WCAG 2.2'],
     ['PT', 'pt', 'critérios de sucesso das WCAG 2.2'],
     ['PT', 'en', 'success criteria in WCAG 2.2'],
+    ['BE', 'de', 'Erfolgskriterien der WCAG 2.2'],
+    ['CZ', 'cs', 'kritérií úspěšnosti WCAG 2.2'],
+    ['CZ', 'en', 'success criteria in WCAG 2.2'],
+    ['DK', 'da', 'succeskriterier i WCAG 2.2'],
+    ['DK', 'en', 'success criteria in WCAG 2.2'],
+    ['FI', 'fi', 'WCAG 2.2:n onnistumiskriteeristä'],
+    ['FI', 'en', 'success criteria in WCAG 2.2'],
+    ['SE', 'sv', 'framgångskriterierna i WCAG 2.2'],
+    ['SE', 'en', 'success criteria in WCAG 2.2'],
   ] as Array<[Country, StatementLocale, string]>)(
     'reaches the document in %s/%s',
     async (country, locale, phrase) => {
