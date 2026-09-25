@@ -10,7 +10,18 @@ the statute and supervisory body of **fifteen countries**: Austria, Belgium, Cze
 Denmark, Finland, France, Germany, Ireland, Italy, the Netherlands, Poland, Portugal,
 Spain, Sweden and Switzerland, each in its own language as well as English.
 
-0.7.0 makes a run cost what it should. A page that has not changed byte for byte is not
+0.9.0 needs no setup. `npx eaa-kit` on its own finds the site, audits it, writes an HTML
+report and says which command comes next. `init` fills itself in from what the built site
+states, and also writes a baseline and a GitHub Actions workflow tailored to the project.
+Every error a new user is likely to hit ends with the command to type next. A `--url` run
+checks where the address leads before it crawls: a redirect to another site is shown and
+needs a yes (or `--redirects follow`), and a sign-in wall stops the run instead of being
+audited as the site. `audit --watch` re-checks the build on every save, and eight countries
+join the statement. Their citations were established from secondary sources and are marked
+as such in `eaa-kit countries` and the docs until they are checked against the primary
+text.
+
+0.7.0 made a run cost what it should. A page that has not changed byte for byte is not
 audited again, and a run with nothing to re-audit never loads an engine at all: twenty
 pages go from ~2,520 ms to ~230 ms, which is about what starting the process costs. A
 reused result is never passed off as a fresh one — every report says how much was reused

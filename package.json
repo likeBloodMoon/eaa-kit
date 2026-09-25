@@ -1,6 +1,6 @@
 {
   "name": "eaa-kit",
-  "version": "0.7.0",
+  "version": "0.9.0",
   "description": "WCAG 2.2 AA auditor and EU accessibility statement generator for fifteen countries (AT, BE, CH, CZ, DE, DK, ES, FI, FR, IE, IT, NL, PL, PT, SE). Audits a static build or a running site from the command line.",
   "type": "module",
   "license": "MIT",

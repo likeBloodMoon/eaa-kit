@@ -115,8 +115,12 @@ prevented.
 
 - `lint`, `typecheck`, `test` (with colour forced as well as without), `smoke` and the
   packaged-CLI run green across the CI matrix.
-- The citation check for 0.8.0's four countries and this release's five, recorded in the
-  changelog, before either version is tagged.
+- ~~The citation check for 0.8.0's four countries and this release's five, recorded in the
+  changelog, before either version is tagged.~~ **Changed at release:** 0.8.0 was never
+  published, and 0.9.0 shipped both with the check still open, the unverified marker on,
+  and the changelog saying so. The citations were cross-checked against search excerpts
+  from the official sites, which agree with all of them. The full check against the
+  primary text is now a 1.0 blocker.
 
 ## 0.8.0 — reach
 
@@ -221,7 +225,8 @@ look, would tell them it was clean.
 - `lint`, `typecheck`, `test`, `smoke` and the packaged-CLI run green across the CI matrix.
 - **Every citation in the four new countries' templates checked against the primary
   text**, and the checking recorded in the changelog: who checked it, against which
-  consolidated version. Until then 0.8.0 is not tagged.
+  consolidated version. Until then 0.8.0 is not tagged. (0.8.0 was not published; it
+  shipped as part of 0.9.0, with the check still open. See 0.9.0's *Done means*.)
 - `examples/` regenerated and drift-checked.
 - A changelog entry saying what was given up as well as what was added.
 
