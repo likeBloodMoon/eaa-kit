@@ -29,7 +29,8 @@ export interface CountryInfo {
    * Set where the citations were established from secondary sources only.
    * `eaa-kit countries` shows it, so nobody takes these templates to have had the
    * same checking as the others. It is removed once somebody checks the
-   * citations against the primary text.
+   * citations against the primary text, and the check is recorded in
+   * docs/citations.md. No country carries it at the moment.
    */
   unverified?: true
 }
@@ -48,7 +49,6 @@ export const COUNTRY_INFO: Record<Country, CountryInfo> = {
     siteLocale: 'fr-BE',
     statute: 'Loi du 5 novembre 2023 / wet van 5 november 2023 (Code de droit économique)',
     authority: 'SPF Économie / FOD Economie, Economic Inspection',
-    unverified: true,
   },
   CH: {
     name: 'Switzerland',
@@ -63,7 +63,6 @@ export const COUNTRY_INFO: Record<Country, CountryInfo> = {
     siteLocale: 'cs-CZ',
     statute: 'Zákon č. 424/2023 Sb., o požadavcích na přístupnost některých výrobků a služeb',
     authority: 'Česká obchodní inspekce (ČOI)',
-    unverified: true,
   },
   DE: {
     name: 'Germany',
@@ -78,7 +77,6 @@ export const COUNTRY_INFO: Record<Country, CountryInfo> = {
     siteLocale: 'da-DK',
     statute: 'Lov nr. 801 af 7. juni 2022 om tilgængelighedskrav for produkter og tjenester',
     authority: 'Sikkerhedsstyrelsen for e-commerce; supervision is split',
-    unverified: true,
   },
   ES: {
     name: 'Spain',
@@ -94,7 +92,6 @@ export const COUNTRY_INFO: Record<Country, CountryInfo> = {
     siteLocale: 'fi-FI',
     statute: 'Laki digitaalisten palvelujen tarjoamisesta (306/2019), as amended',
     authority: 'Liikenne- ja viestintävirasto Traficom',
-    unverified: true,
   },
   FR: {
     name: 'France',
@@ -109,7 +106,6 @@ export const COUNTRY_INFO: Record<Country, CountryInfo> = {
     siteLocale: 'en-IE',
     statute: 'S.I. No. 636 of 2023',
     authority: 'Competition and Consumer Protection Commission (CCPC)',
-    unverified: true,
   },
   IT: {
     name: 'Italy',
@@ -131,7 +127,6 @@ export const COUNTRY_INFO: Record<Country, CountryInfo> = {
     siteLocale: 'pl-PL',
     statute: 'Ustawa z dnia 26 kwietnia 2024 r. (Dz.U. 2024 poz. 731)',
     authority: 'Prezes Zarządu PFRON',
-    unverified: true,
   },
   PT: {
     name: 'Portugal',
@@ -139,7 +134,6 @@ export const COUNTRY_INFO: Record<Country, CountryInfo> = {
     siteLocale: 'pt-PT',
     statute: 'Decreto-Lei n.º 82/2022, de 6 de dezembro',
     authority: 'ANACOM for e-commerce services',
-    unverified: true,
   },
   SE: {
     name: 'Sweden',
@@ -147,7 +141,6 @@ export const COUNTRY_INFO: Record<Country, CountryInfo> = {
     siteLocale: 'sv-SE',
     statute: 'Lag (2023:254) om vissa produkters och tjänsters tillgänglighet',
     authority: 'Post- och telestyrelsen (PTS)',
-    unverified: true,
   },
 }
 

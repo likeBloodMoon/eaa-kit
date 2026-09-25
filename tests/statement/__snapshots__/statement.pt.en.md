@@ -72,8 +72,9 @@ We aim to respond to your feedback promptly.
 If you are not satisfied with our response, you can complain to the competent supervisory
 authority. Supervision is split between several authorities: for e-commerce services it is
 the National Communications Authority (ANACOM), while banking services, for example, are
-supervised by the Banco de Portugal. The supervisory authorities report non-compliant
-products and services to the National Institute for Rehabilitation (INR, I.P.).
+supervised by the Banco de Portugal. The National Institute for Rehabilitation (INR, I.P.)
+monitors how the rules are applied and passes complaints sent to it directly on to the
+competent authority.
 
 Autoridade Nacional de Comunicações (ANACOM)
 https://www.anacom.pt

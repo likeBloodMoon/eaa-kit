@@ -36,9 +36,7 @@ export function formatCountries(options: CountriesCommandOptions = {}): string {
     // Said on the list itself, and not only in the docs, because this list is
     // where somebody picks the country they will publish a document under.
     if (info.unverified) {
-      lines.push(
-        colors.yellow('    New in 0.8: citations not yet checked against the primary text'),
-      )
+      lines.push(colors.yellow('    Citations not yet checked against the primary text'))
     }
     lines.push('')
   }

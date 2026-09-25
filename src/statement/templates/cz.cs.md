@@ -123,7 +123,8 @@ Snažíme se odpovídat co nejdříve.
 ## Dozor
 
 Pokud nejste s naší odpovědí spokojeni, můžete se obrátit na Českou obchodní inspekci (ČOI),
-která vykonává dozor nad dodržováním zákona.
+která vykonává dozor nad službami elektronického obchodování. Dozor nad některými dalšími
+službami, například nad službami elektronických komunikací, vykonávají jiné orgány.
 
 Česká obchodní inspekce (ČOI)
 https://coi.gov.cz

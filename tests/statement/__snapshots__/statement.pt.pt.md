@@ -72,9 +72,9 @@ Procuramos responder com a maior brevidade possível.
 Se não ficar satisfeito com a nossa resposta, pode apresentar uma reclamação à entidade
 fiscalizadora competente. A fiscalização está repartida por várias entidades: para os
 serviços de comércio eletrónico é a Autoridade Nacional de Comunicações (ANACOM), e os
-serviços bancários, por exemplo, são fiscalizados pelo Banco de Portugal. As entidades
-fiscalizadoras comunicam os produtos e serviços que não cumprem os requisitos de
-acessibilidade ao Instituto Nacional para a Reabilitação (INR, I.P.).
+serviços bancários, por exemplo, são fiscalizados pelo Banco de Portugal. O Instituto
+Nacional para a Reabilitação (INR, I.P.) acompanha a aplicação do regime e encaminha para
+a entidade competente as queixas que lhe sejam dirigidas diretamente.
 
 Autoridade Nacional de Comunicações (ANACOM)
 https://www.anacom.pt

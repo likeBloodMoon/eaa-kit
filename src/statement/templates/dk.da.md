@@ -126,8 +126,9 @@ Vi bestræber os på at svare hurtigst muligt.
 ## Klageadgang
 
 Hvis du ikke er tilfreds med vores svar, kan du henvende dig til Sikkerhedsstyrelsen, som
-fører tilsyn med e-handelstjenester efter loven. Tilsynet i Danmark er fordelt på flere
-myndigheder: med finansielle tjenester fører Finanstilsynet for eksempel tilsyn.
+fører tilsyn med e-handelstjenester og forbrugerorienterede banktjenester efter loven.
+Tilsynet i Danmark er fordelt på flere myndigheder: med elektroniske
+kommunikationstjenester fører Energistyrelsen for eksempel tilsyn.
 
 Sikkerhedsstyrelsen
 https://www.sik.dk

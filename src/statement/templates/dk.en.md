@@ -125,9 +125,10 @@ We aim to respond to your feedback promptly.
 ## Enforcement procedure
 
 If you are not satisfied with our response, you can contact the Danish Safety Technology
-Authority (Sikkerhedsstyrelsen), which supervises e-commerce services under the Act.
-Supervision in Denmark is split between several authorities: financial services, for
-example, are supervised by the Danish Financial Supervisory Authority (Finanstilsynet).
+Authority (Sikkerhedsstyrelsen), which supervises e-commerce services and consumer banking
+services under the Act. Supervision in Denmark is split between several authorities:
+electronic communications services, for example, are supervised by the Danish Energy
+Agency (Energistyrelsen).
 
 Sikkerhedsstyrelsen
 https://www.sik.dk

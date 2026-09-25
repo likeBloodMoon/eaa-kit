@@ -331,6 +331,25 @@ describe('enforcement body', () => {
       )
     },
   )
+
+  // § 45, stk. 2 of lov nr. 801/2022 gives consumer banking services to
+  // Sikkerhedsstyrelsen. 0.9.0 sent readers to Finanstilsynet instead; see
+  // docs/citations.md.
+  it.each([
+    [
+      'da',
+      /Sikkerhedsstyrelsen, som fører tilsyn med e-handelstjenester og forbrugerorienterede banktjenester/,
+    ],
+    ['en', /supervises e-commerce services and consumer banking services/],
+  ] as Array<[StatementLocale, RegExp]>)(
+    'gives consumer banking in DK/%s to Sikkerhedsstyrelsen, not Finanstilsynet',
+    async (locale, banking) => {
+      const statement = await renderStatement(config(), { country: 'DK', locale })
+
+      expect(flat(statement.markdown)).toMatch(banking)
+      expect(statement.markdown).not.toContain('Finanstilsynet')
+    },
+  )
 })
 
 describe('every template', () => {
