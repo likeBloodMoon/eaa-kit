@@ -81,6 +81,27 @@ describe('findWorkspaceSites', () => {
     expect((await findWorkspaceSites(dir))?.sites.map((site) => site.dir)).toEqual(['packages/app'])
   })
 
+  it('leaves out the packages the workspace excludes', async () => {
+    const dir = await repo({
+      'package.json': '{}',
+      'pnpm-workspace.yaml': "packages:\n  - 'apps/*'\n  - '!apps/legacy'\n",
+      'apps/web/package.json': app({ astro: '5.0.0' }),
+      'apps/legacy/package.json': app({ gatsby: '5.0.0' }),
+    })
+
+    expect((await findWorkspaceSites(dir))?.sites.map((site) => site.dir)).toEqual(['apps/web'])
+  })
+
+  it('leaves out an excluded package listed in package.json workspaces too', async () => {
+    const dir = await repo({
+      'package.json': JSON.stringify({ workspaces: ['apps/*', '!apps/old-*'] }),
+      'apps/web/package.json': app({ astro: '5.0.0' }),
+      'apps/old-site/package.json': app({ gatsby: '5.0.0' }),
+    })
+
+    expect((await findWorkspaceSites(dir))?.sites.map((site) => site.dir)).toEqual(['apps/web'])
+  })
+
   it('never looks inside node_modules', async () => {
     const dir = await repo({
       'package.json': JSON.stringify({ workspaces: ['**'] }),

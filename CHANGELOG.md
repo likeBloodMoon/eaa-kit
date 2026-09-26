@@ -9,6 +9,24 @@ move: the JSON report's `schemaVersion` and the baseline file's. Both are bumped
 a field is removed, renamed, or changes meaning — new fields may appear without one, so
 consumers must ignore what they do not recognise.
 
+## Unreleased
+
+### Fixed
+
+- **A Deno workflow from `init` no longer stops at its first step.** It was given
+  `deno install --frozen` as the install command, which is not a dependency install on
+  every Deno version. Deno projects now get no install step, since `deno task` fetches what
+  the build needs.
+- **A Deno project with no `package.json` gets a workflow that sets up Deno and builds.**
+  `deno.json` and `deno.jsonc` are read for the `build` task, and a Deno config marks the
+  project as Deno even before it has a lockfile.
+- **A Next.js build's own page list is crawled before the sitemap.** With a sitemap larger
+  than `--max-pages`, the limit used to run out on sitemap entries, leaving pages only the
+  build listed unrequested.
+- **Packages a workspace excludes (`!apps/legacy`) are no longer offered as its sites.**
+  pnpm's exclusions were dropped. An excluded site could turn a one-site monorepo audit
+  into a prompt to choose between sites.
+
 ## 0.10.0 — 2026-09-26
 
 It finds your site, whatever it is built with.
