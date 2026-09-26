@@ -64,6 +64,11 @@ export interface ResolvePagesOptions extends CrawlCommandOptions {
   /** Never run the project's build or start its server. */
   noBuild?: boolean
   /**
+   * The audit runs in a real browser, which runs the page's scripts. Without
+   * one, a single-page-app shell is set aside rather than audited empty.
+   */
+  browser?: boolean
+  /**
    * How to name the directory in messages. Defaults to the directory itself.
    * `baseline` resolves the path before collecting but still wants the reader
    * to see what they typed, not an absolute path they never wrote.
@@ -129,8 +134,21 @@ export async function resolvePages(
       warn(`No pages could be fetched from ${options.url}`)
       return undefined
     }
+    const { kept, shells } = await setAsideShells(crawled.pages, options.browser, 'absolutePath')
+    if (kept.length === 0) {
+      warn(
+        `${options.url} serves only a single-page-app shell, which JavaScript fills in and this engine does not run.`,
+      )
+      nextStep({
+        command: `eaa-kit audit --url ${options.url} --browser`,
+        why: 'audit it in Chromium, scripts and all',
+      })
+      return undefined
+    }
+    warnUnmeasured(shells, 'page', 'audited')
+    crawled.completeness.unreachable.push(...shells)
     return {
-      pages: crawled.pages,
+      pages: kept,
       origin: crawled.origin,
       label: options.url,
       completeness: crawled.completeness,
@@ -183,6 +201,21 @@ export async function resolvePages(
 
   warnUnmeasured(unreachable, 'file', 'readable')
 
+  const { kept, shells } = await setAsideShells(pages, options.browser)
+  if (kept.length === 0) {
+    warn(
+      `${shown} holds only a single-page-app shell, which JavaScript fills in and this engine does not run.`,
+    )
+    nextStep({
+      command: `eaa-kit audit ${shown} --browser`,
+      why: 'audit it in Chromium, scripts and all',
+    })
+    return undefined
+  }
+  warnUnmeasured(shells, 'page', 'audited')
+  pages = kept
+  unreachable.push(...shells)
+
   return {
     pages,
     directory: directory as string,
@@ -196,6 +229,33 @@ export async function resolvePages(
       truncated: false,
     },
   }
+}
+
+/**
+ * Take out the pages that are empty shells a script fills in, unless the audit
+ * runs in a browser that would run the script. See `isAppShell`.
+ */
+async function setAsideShells(
+  pages: CollectedPage[],
+  browser: boolean | undefined,
+  locate: 'relativePath' | 'absolutePath' = 'relativePath',
+): Promise<{ kept: CollectedPage[]; shells: Unmeasured[] }> {
+  if (browser) return { kept: pages, shells: [] }
+  const { isAppShell } = await import('../audit/shell.ts')
+  const kept: CollectedPage[] = []
+  const shells: Unmeasured[] = []
+  for (const page of pages) {
+    if (isAppShell(page.html)) {
+      shells.push({
+        location: page[locate],
+        reason:
+          'a single-page-app shell: its content is rendered by JavaScript, which this engine does not run; audit it with --browser',
+      })
+    } else {
+      kept.push(page)
+    }
+  }
+  return { kept, shells }
 }
 
 /**
@@ -524,6 +584,15 @@ async function resolveAutomatically(
   }
 
   await detected?.cleanup?.()
+  if (detected?.sites !== undefined) {
+    // Several sites and nothing to choose between them: which one this run is
+    // about is the reader's call, and each is its own project to audit.
+    warn('Choose which site to audit, and run the audit inside it:')
+    for (const site of detected.sites) {
+      nextStep({ command: `cd ${site} && npx eaa-kit`, why: '' })
+    }
+    return undefined
+  }
   // Nothing worked. The directory hint knows this project better than anything
   // here does, so it explains rather than a second message competing with it.
   warn(await emptyDirectoryHint('./dist', cwd))

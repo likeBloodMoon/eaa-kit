@@ -141,7 +141,8 @@ function terminalPrompt(): Prompt {
 }
 
 export async function runInitCommand(options: InitCommandOptions = {}): Promise<InitCommandResult> {
-  const cwd = options.cwd ?? process.cwd()
+  const cwd = await chooseSite(options.cwd ?? process.cwd(), options)
+  if (cwd === undefined) return { exitCode: 1 }
   const target = path.resolve(cwd, options.output ?? 'eaa.config.json')
 
   const already = await existingConfig(cwd)
@@ -291,6 +292,46 @@ export async function runInitCommand(options: InitCommandOptions = {}): Promise<
     `\nNext:  eaa-kit statement${writeWorkflow ? '  ·  commit and push to run the workflow' : '  ·  eaa-kit audit'}`,
   )
   return { file: target, exitCode: 0 }
+}
+
+/**
+ * The directory to set up: `cwd`, or in a monorepo with several sites, the
+ * one the reader names. The config goes in that site, next to what it audits,
+ * and the workflow runs there. With nobody to ask, this refuses rather than
+ * picks: a config for the wrong site passes CI on a site nobody checked.
+ */
+async function chooseSite(cwd: string, options: InitCommandOptions): Promise<string | undefined> {
+  const { detectFramework } = await import('../audit/frameworks.ts')
+  const { readPackageJson } = await import('../audit/project.ts')
+  if ((await detectFramework(cwd, await readPackageJson(cwd))) !== undefined) return cwd
+  const { findWorkspaceSites } = await import('../audit/workspaces.ts')
+  const sites = (await findWorkspaceSites(cwd))?.sites.map((site) => site.dir) ?? []
+  if (sites.length < 2) return cwd
+
+  const interactive = options.ask !== undefined || (!options.yes && process.stdin.isTTY === true)
+  if (!interactive) {
+    warn(`This is a monorepo with ${sites.length} sites; set up one at a time, inside it:`)
+    for (const site of sites) nextStep({ command: `cd ${site} && npx eaa-kit init`, why: '' })
+    return undefined
+  }
+
+  const terminal = options.ask === undefined ? terminalPrompt() : undefined
+  const ask = options.ask ?? terminal?.ask
+  let answer: string
+  try {
+    answer =
+      ask === undefined
+        ? ''
+        : await ask(`Which site is this for? (${sites.join(', ')})`, sites[0] ?? '')
+  } finally {
+    terminal?.close()
+  }
+  const chosen = sites.find((site) => site === answer.replace(/^\.\//, '').replace(/\/$/, ''))
+  if (chosen === undefined) {
+    fail(`${answer} is not one of the sites here: ${sites.join(', ')}`)
+    return undefined
+  }
+  return path.join(cwd, chosen)
 }
 
 function isYes(answer: string): boolean {

@@ -334,6 +334,11 @@ export interface AutoSource {
   seeds?: string[]
   /** Parts of the site known to exist that the crawl has no list of. */
   unreachable?: Unmeasured[]
+  /**
+   * The sites in this monorepo, when there are several and nothing decides
+   * between them: directories relative to the root, for the reader to choose.
+   */
+  sites?: string[]
   /** Called when the audit is done, to stop anything this started. */
   cleanup?: () => Promise<void>
   /** What was done, for the reader. One line per step. */
@@ -381,6 +386,28 @@ export async function autoDetectSource(
   // could hand back a dev server for the wrong thing entirely.
   const { detectFramework } = await import('./frameworks.ts')
   const detected = await detectFramework(cwd, pkg)
+
+  // The root of a monorepo is not a site; its packages are. One site is the
+  // answer, and it is audited as though the command had been run inside it.
+  // Several need somebody to choose, since auditing all of them at once would
+  // mix their pages into one report.
+  if (detected === undefined) {
+    const { findWorkspaceSites } = await import('./workspaces.ts')
+    const workspace = await findWorkspaceSites(cwd)
+    const sites = workspace?.sites ?? []
+    const only = sites[0]
+    if (sites.length === 1 && only !== undefined) {
+      step(`This is a monorepo with one site, in ${only.dir}/`)
+      const inner = await autoDetectSource(path.join(cwd, only.dir), options)
+      return inner === undefined ? { steps } : { ...inner, steps: [...steps, ...inner.steps] }
+    }
+    if (sites.length > 1) {
+      step(
+        `This is a monorepo with ${sites.length} sites: ${sites.map((site) => site.dir).join(', ')}`,
+      )
+      return { steps, sites: sites.map((site) => site.dir) }
+    }
+  }
   if (detected !== undefined && detected.framework.outputs.length === 0) {
     step(`${detected.framework.name} renders on a server and writes no HTML to disk`)
     return { steps }
