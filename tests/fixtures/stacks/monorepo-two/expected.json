@@ -1,0 +1,29 @@
+{
+  "packageManager": {
+    "name": "npm",
+    "evidence": "found package-lock.json"
+  },
+  "plan": "choose-site",
+  "summary": "do nothing until a site is chosen: this monorepo has 2",
+  "outputs": [
+    "dist",
+    "out",
+    "build",
+    "_site",
+    "public",
+    ".output/public"
+  ],
+  "workspace": {
+    "evidence": "package.json workspaces",
+    "sites": [
+      {
+        "dir": "apps/docs",
+        "framework": "VitePress"
+      },
+      {
+        "dir": "apps/shop",
+        "framework": "Next.js"
+      }
+    ]
+  }
+}

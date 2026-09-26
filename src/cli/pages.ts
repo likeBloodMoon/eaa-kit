@@ -48,6 +48,10 @@ export interface CrawlCommandOptions {
    * `ask` then treats as a no.
    */
   confirm?: (question: string) => Promise<boolean>
+  /** Pages the project's build lists, crawled as well as the entry URL. */
+  seeds?: readonly string[]
+  /** Parts of the site known to exist that the crawl has no way to list. */
+  knownUnreachable?: readonly Unmeasured[]
   /** Injectable for tests. Defaults to global fetch. */
   fetchImpl?: typeof fetch
 }
@@ -59,6 +63,11 @@ export interface ResolvePagesOptions extends CrawlCommandOptions {
   cwd?: string
   /** Never run the project's build or start its server. */
   noBuild?: boolean
+  /**
+   * The audit runs in a real browser, which runs the page's scripts. Without
+   * one, a single-page-app shell is set aside rather than audited empty.
+   */
+  browser?: boolean
   /**
    * How to name the directory in messages. Defaults to the directory itself.
    * `baseline` resolves the path before collecting but still wants the reader
@@ -125,8 +134,21 @@ export async function resolvePages(
       warn(`No pages could be fetched from ${options.url}`)
       return undefined
     }
+    const { kept, shells } = await setAsideShells(crawled.pages, options.browser, 'absolutePath')
+    if (kept.length === 0) {
+      warn(
+        `${options.url} serves only a single-page-app shell, which JavaScript fills in and this engine does not run.`,
+      )
+      nextStep({
+        command: `eaa-kit audit --url ${options.url} --browser`,
+        why: 'audit it in Chromium, scripts and all',
+      })
+      return undefined
+    }
+    warnUnmeasured(shells, 'page', 'audited')
+    crawled.completeness.unreachable.push(...shells)
     return {
-      pages: crawled.pages,
+      pages: kept,
       origin: crawled.origin,
       label: options.url,
       completeness: crawled.completeness,
@@ -179,6 +201,21 @@ export async function resolvePages(
 
   warnUnmeasured(unreachable, 'file', 'readable')
 
+  const { kept, shells } = await setAsideShells(pages, options.browser)
+  if (kept.length === 0) {
+    warn(
+      `${shown} holds only a single-page-app shell, which JavaScript fills in and this engine does not run.`,
+    )
+    nextStep({
+      command: `eaa-kit audit ${shown} --browser`,
+      why: 'audit it in Chromium, scripts and all',
+    })
+    return undefined
+  }
+  warnUnmeasured(shells, 'page', 'audited')
+  pages = kept
+  unreachable.push(...shells)
+
   return {
     pages,
     directory: directory as string,
@@ -192,6 +229,33 @@ export async function resolvePages(
       truncated: false,
     },
   }
+}
+
+/**
+ * Take out the pages that are empty shells a script fills in, unless the audit
+ * runs in a browser that would run the script. See `isAppShell`.
+ */
+async function setAsideShells(
+  pages: CollectedPage[],
+  browser: boolean | undefined,
+  locate: 'relativePath' | 'absolutePath' = 'relativePath',
+): Promise<{ kept: CollectedPage[]; shells: Unmeasured[] }> {
+  if (browser) return { kept: pages, shells: [] }
+  const { isAppShell } = await import('../audit/shell.ts')
+  const kept: CollectedPage[] = []
+  const shells: Unmeasured[] = []
+  for (const page of pages) {
+    if (isAppShell(page.html)) {
+      shells.push({
+        location: page[locate],
+        reason:
+          'a single-page-app shell: its content is rendered by JavaScript, which this engine does not run; audit it with --browser',
+      })
+    } else {
+      kept.push(page)
+    }
+  }
+  return { kept, shells }
 }
 
 /**
@@ -251,6 +315,7 @@ async function crawlPages(
     ...(options.maxDepth === undefined ? {} : { maxDepth: options.maxDepth }),
     ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
     ...(options.headers === undefined ? {} : { headers: options.headers }),
+    ...(options.seeds === undefined ? {} : { seeds: options.seeds }),
     ...(options.fetchImpl === undefined ? {} : { fetchImpl: options.fetchImpl }),
   })
 
@@ -262,7 +327,8 @@ async function crawlPages(
     return undefined
   }
 
-  const found = result.discovery === 'sitemap' ? 'sitemap.xml and links' : 'links'
+  const { discoveryLabel } = await import('../audit/completeness.ts')
+  const found = discoveryLabel(result.discovery)
   note(`Found ${count(result.pages.length, 'page')} from ${found}`)
 
   // Pages that could not be fetched are named rather than counted away: a
@@ -273,6 +339,8 @@ async function crawlPages(
     reason: failure.reason,
   }))
   warnUnmeasured(failed, 'URL', 'fetched')
+  const known = options.knownUnreachable ?? []
+  warnUnmeasured(known, 'route', 'listed')
 
   if (result.truncated) {
     warn(
@@ -315,6 +383,7 @@ async function crawlPages(
       collected: result.pages.length,
       unreachable: [
         ...failed,
+        ...known,
         // Never reached, whatever the status code said: the run has a verdict
         // about the page it was sent to, and none about the page it asked for.
         ...collapsed.map((redirect) => ({
@@ -351,6 +420,7 @@ async function followEntry(
     timeoutMs: options.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS,
     maxBodyBytes: MAX_BODY_BYTES,
     ...(options.headers === undefined ? {} : { headers: options.headers }),
+    ...(options.seeds === undefined ? {} : { seeds: options.seeds }),
     ...(options.fetchImpl === undefined ? {} : { fetchImpl: options.fetchImpl }),
   })
 
@@ -500,7 +570,12 @@ async function resolveAutomatically(
   }
 
   if (detected?.url !== undefined) {
-    const resolved = await resolvePages(undefined, { ...options, url: detected.url })
+    const resolved = await resolvePages(undefined, {
+      ...options,
+      url: detected.url,
+      ...(detected.seeds === undefined ? {} : { seeds: detected.seeds }),
+      ...(detected.unreachable === undefined ? {} : { knownUnreachable: detected.unreachable }),
+    })
     if (resolved === undefined) {
       await detected.cleanup?.()
       return undefined
@@ -509,6 +584,15 @@ async function resolveAutomatically(
   }
 
   await detected?.cleanup?.()
+  if (detected?.sites !== undefined) {
+    // Several sites and nothing to choose between them: which one this run is
+    // about is the reader's call, and each is its own project to audit.
+    warn('Choose which site to audit, and run the audit inside it:')
+    for (const site of detected.sites) {
+      nextStep({ command: `cd ${site} && npx eaa-kit`, why: '' })
+    }
+    return undefined
+  }
   // Nothing worked. The directory hint knows this project better than anything
   // here does, so it explains rather than a second message competing with it.
   warn(await emptyDirectoryHint('./dist', cwd))

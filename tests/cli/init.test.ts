@@ -229,3 +229,49 @@ describe('existingConfig', () => {
     expect(await existingConfig(await project())).toBeUndefined()
   })
 })
+
+describe('in a monorepo with several sites', () => {
+  async function monorepo(): Promise<string> {
+    const { mkdir } = await import('node:fs/promises')
+    const dir = await project({ 'package.json': JSON.stringify({ workspaces: ['apps/*'] }) })
+    for (const [site, dependency] of [
+      ['web', 'astro'],
+      ['docs', 'vitepress'],
+    ] as const) {
+      await mkdir(path.join(dir, 'apps', site), { recursive: true })
+      await writeFile(
+        path.join(dir, 'apps', site, 'package.json'),
+        JSON.stringify({ name: site, dependencies: { [dependency]: '1.0.0' } }),
+      )
+    }
+    return dir
+  }
+
+  it('asks which site, and writes the config there', async () => {
+    const dir = await monorepo()
+
+    const result = await runInitCommand({
+      cwd: dir,
+      ci: false,
+      baseline: false,
+      ask: answers('apps/web', '', '', 'AT', '', '', 'a@b.at'),
+    })
+
+    expect(result.exitCode).toBe(0)
+    expect(result.file).toBe(path.join(dir, 'apps/web/eaa.config.json'))
+    expect((await written(path.join(dir, 'apps/web'))).site).toMatchObject({ name: 'web' })
+  })
+
+  it('refuses to guess without a terminal, and says how to choose', async () => {
+    const result = await runInitCommand({ cwd: await monorepo(), yes: true })
+
+    expect(result.exitCode).toBe(1)
+    expect(stderr.join('')).toContain('cd apps/web && npx eaa-kit init')
+  })
+
+  it('refuses a site that is not one of them', async () => {
+    const result = await runInitCommand({ cwd: await monorepo(), ask: answers('apps/nope') })
+
+    expect(result.exitCode).toBe(1)
+  })
+})

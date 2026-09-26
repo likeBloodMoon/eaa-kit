@@ -9,6 +9,80 @@ move: the JSON report's `schemaVersion` and the baseline file's. Both are bumped
 a field is removed, renamed, or changes meaning — new fields may appear without one, so
 consumers must ignore what they do not recognise.
 
+## 0.10.0 — 2026-09-26
+
+It finds your site, whatever it is built with.
+
+### Added
+
+- **Next.js, in depth.** With no directory, a Next.js app that renders on a server is
+  built, started with `next start` on a free port, and crawled from the list of pages its
+  own build manifests give, so a page nothing links to is still audited. `basePath`, the
+  default locale's unprefixed paths and `trailingSlash` are respected; API routes, error
+  pages and metadata files are left out. A dynamic route with no prerendered pages is named
+  as not audited, with the reason. A standalone build is served by its `server.js` when its
+  static files are in place. `next dev` is never used.
+- **Twenty more stacks**:
+  - apps: Qwik, SolidStart, TanStack Start, Analog, Vue CLI, Parcel, Rsbuild, Rspack and
+    Ember;
+  - documentation and static generators: Hexo, MkDocs, Sphinx, mdBook, Zola, Quarto and
+    Pelican, each with its output directory read out of its config;
+  - never started, and pointed at `--url`: Drupal, Statamic, and Ghost and Shopify themes.
+
+  Hugo is also found through `config/_default/`. Zola is told from Hugo by what
+  `config.toml` says, and Hexo from Jekyll by its dependency.
+- **Monorepos.** Run from the root of a pnpm, yarn or npm workspace, or a Turborepo, Nx or
+  Lerna repository, `eaa-kit` finds the packages that are sites. One site is audited as
+  though the command ran inside it. Several are listed with the command for each. `init`
+  asks which site to set up and writes the config there.
+- **Package managers.** Corepack's `packageManager` field is read first, then the lockfile:
+  Bun's text `bun.lock`, `deno.lock` and `package-lock.json` as well as pnpm's, yarn's and
+  Bun's binary one. The lockfile is looked for up to the repository root. Deno runs scripts
+  as tasks, and `init` writes a Deno or Bun setup step into the workflow.
+- **`eaa-kit detect [dir]`** says what an audit here would do, and the evidence for each
+  part: the framework and what identified it, the package manager and why, the build
+  output or what would be built or started. It builds, starts and writes nothing.
+  `--json` prints the same as data.
+- **`eaa-kit doctor [dir]`** checks, on one screen, everything the tool needs in a
+  project. Each problem is followed by the command that fixes it:
+  - the Node.js version;
+  - the package manager;
+  - the site;
+  - the config;
+  - a GitHub, GitLab or Bitbucket pipeline;
+  - the baseline and any expired entries;
+  - Playwright and Chromium.
+
+  It exits 2 only for what stops an audit from running.
+- **A recorded answer for every stack.** `tests/fixtures/stacks` holds one project layout
+  per kind of stack, with the answer `detect` must give for it, and the suite checks each
+  one. A nightly job scaffolds Next.js, Astro, SvelteKit, Nuxt, Docusaurus and a Vite app
+  from their official starters, installs them and audits them with no directory.
+
+### Changed
+
+- **A single-page app's empty shell is no longer audited as a clean page.** A page with
+  nothing a visitor could perceive before a script runs, such as a Vite build's
+  `<div id="root"></div>`, is set aside and listed in `completeness.unreachable`. A build
+  that holds only a shell stops with exit 2 and the command to audit it with `--browser`,
+  which runs the script as before.
+- **`storybook-static/` is never audited** as part of the site.
+- **Servers are started on a free port,** offered through `PORT`. The address a server
+  prints is read through colour codes and `0.0.0.0`. The Angular, Gatsby, Hugo and Jekyll
+  default ports are also tried.
+
+### Fixed
+
+- **On Windows, a server the audit started is stopped with everything it started.**
+  Stopping only the `cmd.exe` that ran the script left the real server running after
+  the report was written, holding its port and its directory.
+
+### Report format
+
+- `completeness.discovery` can now be `"manifest"`: the pages came from the project's own
+  build, a Next.js build's manifests. `schemaVersion` stays 2, since no field was removed
+  or renamed. A consumer that switches on `discovery` should expect the new value.
+
 ## 0.9.1 — 2026-09-26
 
 ### Fixed

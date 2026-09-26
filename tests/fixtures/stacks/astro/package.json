@@ -1,0 +1,1 @@
+{"scripts":{"build":"astro build","preview":"astro preview"},"devDependencies":{"astro":"5.0.0"}}

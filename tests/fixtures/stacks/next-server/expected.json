@@ -1,0 +1,32 @@
+{
+  "framework": {
+    "id": "next",
+    "name": "Next.js",
+    "evidence": [
+      "package.json depends on next"
+    ]
+  },
+  "packageManager": {
+    "name": "npm",
+    "evidence": "no lockfile, so npm"
+  },
+  "plan": "build-and-serve",
+  "summary": "run npm run build, start the site with npm run start, and crawl the pages its build lists",
+  "outputs": [
+    "out",
+    "dist",
+    "build",
+    "_site",
+    "public",
+    ".output/public"
+  ],
+  "next": {
+    "basePath": "/docs",
+    "pages": 5,
+    "dynamic": [
+      "/user/[id]"
+    ]
+  },
+  "build": "npm run build",
+  "serve": "npm run start"
+}

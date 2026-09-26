@@ -1,0 +1,1 @@
+{"scripts":{"build":"vitepress build"},"devDependencies":{"vitepress":"1.0.0"}}

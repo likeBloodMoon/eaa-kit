@@ -24,7 +24,7 @@ import type { PageAudit } from './result.ts'
  */
 
 /** How the pages that were audited came to be found. */
-export type Discovery = 'directory' | 'sitemap' | 'links'
+export type Discovery = 'directory' | 'manifest' | 'sitemap' | 'links'
 
 /** Something known to exist that this run never reached a verdict on. */
 export interface Unmeasured {
@@ -193,6 +193,8 @@ export function discoveryLabel(discovery: Discovery): string {
   switch (discovery) {
     case 'directory':
       return 'files in the build directory'
+    case 'manifest':
+      return "the build's own page list and links"
     case 'sitemap':
       return 'sitemap.xml and links'
     case 'links':

@@ -1,0 +1,24 @@
+{
+  "framework": {
+    "id": "next",
+    "name": "Next.js",
+    "evidence": [
+      "package.json depends on next"
+    ]
+  },
+  "packageManager": {
+    "name": "npm",
+    "evidence": "no lockfile, so npm"
+  },
+  "plan": "audit-build",
+  "summary": "audit the build already in out/",
+  "outputs": [
+    "out",
+    "dist",
+    "build",
+    "_site",
+    "public",
+    ".output/public"
+  ],
+  "directory": "out"
+}

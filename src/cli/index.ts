@@ -328,6 +328,28 @@ program
   })
 
 program
+  .command('detect')
+  .description('Say what an audit here would do and why, without building or starting anything')
+  .argument('[dir]', 'the project to look at (default: this directory)')
+  .option('--json', 'print it as JSON, for tools and bug reports')
+  .action(async (dir: string | undefined, flags: { json?: true }) => {
+    const { runDetectCommand } = await import('./detect.ts')
+    process.stdout.write(await runDetectCommand(dir, flags))
+  })
+
+program
+  .command('doctor')
+  .description('Check everything this needs to work here, and say how to fix what is missing')
+  .argument('[dir]', 'the project to check (default: this directory)')
+  .action(async (dir: string | undefined) => {
+    const { formatDoctor, runDoctor } = await import('./doctor.ts')
+    const { resolve } = await import('node:path')
+    const result = await runDoctor(resolve(dir ?? '.'))
+    process.stdout.write(formatDoctor(result))
+    process.exitCode = result.exitCode
+  })
+
+program
   .command('diff')
   .description('Compare two JSON reports: what a change made worse, and what it fixed')
   .argument('<before>', 'JSON report from before the change')

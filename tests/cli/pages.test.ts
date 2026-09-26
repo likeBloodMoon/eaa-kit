@@ -78,3 +78,37 @@ describe('resolvePages', () => {
     }
   })
 })
+
+describe('a single-page-app shell', () => {
+  const shell =
+    '<!doctype html><html lang="en"><head><title>App</title></head><body><div id="root"></div><script src="/a.js"></script></body></html>'
+
+  it('is set aside and named, rather than audited as an empty page that passes', async () => {
+    await writeFile(path.join(project, 'dist', 'app.html'), shell, 'utf8')
+
+    const resolved = await resolvePages(path.join(project, 'dist'), { cwd: project })
+
+    expect(resolved?.pages.map((page) => page.relativePath)).toEqual(['index.html'])
+    expect(resolved?.completeness.unreachable).toEqual([
+      {
+        location: 'app.html',
+        reason:
+          'a single-page-app shell: its content is rendered by JavaScript, which this engine does not run; audit it with --browser',
+      },
+    ])
+  })
+
+  it('stops the run when it is all there is, rather than reporting nothing wrong', async () => {
+    await writeFile(path.join(project, 'dist', 'index.html'), shell, 'utf8')
+
+    expect(await resolvePages(path.join(project, 'dist'), { cwd: project })).toBeUndefined()
+  })
+
+  it('is audited in a browser, which runs the script that fills it', async () => {
+    await writeFile(path.join(project, 'dist', 'index.html'), shell, 'utf8')
+
+    const resolved = await resolvePages(path.join(project, 'dist'), { cwd: project, browser: true })
+
+    expect(resolved?.pages).toHaveLength(1)
+  })
+})

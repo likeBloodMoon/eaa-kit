@@ -1,0 +1,27 @@
+{
+  "framework": {
+    "id": "remix",
+    "name": "React Router / Remix",
+    "evidence": [
+      "package.json depends on react-router"
+    ]
+  },
+  "packageManager": {
+    "name": "bun",
+    "evidence": "found bun.lock"
+  },
+  "plan": "build",
+  "summary": "run bun run build and audit what it writes, expected in build/client/",
+  "outputs": [
+    "build/client",
+    "dist",
+    "out",
+    "build",
+    "_site",
+    "public",
+    ".output/public"
+  ],
+  "build": "bun run build",
+  "directory": "build/client",
+  "serve": "bun run start"
+}

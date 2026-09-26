@@ -77,6 +77,12 @@ export interface CrawlOptions {
    */
   sitemap?: string
   /**
+   * Pages the project itself says it has, from its build: a Next.js build's
+   * manifests list every page it produced. Crawled ahead of anything else, and
+   * links are still followed from them. URLs on another origin are ignored.
+   */
+  seeds?: readonly string[]
+  /**
    * Largest response body to read, in bytes. Defaults to MAX_BODY_BYTES. A
    * response over it is recorded as a failure rather than buffered.
    */
@@ -113,7 +119,7 @@ export interface CrawlResult {
   /** True when the crawl stopped at maxPages rather than running out of links. */
   truncated: boolean
   /** How the pages were found. */
-  discovery: 'sitemap' | 'links'
+  discovery: 'manifest' | 'sitemap' | 'links'
 }
 
 /** Hosts that are this machine. Anything else needs allowRemote. */
@@ -458,6 +464,20 @@ export async function crawlSite(entry: URL, options: CrawlOptions = {}): Promise
   if (listed.length > 0) {
     discovery = 'sitemap'
     for (const url of listed) enqueue(url, 0)
+  }
+  // The build's own list outranks the sitemap as the account of how pages were
+  // found: it is what was built, where a sitemap is what somebody chose to list.
+  const seeded = (options.seeds ?? []).flatMap((raw) => {
+    try {
+      const url = new URL(raw, entry)
+      return url.origin === entry.origin ? [url] : []
+    } catch {
+      return []
+    }
+  })
+  if (seeded.length > 0) {
+    discovery = 'manifest'
+    for (const url of seeded) enqueue(url, 0)
   }
   enqueue(entry, 0)
 

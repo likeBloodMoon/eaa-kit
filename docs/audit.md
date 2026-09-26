@@ -41,22 +41,44 @@ left untouched. Exit codes are those of `audit`.
 
 ## With no arguments
 
-`eaa-kit audit` on its own works out what this project needs, in three steps:
+`eaa-kit audit` on its own works out what this project needs, in three steps.
+`eaa-kit detect` shows what it would decide, and why, without doing any of it.
 
-1. **A build that already exists.** The first of `dist/`, `out/`, `build/`, `_site/`,
-   `.output/public/` or `public/` that holds HTML. Holding HTML is the test, not merely
-   existing — `.next/` exists after any Next.js build and holds no browsable page, and
-   `public/` exists in most projects and holds assets.
+1. **A build that already exists.** The framework's own output directory first (`out/`
+   for a Next.js export, `_site/` for Eleventy, `site/` for MkDocs, whatever the config
+   file names), then `dist/`, `out/`, `build/`, `_site/`, `public/` or `.output/public/`,
+   whichever first holds HTML. Holding HTML is the test, not merely existing — `.next/`
+   exists after any Next.js build and holds no browsable page, and `public/` exists in
+   most projects and holds assets. `storybook-static/` is never counted: a component
+   catalogue is not the site.
 2. **The project's own build.** Nothing built yet, so it runs the `build` script rather
-   than telling you to go and do it and come back. The package manager comes from the
-   lockfile.
+   than telling you to go and do it and come back.
 3. **The project's server.** Built and still no HTML anywhere means the site renders on a
-   server — a Next.js app with an API route, middleware or ISR, and anything else that
-   cannot be exported. It starts `start`, `preview` or `serve`, crawls what that serves,
-   and stops it again afterwards.
+   server. It starts `start`, `preview` or `serve` on a free port, crawls what that serves,
+   and stops it again afterwards. For **Next.js** it reads the build's own manifests for
+   the list of pages, so a page nothing links to is still audited, and a dynamic route
+   with no prerendered pages is named as not audited rather than silently missed. It
+   respects `basePath` and i18n locales, serves a standalone build with its own
+   `server.js` when the static files are beside it, and never uses `next dev`.
 
 A folder with no `package.json` and HTML files at its top level is a site written by hand,
 and is audited where it stands.
+
+**The package manager** is the one the project states: corepack's `packageManager` field
+first, then the lockfile — `pnpm-lock.yaml`, `yarn.lock`, `bun.lock` or `bun.lockb`,
+`deno.lock`, `package-lock.json` — looked for up to the repository root, so an app inside
+a monorepo uses the workspace's.
+
+**In a monorepo** (pnpm, yarn or npm workspaces, Turborepo, Nx, Lerna), run from the root,
+it looks for the packages that are sites. One site is audited as though the command had
+been run inside it. Several are listed with the command for each, since auditing them
+together would mix their pages into one report; `init` asks which one to set up.
+
+**A single-page app's shell** — an `index.html` holding an empty `<div id="root">` and a
+script — has nothing in it until the script runs, and the browserless engine does not run
+scripts. Rather than audit the empty div and report the site clean, such a page is set
+aside and [named as not audited](reports.md#completeness); a build that is only a shell
+stops with the command to audit it in a browser, `--browser`, which runs the script.
 
 Naming a directory or passing `--url` skips all of it, and `--no-build` stops it running
 anything, leaving step 1 only.
@@ -64,6 +86,30 @@ anything, leaving step 1 only.
 Steps two and three run your project's own scripts. That is what a build-time tool does —
 the Astro integration already audits from inside a build — but it is announced as it
 happens, and `--no-build` turns it off.
+
+### `eaa-kit detect`
+
+```
+$ npx eaa-kit detect
+Framework        Next.js  (package.json depends on next)
+Package manager  pnpm  (found pnpm-lock.yaml)
+Next.js pages    5 listed by the build  (not listed, rendered on request: /user/[id])
+
+An audit would run pnpm run build, start the site with pnpm run start, and crawl the pages its build lists.
+  → npx eaa-kit
+```
+
+Nothing is built, started or written. `--json` prints the same as data, which is also the
+thing to paste into an issue when the answer is wrong.
+
+### `eaa-kit doctor`
+
+Everything this tool needs in a project, on one screen, each problem followed by the
+command that fixes it: the Node.js version, whether the project's package manager is
+installed, what detection makes of the site, the config and whether it parses, a GitHub,
+GitLab or Bitbucket pipeline that runs eaa-kit, the baseline and any expired entries in
+it, and Playwright with Chromium for `--browser`. It exits 2 only for what stops an audit
+from running; a missing config, pipeline or baseline is advice.
 
 ## Auditing a running site
 
@@ -220,22 +266,28 @@ emit; it is not special.
 
 | Builder | Directory | Note |
 | --- | --- | --- |
-| Astro, Vite, SvelteKit (static), Nuxt (generate) | `dist/`, `.output/public/` | ready as built |
-| Eleventy, Hugo, Jekyll | `_site/`, `public/` | ready as built |
-| Create React App | `build/` | one `index.html`; a client-rendered app has little in it |
-| Next.js | `out/` | **only with `output: 'export'`** — see below |
+| Astro, Vite, Vue CLI, Parcel, Rsbuild, Rspack, Ember, Qwik | `dist/` | ready as built; an app shell needs `--browser` |
+| SvelteKit (static), Nuxt (generate), SolidStart, TanStack Start | `build/`, `.output/public/` | ready as built |
+| Analog | `dist/analog/public/` | ready as built |
+| Angular 17+ | `dist/<project>/browser/` | ready as built |
+| Eleventy, Jekyll, Quarto | `_site/` | ready as built |
+| Hugo, Hexo, Zola, Gatsby | `public/` | ready as built |
+| Docusaurus, Create React App | `build/` | ready as built |
+| VitePress | `.vitepress/dist/` | ready as built |
+| MkDocs | `site/` | ready as built |
+| Sphinx | `_build/html/` | ready as built |
+| mdBook | `book/` | ready as built |
+| Pelican | `output/` | ready as built |
+| Next.js | `out/` | **only with `output: 'export'`**; otherwise it is served, see below |
+
+A directory set in the framework's config (`outDir`, `distDir`, `site_dir`, `output-dir`,
+`build-dir`, `public_dir`, `OUTPUT_PATH`, `outputDir`) is read, never executed, and tried
+first.
 
 **Next.js does not write HTML to `dist/`.** A default `next build` produces `.next/`, which
-holds the server bundle rather than a browsable site. To audit the files, set
-`output: 'export'` in `next.config.js`, run `next build`, and point eaa-kit at `out/`.
-
-That works only for a site with no server-side rendering, API routes, middleware or ISR.
-If yours has any of those, do not fight the export — audit it running instead:
-
-```bash
-npm run build && npx next start
-eaa-kit audit --url http://localhost:3000
-```
+holds the server bundle rather than a browsable site. `eaa-kit audit` with no directory
+handles that itself: it builds, starts `next start`, and crawls every page the build's
+manifests list. With `output: 'export'`, the files in `out/` are audited instead.
 
 A run that reports `No HTML files found` means the directory exists but holds no `.html` —
 almost always the wrong directory rather than a clean site.
@@ -780,7 +832,7 @@ a recorded result is a claim by a person, which is a different kind of thing.
 
 A CMS writes no browsable HTML to disk: every page is rendered per request, so there is no
 build directory to point at and never was one. `eaa-kit audit` recognises WordPress, TYPO3,
-Craft, Laravel, Symfony, Rails and Django, and rather than reporting an empty `./dist` it
+Drupal, Craft, Statamic, Laravel, Symfony, Rails, Django, and Ghost and Shopify themes, and rather than reporting an empty `./dist` it
 says what the project is and how to audit it:
 
 ```

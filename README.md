@@ -10,6 +10,14 @@ the statute and supervisory body of **fifteen countries**: Austria, Belgium, Cze
 Denmark, Finland, France, Germany, Ireland, Italy, the Netherlands, Poland, Portugal,
 Spain, Sweden and Switzerland, each in its own language as well as English.
 
+0.10.0 finds your site, whatever it is built with. A Next.js app that renders on a server
+is built, started and audited page by page from its own build manifests, including pages
+nothing links to. Forty-one stacks are recognised, from Qwik and TanStack Start to
+MkDocs, Sphinx and Zola, and a monorepo's sites are found from its root. The package
+manager comes from the project itself, Bun and Deno included. A single-page app's empty
+shell is named as not audited instead of passing. `eaa-kit detect` says what the tool
+makes of a project and why, and `eaa-kit doctor` checks everything it needs on one screen.
+
 0.9.0 needs no setup. `npx eaa-kit` on its own finds the site, audits it, writes an HTML
 report and says which command comes next. `init` fills itself in from what the built site
 states, and also writes a baseline and a GitHub Actions workflow tailored to the project.
@@ -42,6 +50,8 @@ npx eaa-kit init                  # the config, a baseline and a CI workflow
 npx eaa-kit statement             # accessibility statement, in one of fifteen countries
 npx eaa-kit countries             # which ones, in which languages, under which law
 npx eaa-kit checklist             # the manual review no engine can do for you
+npx eaa-kit detect                # what it makes of this project, and why
+npx eaa-kit doctor                # everything it needs here, checked on one screen
 ```
 
 > **Not legal advice.** eaa-kit reports what an automated engine can and cannot determine
@@ -71,8 +81,10 @@ answer.
 eaa-kit audit ./dist --fail-on serious
 ```
 
-Sites that render on a server and never write HTML to disk — Next.js without a static
-export, Nuxt, SvelteKit, anything behind a CMS — are audited running instead:
+Sites that render on a server and never write HTML to disk, such as Next.js without a
+static export, Nuxt or SvelteKit, are built and started by `eaa-kit audit` with no
+directory, and crawled while they run. Anything behind a CMS is never started uninvited;
+start it yourself and audit it running:
 
 ```bash
 eaa-kit audit --url http://localhost:3000

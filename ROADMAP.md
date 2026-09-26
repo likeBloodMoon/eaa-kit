@@ -26,7 +26,9 @@ having to learn the tool first. These releases get there:
   the wrong version.
 - **0.10.0 — it finds your site.** Stack detection for what people actually build with
   (Next.js properly first), monorepos and package managers, and `eaa-kit detect` and
-  `eaa-kit doctor` to explain what it found.
+  `eaa-kit doctor` to explain what it found. *Done:* forty-one stacks, Next.js served and
+  crawled from its build manifests, single-page-app shells named instead of passed, a
+  recorded `detect` answer per stack fixture, and a nightly soak over six real starters.
 - **0.11.0 — it fits your workflow.** GitLab and Bitbucket CI from `init`, a Markdown
   summary for job summaries and PR comments, and an HTML report that prints, speaks the
   site's language and shows what changed since last time.

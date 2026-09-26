@@ -1,0 +1,20 @@
+{
+  "framework": {
+    "id": "laravel",
+    "name": "Laravel",
+    "evidence": [
+      "found artisan"
+    ]
+  },
+  "plan": "url",
+  "summary": "do nothing on its own: Laravel renders on a server, so start the site and audit it with --url",
+  "outputs": [
+    "dist",
+    "out",
+    "build",
+    "_site",
+    "public",
+    ".output/public"
+  ],
+  "serveCommand": "php artisan serve"
+}

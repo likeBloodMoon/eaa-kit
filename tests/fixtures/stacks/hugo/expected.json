@@ -1,0 +1,20 @@
+{
+  "framework": {
+    "id": "hugo",
+    "name": "Hugo",
+    "evidence": [
+      "found hugo.toml"
+    ]
+  },
+  "plan": "audit-build",
+  "summary": "audit the build already in public/",
+  "outputs": [
+    "public",
+    "dist",
+    "out",
+    "build",
+    "_site",
+    ".output/public"
+  ],
+  "directory": "public"
+}
