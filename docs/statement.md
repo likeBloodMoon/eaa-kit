@@ -176,26 +176,26 @@ is the French statement, and there is no French rendering of the Austrian one.
 | `FR` | `fr`, `en` | Ordonnance n° 2023-859 du 6 septembre 2023, and art. 47 of loi n° 2005-102 | the Défenseur des droits, and [Arcom](https://www.arcom.fr) |
 | `IT` | `it`, `en` | D.lgs. 27 maggio 2022, n. 82, amending the legge Stanca (l. 4/2004) | [AgID](https://www.agid.gov.it) |
 | `NL` | `nl`, `en` | Implementatiewet toegankelijkheidsvoorschriften producten en diensten | [ACM](https://www.acm.nl) for services, RDI for products |
-| `BE` † | `fr`, `nl`, `de`, `en` | Code de droit économique / Wetboek van economisch recht, as amended by the law of 5 November 2023 | [SPF Économie / FOD Economie](https://economie.fgov.be), Economic Inspection, and says supervision is split |
-| `IE` † | `en` | European Union (Accessibility Requirements of Products and Services) Regulations 2023 (S.I. No. 636 of 2023) | [CCPC](https://www.ccpc.ie); ComReg and the Central Bank for their sectors |
-| `PL` † | `pl`, `en` | Ustawa z dnia 26 kwietnia 2024 r. (Dz.U. 2024 poz. 731) | [Prezes Zarządu PFRON](https://www.pfron.org.pl), who passes e-commerce reports to the minister for digital affairs |
-| `PT` † | `pt`, `en` | Decreto-Lei n.º 82/2022, de 6 de dezembro | [ANACOM](https://www.anacom.pt) for e-commerce, and says supervision is split |
-| `CZ` † | `cs`, `en` | Zákon č. 424/2023 Sb., o požadavcích na přístupnost některých výrobků a služeb | [Česká obchodní inspekce](https://coi.gov.cz) (ČOI) |
-| `DK` † | `da`, `en` | Lov nr. 801 af 7. juni 2022 om tilgængelighedskrav for produkter og tjenester | [Sikkerhedsstyrelsen](https://www.sik.dk) for e-commerce, and says supervision is split |
-| `FI` † | `fi`, `en` | Laki digitaalisten palvelujen tarjoamisesta (306/2019), as amended for the Directive | [Traficom](https://www.traficom.fi) |
-| `SE` † | `sv`, `en` | Lag (2023:254) om vissa produkters och tjänsters tillgänglighet | [Post- och telestyrelsen](https://pts.se) (PTS) |
+| `BE` | `fr`, `nl`, `de`, `en` | Code de droit économique / Wetboek van economisch recht, as amended by the law of 5 November 2023 | [SPF Économie / FOD Economie](https://economie.fgov.be), Economic Inspection, and says supervision is split |
+| `IE` | `en` | European Union (Accessibility Requirements of Products and Services) Regulations 2023 (S.I. No. 636 of 2023) | [CCPC](https://www.ccpc.ie); ComReg and the Central Bank for their sectors |
+| `PL` | `pl`, `en` | Ustawa z dnia 26 kwietnia 2024 r. (Dz.U. 2024 poz. 731) | [Prezes Zarządu PFRON](https://www.pfron.org.pl), who passes e-commerce reports to the minister for digital affairs |
+| `PT` | `pt`, `en` | Decreto-Lei n.º 82/2022, de 6 de dezembro | [ANACOM](https://www.anacom.pt) for e-commerce, and says supervision is split |
+| `CZ` | `cs`, `en` | Zákon č. 424/2023 Sb., o požadavcích na přístupnost některých výrobků a služeb | [Česká obchodní inspekce](https://coi.gov.cz) (ČOI) for e-commerce, and says supervision is split |
+| `DK` | `da`, `en` | Lov nr. 801 af 7. juni 2022 om tilgængelighedskrav for produkter og tjenester | [Sikkerhedsstyrelsen](https://www.sik.dk) for e-commerce, and says supervision is split |
+| `FI` | `fi`, `en` | Laki digitaalisten palvelujen tarjoamisesta (306/2019), as amended for the Directive | [Traficom](https://www.traficom.fi) |
+| `SE` | `sv`, `en` | Lag (2023:254) om vissa produkters och tjänsters tillgänglighet | [Post- och telestyrelsen](https://pts.se) (PTS) |
 
 `eaa-kit countries` prints the same list in the terminal, and `--json` prints it for
 anything that wants to build on it.
 
-† **New in 0.8.0 or 0.9.0, and checked less than the others.** The statute, the authority
-and the enforcement route for these nine were established from regulators' own pages,
-government portals and law firms. The official gazettes could not be reached when these
-templates were written. For that reason these templates cite less than the older ones: no
-article numbers and no fine amounts, which are the details a secondary source most often
-gets wrong. They will be checked against the primary text before the release that carries
-them is tagged. Until then, read the enforcement section with that in mind, and if you find
-something wrong, [open an issue](https://github.com/likeBloodMoon/eaa-kit/issues).
+**How the newer countries were checked.** The eight countries added in 0.8.0 and 0.9.0
+(Belgium, Czechia, Denmark, Finland, Ireland, Poland, Portugal and Sweden) were written from
+regulators' own pages, government portals and law firms, and then checked against the
+official text of each law on 25 September 2026. That check corrected three of them
+(Czechia, Denmark and Portugal). [docs/citations.md](citations.md) records which official
+text and which version each claim was checked against. These templates still cite less than
+the older ones: no article numbers and no fine amounts. If you find something wrong,
+[open an issue](https://github.com/likeBloodMoon/eaa-kit/issues).
 Finland has no Swedish rendering yet, although Swedish is an official language there: a
 Finnish statement in Swedish is a document of its own, and it waits for a source text.
 

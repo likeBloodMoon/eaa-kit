@@ -125,7 +125,8 @@ We aim to respond to your feedback promptly.
 ## Enforcement procedure
 
 If you are not satisfied with our response, you can contact the Czech Trade Inspection
-Authority (ČOI), which supervises compliance with the Act.
+Authority (ČOI), which supervises e-commerce services under the Act. Some other services,
+such as electronic communications services, are supervised by other authorities.
 
 Česká obchodní inspekce (ČOI)
 https://coi.gov.cz

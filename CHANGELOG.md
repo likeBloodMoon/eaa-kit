@@ -9,6 +9,29 @@ move: the JSON report's `schemaVersion` and the baseline file's. Both are bumped
 a field is removed, renamed, or changes meaning — new fields may appear without one, so
 consumers must ignore what they do not recognise.
 
+## Unreleased
+
+### Fixed
+
+- **The eight newer countries' citations are checked against the official text of each law**
+  (Belgium, Czechia, Denmark, Finland, Ireland, Poland, Portugal, Sweden), and the
+  `unverified` marker is gone from `eaa-kit countries` and the docs.
+  [docs/citations.md](docs/citations.md) records which text and version each claim was
+  checked against. Three templates were wrong and are corrected:
+  - **Denmark** (`da`, `en`): said financial services are supervised by Finanstilsynet.
+    Under § 45, stk. 2 of lov nr. 801/2022, Sikkerhedsstyrelsen supervises consumer
+    banking services as well as e-commerce. The example of split supervision is now
+    electronic communications (Energistyrelsen).
+  - **Czechia** (`cs`, `en`): said ČOI supervises compliance with the whole Act. § 19 of
+    zákon č. 424/2023 Sb. gives some services to other bodies; the statement now says ČOI
+    supervises e-commerce services and that others supervise some other services.
+  - **Portugal** (`pt`, `en`): said the supervisory authorities report non-compliant
+    products and services to the INR. Art. 36.º of Decreto-Lei n.º 82/2022 has the INR
+    monitor the regime and forward complaints sent to it; the statement now says that.
+
+  A statement generated with 0.9.0 for Denmark, Czechia or Portugal should be generated
+  again.
+
 ## 0.9.0 — 2026-09-24
 
 The first release since 0.7.0, and it carries 0.8.0 as well: 0.8.0 was tagged but never

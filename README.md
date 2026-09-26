@@ -17,9 +17,8 @@ Every error a new user is likely to hit ends with the command to type next. A `-
 checks where the address leads before it crawls: a redirect to another site is shown and
 needs a yes (or `--redirects follow`), and a sign-in wall stops the run instead of being
 audited as the site. `audit --watch` re-checks the build on every save, and eight countries
-join the statement. Their citations were established from secondary sources and are marked
-as such in `eaa-kit countries` and the docs until they are checked against the primary
-text.
+join the statement. Their citations have since been checked against each law's official
+text, and [docs/citations.md](docs/citations.md) records what each one was checked against.
 
 0.7.0 made a run cost what it should. A page that has not changed byte for byte is not
 audited again, and a run with nothing to re-audit never loads an engine at all: twenty

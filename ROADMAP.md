@@ -25,6 +25,11 @@ having to learn the tool first. Three releases get there:
   file frozen as documented contracts under semver, with a migration note for anything that
   changed on the way. No new surface: 1.0 is 0.9 with the guarantees written down.
 
+Known before 1.0: on 1 January 2027, supervision under the Swedish Act moves from Post- och
+telestyrelsen to Digitaliseringsmyndigheten (förordning 2026:1769, 21 §). The Swedish
+templates have to change on that date, not before, because until then PTS is right. See
+[docs/citations.md](docs/citations.md#sweden-se).
+
 ## 0.9.0 — the first ten minutes
 
 0.8.0 made the first command do the useful thing. 0.9.0 is about the next few: the ones a
@@ -121,6 +126,11 @@ prevented.
   and the changelog saying so. The citations were cross-checked against search excerpts
   from the official sites, which agree with all of them. The full check against the
   primary text is now a 1.0 blocker.
+  **Done after release, on 25 September 2026:** all eight countries checked against the
+  official text of each law, recorded in [docs/citations.md](docs/citations.md). It
+  corrected Denmark (consumer banking is Sikkerhedsstyrelsen's, not Finanstilsynet's),
+  Czechia (ČOI's remit stated too broadly) and Portugal (the INR's role), and the unverified
+  marker is gone.
 
 ## 0.8.0 — reach
 
