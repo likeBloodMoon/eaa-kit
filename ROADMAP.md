@@ -21,14 +21,356 @@ having to learn the tool first. Three releases get there:
   result: `init` that sets up CI and a baseline as well as a config, errors that say what to
   type next, a German rendering for Belgium's third language community, and Sweden,
   Denmark, Finland and Czechia.
-- **1.0.0 — the promise.** The JSON report, the review record, the baseline and the config
-  file frozen as documented contracts under semver, with a migration note for anything that
-  changed on the way. No new surface: 1.0 is 0.9 with the guarantees written down.
+- **1.0.0 — the promise, kept.** The contracts frozen under semver, stack detection that
+  covers what people actually build with (Next.js first), and "everything works" shown by
+  tests that run the tool the way its users do, on every platform, against real projects
+  and hostile input. See [1.0.0](#100--the-promise-kept) for the plan.
 
 Known before 1.0: on 1 January 2027, supervision under the Swedish Act moves from Post- och
 telestyrelsen to Digitaliseringsmyndigheten (förordning 2026:1769, 21 §). The Swedish
 templates have to change on that date, not before, because until then PTS is right. See
 [docs/citations.md](docs/citations.md#sweden-se).
+
+## 1.0.0 — the promise, kept
+
+1.0 is the release somebody can install without reading anything, point at whatever they
+build their site with, and get a correct audit, a CI job and a statement they can publish.
+It is also the release where "it works" stops being a claim and becomes a set of checks
+anyone can re-run.
+
+The earlier outline said 1.0 would add no new surface: 0.9 with the guarantees written
+down. That still holds everywhere except one place. Stack detection has to cover what
+people actually use, Next.js above all, because a tool that cannot find the site cannot
+audit it, and every other guarantee here depends on that first step.
+
+### How the work is done: loops with exit conditions
+
+Every item below runs as a loop, not a to-do list. The rule is that a change is not done
+when it compiles. It is done when the check that describes it is green, and that check
+exists before the change does.
+
+- **The inner loop, for every change.** Write the check that fails first: a test, a
+  fixture or a benchmark budget. Make the change, then run `pnpm lint`, `pnpm typecheck`,
+  `pnpm test` and the item's own gate. Repeat until everything is green. Never widen the
+  change to get green.
+- **The middle loop, for each item.** Each item names its gate (the fixture set, matrix or
+  benchmark that proves it) and its exit condition. An item closes when its gate is green
+  on Linux, macOS and Windows, not when the code is written.
+- **The outer loop, for the release.** A nightly soak workflow runs the heavy gates that
+  are too slow for a PR: real projects built from scratch, the hostile-input suite, the
+  large-site benchmarks. Release candidates (`1.0.0-rc.N` on the npm `next` tag) go
+  through the full gate. Every finding is fixed and ships as the next rc. **Exit:** one rc
+  passes the full gate on all three platforms, followed by seven consecutive nightly soaks
+  with no new finding. That rc, unchanged except for the version, becomes 1.0.0.
+- **Who drives the loop.** The nightly results land as workflow artifacts and a summary
+  comment. A scheduled check-in reads them, triages every red result into a fix or an
+  issue, and re-arms. Nothing red is left unexplained for more than one cycle.
+
+### 1. Stack detection that covers what people build with
+
+Today the registry (`src/audit/frameworks.ts`) knows 21 frameworks by a package or a file,
+and finds HTML in a fixed set of directories. That is enough for a single-app repository
+using a mainstream static generator, and not much beyond it.
+
+**1a. Next.js, in depth.** It is the most common stack this tool will meet, and the one it
+handles worst: only a static export (`out/`) is found directly.
+- Read `output` from `next.config.*`:
+  - `'export'` means the output directory (`out/` or `distDir`) is audited as files;
+  - `'standalone'` means the server is started with `node .next/standalone/server.js`.
+- A normal `next build` writes prerendered HTML into `.next/server/app` and
+  `.next/server/pages`. Those pages link to `/_next/static/…`, which does not exist at that
+  path on disk, so auditing the files directly would audit pages without their CSS and
+  report wrong contrast results. The plan is to **start `next start` and use the build
+  manifests as the page list**: `prerender-manifest.json` and `routes-manifest.json`
+  replace link discovery, so every prerendered route is audited even when nothing links to
+  it. Dynamic routes that were not prerendered are reported as not audited, with the
+  reason, rather than guessed at.
+- Respect `basePath`, `trailingSlash` and `i18n` locales when crawling.
+- Never audit `next dev`: the dev overlay and unoptimised output are not the site.
+- Recognise Next-based documentation frameworks (Nextra, Fumadocs) as Next.js.
+- Verify every manifest and path claim against real projects built with Next 14, 15 and
+  the current major before it is relied on. Manifest formats change between majors, so each
+  supported major gets its own fixture.
+
+**1b. The frameworks that are missing.** Each one is added with its detection signal,
+output directory, dev/preview port and anything to skip:
+- **App frameworks:**
+  - Angular 17+ writes to `dist/<project>/browser`, and `index.csr.html` must be skipped;
+  - Qwik, SolidStart, Analog and TanStack Start;
+  - Vue CLI, Parcel, Rsbuild and Rspack;
+  - Ember.
+- **Documentation and static generators:**
+  - Hexo (`public/`), MkDocs (`site/`), Sphinx (`_build/html`), Zola (`public/`);
+  - Pelican (`output/`), mdBook (`book/`), Quarto (`_site/`);
+  - Docsify, which has no build step: its `index.html` is the site;
+  - Hugo configured through `config/_default/` or `hugo.toml`.
+- **Server-rendered systems**, detected and never started uninvited, as today: Drupal,
+  Statamic, Ghost and Shopify themes.
+- **Recognised in order to be excluded:** Storybook output (`storybook-static/`) is a
+  component catalogue, not the site, and today it would be audited as if it were.
+
+**1c. Monorepos.** Run from a repository root, the tool currently sees only the root
+`package.json`.
+- Detect pnpm, yarn and npm workspaces, Turborepo, Nx and Lerna.
+- Enumerate the workspace packages that are sites:
+  - exactly one: audit it;
+  - several: list them with the command for each (`eaa-kit audit apps/web`), and have
+    `init` ask which one.
+- The generated CI workflow already supports `working-directory` and uses it.
+
+**1d. Package managers.**
+- The `packageManager` field (corepack) decides first, then lockfiles.
+- Lockfiles include Bun's text `bun.lock` (Bun 1.2+) as well as `bun.lockb`, and Deno's
+  `deno.lock` with `deno.json` tasks.
+- Yarn Plug'n'Play is recognised, so no `node_modules` is not taken to mean nothing is
+  installed.
+
+**1e. Starting servers reliably.**
+- Per-framework default ports, adding the ones missing today: Angular 4200, Gatsby 8000,
+  Hugo 1313, Jekyll 4000, Django and Laravel 8000.
+- Parse the URL the server announces through ANSI colour codes, `0.0.0.0`, `127.0.0.1`,
+  IPv6 and Vite's `Local:` line.
+- Wait for a real `200` from the page, not just any response.
+- Report a port already taken by something else, instead of auditing the wrong server.
+
+**1f. Single-page-app shells.**
+- `200.html`, `index.csr.html` and Nuxt's SPA fallback are empty shells with one root
+  element. Today they are audited as pages and pass, which is a false clean result.
+- Recognise them and list them in completeness as "not audited: SPA shell, audit with
+  `--url`". This follows the rule the tool is built on: say what was never looked at.
+
+**1g. `eaa-kit detect`.**
+- Prints what was recognised and the evidence for it (which package, file or config
+  line), the output directory chosen, and what an audit would build or start. `--json`
+  prints the same as data.
+- Detection becomes debuggable by users and testable by the suite. This is the one piece
+  of new surface in 1.0, and it is marked as a decision below.
+
+**Gate:**
+- An offline fixture per framework and major version in `tests/fixtures/stacks/`: the file
+  layout and config of a real scaffolded project, without `node_modules`. It runs on every
+  PR and asserts what `detect` concludes.
+- A nightly job that scaffolds each framework with its official `create-*` tool at a pinned
+  version, installs, builds, and runs a real audit.
+- The framework table in the docs is generated from the registry, and a test fails if they
+  drift.
+
+**Exit:** every registry entry has an offline fixture and a green nightly real build, on
+all three platforms.
+
+### 2. The contracts, frozen
+
+After 1.0 these change only with a major version:
+- the CLI: commands, flags, exit codes and the machine-readable outputs;
+- the config file schema;
+- the JSON report (`schemaVersion` 2), the baseline (2) and the review record (1);
+- SARIF 2.1.0 with this tool's properties;
+- the GitHub Action's inputs;
+- the library exports and the integration option types.
+
+The page cache is explicitly **not** a contract.
+- **Published JSON Schemas** for the report, baseline, review record and config ship in the
+  package under `schemas/`. The tests validate every example, snapshot and fixture against
+  them, so the documentation and the code cannot disagree.
+- **Surface locks:**
+  - a committed snapshot of the public `.d.ts` API;
+  - a committed snapshot of `--help` for every command.
+  CI fails when either changes without a CHANGELOG entry, so nothing breaks silently.
+- **What counts as breaking**, written down in `docs/contracts.md`. The subtle case is
+  axe-core: a minor axe-core update can add a rule, which adds findings, which can fail
+  somebody's CI. The policy: new rules arrive in minor releases, and a baseline absorbs
+  them. Upgrades are pinned, and the changelog names the new rules.
+- **A migration note from 0.x**, covering every flag or field that moved on the way.
+- **The deprecated schemaVersion-1 field** in the JSON report stays until 2.0, documented as
+  deprecated. Removing it now would mean a schemaVersion 3 on day one of the freeze.
+
+**Exit:** schemas published and enforced, locks in CI, `docs/contracts.md` and the
+migration note written.
+
+### 3. Everything works, shown the way users run it
+
+- **Acceptance matrix.** Every command (bare `eaa-kit`, `init`, `audit` on a directory,
+  a URL and auto-detect, `baseline`, `checklist`, `statement`, `diff`, `countries`, `watch`
+  and `detect`) is run against real fixture projects:
+  - through each install method: `npx`, `pnpm dlx`, `bunx`, a global install and a local
+    dev dependency;
+  - on Linux, macOS and Windows.
+  This extends `scripts/test-packaged.mjs`, which already runs the packed tarball.
+- **Documentation that is executed.** Every shell command in the README and `docs/` is
+  extracted and run against a fixture. A documented command that stops working fails CI.
+- **Every error has a next step.** A test walks every exit-2 path and asserts it carries a
+  `next` command. It also asserts that no path prints a stack trace, unless `--debug` asks
+  for one.
+- **Every integration runs in a real project** at the current major version of its host:
+  Vite, Astro, Nuxt, Eleventy, webpack and the GitHub Action.
+- **Every statement renders.** All fifteen countries in every language:
+  - produce valid HTML;
+  - leave no placeholder unfilled;
+  - render identically with and without an audit report attached, apart from the findings
+    section.
+
+**Exit:** the matrix is green on all three platforms, and every documented command runs.
+
+### 4. What could break it, tried on purpose
+
+A `tests/robustness/` suite. Every case asserts the same things:
+- a defined exit code;
+- a message that says what happened and what to do;
+- no stack trace;
+- no orphaned process;
+- no half-written file.
+
+The cases:
+- **Hostile files:**
+  - malformed HTML, a 10 MB page, 50,000 nodes, nesting 1,000 deep;
+  - pages in Shift-JIS or Latin-1, with and without a charset declaration, and with a BOM;
+  - empty files, and binary files named `.html`;
+  - symlink loops, and names with spaces, `#`, `%` and non-Latin characters;
+  - 10,000-page builds, Windows long paths, and names that collide on case-insensitive
+    filesystems.
+- **Hostile networks:**
+  - redirect loops, and servers that send bytes slowly enough to hit every timeout;
+  - bursts of 5xx errors, connection resets, oversized responses and compression bombs;
+  - a sitemap with 50,000 URLs, and a sitemap index that loops;
+  - `429` with `Retry-After`, and credentials that expire mid-crawl;
+  - an IPv6-only localhost, `HTTPS_PROXY`, and self-signed TLS (refused, with the flag
+    that allows it named);
+  - a port already in use.
+- **Damaged state:**
+  - truncated or corrupt cache, baseline, review record and config files;
+  - two runs sharing one cache at the same time (writes must be atomic);
+  - a read-only project (the cache is switched off with a notice);
+  - a disk that fills during the report write.
+- **Interrupted processes:**
+  - Ctrl-C during the build, the server start and the audit. The test sends `SIGINT` and
+    asserts the port is free and no child survives.
+  - `watch` through 1,000 saves, with memory flat.
+- **Environments:**
+  - no TTY, the `CI` variable, `NO_COLOR`, `FORCE_COLOR` and 40-column terminals;
+  - a non-English system locale, and a non-UTC time zone;
+  - the exact Node floor in `engines`;
+  - Playwright absent, or at the wrong version;
+  - Alpine and musl in Docker, no git, and offline.
+- **Generated input.** Property-based tests (fast-check) for the schema parser, URL
+  normalisation and baseline matching. A longer fuzz run is part of the nightly soak.
+
+**Exit:** every case is green on all three platforms, and a fuzz run finds nothing new for
+seven nights.
+
+### 5. Speed, measured the whole way through
+
+Where it stands, from `pnpm bench` on 26 September 2026. These were measured on one
+machine (4 cores, Node 22), so compare checkouts, not machines:
+
+| | today |
+| --- | --- |
+| `eaa-kit --version` | 253 ms |
+| audit, 1 page | 1,444 ms |
+| audit, 20 pages | 3,854 ms |
+| each further page | 127 ms |
+| everything before the first page | 1,317 ms |
+| 20 pages, nothing changed (cache) | 343 ms |
+
+- **Benchmark what is not measured yet:**
+  - crawl mode against a local 100-page server, and browser mode through Playwright;
+  - static builds of 1,000 and 10,000 pages;
+  - peak memory;
+  - watch-mode latency from a save to the report;
+  - `init`, `detect` and a first run from scratch.
+- **`pnpm bench --against <ref>`.** It builds another checkout in a worktree and runs both,
+  interleaved, on the same machine, then prints the difference. That is the only
+  comparison that means anything, and it is how every speed claim in the changelog will be
+  made.
+- **Targets, relative to 0.9.0 on the same machine:**
+  - no measurement slower by more than 10%;
+  - everything before the first page cut by a third, by loading jsdom and axe-core only
+    once a page is about to be audited, and loading only the report renderer that was
+    asked for;
+  - a 10,000-page audit that finishes, with peak memory flat rather than growing with the
+    page count (no DOM retained after its page is reported);
+  - nothing quadratic in de-duplication, baselines or reports.
+- **The loop:** measure, profile with `--cpu-prof`, change one thing, re-measure, and keep
+  the change only if it is a win with the tests green.
+- **Nightly**, the soak job benchmarks against the last release tag on the same runner and
+  posts the table. A slowdown of more than 20% is triaged. It is still not a PR gate, for
+  the reason `scripts/bench.mjs` gives: timing on a shared runner is noise.
+
+**Exit:** the targets are met, and the numbers in `docs/audit.md` are regenerated from
+`--against v0.9.x`.
+
+### 6. Releasing without surprises
+
+- **`pnpm release:check`** verifies that:
+  - the version in `package.json` matches the tag;
+  - the CHANGELOG entry is dated;
+  - the action pins in the docs and workflows match the version;
+  - `examples/` is regenerated.
+
+  It runs on release PRs and again in `release.yml` before publishing. This is the check
+  that would have caught 0.8.0.
+- **Publishing:** npm provenance on every publish, a test of the tarball's contents and
+  size, and release candidates on the `next` tag.
+- **Clean-up:**
+  - delete the stray `v0.8.0` tag;
+  - fix the `github-advanced-security` check, which fails on GitHub's side and needs the
+    repository's code-scanning settings changed;
+  - make `npm audit` clean;
+  - add a `SECURITY.md`.
+
+### 7. What must be right on release day
+
+- **0.9.1 first.** The corrected Danish, Czech and Portuguese templates ship now, not with
+  1.0.
+- **Sweden, independent of the release date.** The Swedish authority becomes date-aware: a
+  statement generated before 1 January 2027 names PTS, and one generated on or after it
+  names Digitaliseringsmyndigheten (förordning 2026:1769, 21 §). A test with a fixed clock
+  covers both sides. After that, it does not matter which side of New Year 1.0 lands on.
+- **All fifteen countries in `docs/citations.md`.** The original seven (AT, CH, DE, ES, FR,
+  IT, NL) have never had their check recorded there. They get the same treatment, and all
+  fifteen are re-checked within 30 days of the tag.
+- **Native-speaker review** of the Czech, Danish, Finnish, Swedish, Polish and Portuguese
+  texts. This needs people, not the tool, so it is marked as a decision below.
+
+### Not in 1.0
+
+- **New countries.** Fifteen is the scope. The next ones come after 1.0, on a stable
+  contract.
+- **Writing fixes into source files.** Closed in 0.7.0, and still closed.
+- **A score, Level AAA, anything model-generated, a hosted dashboard.** As before, and not
+  later.
+
+### Order of work
+
+1. 0.9.1: the corrected templates.
+2. The contract inventory and surface locks, so nothing after this can change a contract
+   without it showing.
+3. The acceptance and robustness harnesses, which are the tests that guard everything after
+   them.
+4. Stack detection, Next.js first, then monorepos, then the missing frameworks.
+5. Speed work, measured against 0.9.x.
+6. Content: Sweden's date switch, the citations for all fifteen countries, and the reviews.
+7. The release-candidate loop and the soak, then 1.0.0.
+
+### Done means
+
+- Every gate in sections 1–6 is green on Linux, macOS and Windows.
+- One release candidate passes the full gate, followed by seven clean nightly soaks.
+- The contracts are documented and locked, with a migration note from 0.x.
+- `docs/citations.md` covers all fifteen countries and was re-checked within 30 days of
+  the tag.
+- The speed targets are met, and the published numbers were regenerated with `--against`.
+
+### Decisions needed before work starts
+
+1. **`eaa-kit detect` as a new command.** Recommended: yes. It is the only new surface in
+   1.0, and it makes detection explainable and testable.
+2. **Native-speaker review as a release blocker.** Recommended: blocking for Czech, Danish,
+   Finnish and Swedish, the texts written for 0.9.0, and advisory for the rest.
+3. **A moving `v1` tag for the GitHub Action.** Until now the Action was pinned to exact
+   tags on purpose, because 0.x promised nothing. Under semver a `v1` tag is the
+   convention. Recommended: yes, from 1.0.0.
+4. **The deprecated schemaVersion-1 field** in the JSON report: keep it until 2.0
+   (recommended), or remove it now as schemaVersion 3.
 
 ## 0.9.0 — the first ten minutes
 
