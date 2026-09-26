@@ -1,0 +1,46 @@
+{
+  "version": 4,
+  "routes": {
+    "/en/posts/one": {
+      "routeType": "page",
+      "response": "complete",
+      "compute": "static",
+      "initialRevalidateSeconds": false,
+      "srcRoute": "/posts/[id]",
+      "dataRoute": "/_next/data/vX74Hlraf6HQDJN_I0HGU/en/posts/one.json",
+      "allowHeader": [
+        "host",
+        "x-matched-path",
+        "x-prerender-revalidate",
+        "x-prerender-revalidate-if-generated",
+        "x-next-revalidated-tags",
+        "x-next-revalidate-tag-token"
+      ]
+    }
+  },
+  "dynamicRoutes": {
+    "/posts/[id]": {
+      "routeRegex": "^/posts/([^/]+?)(?:/)?$",
+      "dataRoute": "/_next/data/vX74Hlraf6HQDJN_I0HGU/posts/[id].json",
+      "fallback": null,
+      "routeType": "page",
+      "response": "empty",
+      "compute": "blocking",
+      "dataRouteRegex": "^/_next/data/vX74Hlraf6HQDJN_I0HGU/posts/([^/]+?)\\.json$",
+      "allowHeader": [
+        "host",
+        "x-matched-path",
+        "x-prerender-revalidate",
+        "x-prerender-revalidate-if-generated",
+        "x-next-revalidated-tags",
+        "x-next-revalidate-tag-token"
+      ]
+    }
+  },
+  "notFoundRoutes": [],
+  "preview": {
+    "previewModeId": "redacted",
+    "previewModeSigningKey": "redacted",
+    "previewModeEncryptionKey": "redacted"
+  }
+}

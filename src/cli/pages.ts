@@ -48,6 +48,10 @@ export interface CrawlCommandOptions {
    * `ask` then treats as a no.
    */
   confirm?: (question: string) => Promise<boolean>
+  /** Pages the project's build lists, crawled as well as the entry URL. */
+  seeds?: readonly string[]
+  /** Parts of the site known to exist that the crawl has no way to list. */
+  knownUnreachable?: readonly Unmeasured[]
   /** Injectable for tests. Defaults to global fetch. */
   fetchImpl?: typeof fetch
 }
@@ -251,6 +255,7 @@ async function crawlPages(
     ...(options.maxDepth === undefined ? {} : { maxDepth: options.maxDepth }),
     ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
     ...(options.headers === undefined ? {} : { headers: options.headers }),
+    ...(options.seeds === undefined ? {} : { seeds: options.seeds }),
     ...(options.fetchImpl === undefined ? {} : { fetchImpl: options.fetchImpl }),
   })
 
@@ -262,7 +267,8 @@ async function crawlPages(
     return undefined
   }
 
-  const found = result.discovery === 'sitemap' ? 'sitemap.xml and links' : 'links'
+  const { discoveryLabel } = await import('../audit/completeness.ts')
+  const found = discoveryLabel(result.discovery)
   note(`Found ${count(result.pages.length, 'page')} from ${found}`)
 
   // Pages that could not be fetched are named rather than counted away: a
@@ -273,6 +279,8 @@ async function crawlPages(
     reason: failure.reason,
   }))
   warnUnmeasured(failed, 'URL', 'fetched')
+  const known = options.knownUnreachable ?? []
+  warnUnmeasured(known, 'route', 'listed')
 
   if (result.truncated) {
     warn(
@@ -315,6 +323,7 @@ async function crawlPages(
       collected: result.pages.length,
       unreachable: [
         ...failed,
+        ...known,
         // Never reached, whatever the status code said: the run has a verdict
         // about the page it was sent to, and none about the page it asked for.
         ...collapsed.map((redirect) => ({
@@ -351,6 +360,7 @@ async function followEntry(
     timeoutMs: options.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS,
     maxBodyBytes: MAX_BODY_BYTES,
     ...(options.headers === undefined ? {} : { headers: options.headers }),
+    ...(options.seeds === undefined ? {} : { seeds: options.seeds }),
     ...(options.fetchImpl === undefined ? {} : { fetchImpl: options.fetchImpl }),
   })
 
@@ -500,7 +510,12 @@ async function resolveAutomatically(
   }
 
   if (detected?.url !== undefined) {
-    const resolved = await resolvePages(undefined, { ...options, url: detected.url })
+    const resolved = await resolvePages(undefined, {
+      ...options,
+      url: detected.url,
+      ...(detected.seeds === undefined ? {} : { seeds: detected.seeds }),
+      ...(detected.unreachable === undefined ? {} : { knownUnreachable: detected.unreachable }),
+    })
     if (resolved === undefined) {
       await detected.cleanup?.()
       return undefined

@@ -189,6 +189,32 @@ describe('crawlSite', () => {
     expect(result.pages.map((p) => p.relativePath)).toContain('orphan')
   })
 
+  it("takes the build's own page list first, when the project wrote one", async () => {
+    // A Next.js build lists every page it built in its manifests. Seeded from
+    // those, a page nothing links to is audited all the same.
+    const { fetchImpl } = site({
+      '/': page('<h1>Home</h1>'),
+      '/orphan': page('<h1>Orphan</h1>'),
+    })
+
+    const result = await crawlSite(entry, {
+      fetchImpl,
+      seeds: ['http://localhost:3000/orphan'],
+    })
+
+    expect(result.discovery).toBe('manifest')
+    expect(result.pages.map((p) => p.relativePath)).toEqual(['/', 'orphan'])
+  })
+
+  it('ignores a seed on another origin', async () => {
+    const { fetchImpl, requests } = site({ '/': page('<h1>Home</h1>') })
+
+    await crawlSite(entry, { fetchImpl, seeds: ['https://example.com/'] })
+
+    expect(requests).not.toContain('https://example.com/')
+    expect(requests.every((request) => request.startsWith('/'))).toBe(true)
+  })
+
   it('still follows links when the sitemap is incomplete', async () => {
     // A sitemap listing three of forty pages would otherwise be worse than none.
     const { fetchImpl } = site({

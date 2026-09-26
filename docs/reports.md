@@ -88,7 +88,7 @@ A complete generated document is checked in at
   // are. Read "complete" before drawing any conclusion from the counts above.
   "completeness": {
     "complete": true,                           // false when anything went unmeasured
-    "discovery": "directory",                   // "directory" | "sitemap" | "links"
+    "discovery": "directory",                   // "directory" | "manifest" | "sitemap" | "links"
     "collected": 5,                             // pages handed to the engine
     "audited": 5,                               // pages this run reached a verdict on
     "reused": 0,                                // pages whose result came from the cache

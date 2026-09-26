@@ -1,9 +1,11 @@
 import { spawn } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
+import { createServer } from 'node:net'
 import path from 'node:path'
 import { glob } from 'tinyglobby'
 import { exists, isDirectory, toPosix } from '../fs.ts'
 import { DEFAULT_EXCLUDE } from './collect.ts'
+import type { Unmeasured } from './completeness.ts'
 import { candidateOutputs } from './frameworks.ts'
 
 /**
@@ -21,8 +23,12 @@ import { candidateOutputs } from './frameworks.ts'
  * or passing --url skips all of it.
  */
 
-/** Ports the common dev and preview servers use, tried if nothing is announced. */
-const KNOWN_PORTS = [3000, 4321, 5173, 8080, 4173, 3001]
+/**
+ * Ports the common servers use, tried if nothing is announced: Next and Remix,
+ * Astro, Vite dev and preview, Angular, Gatsby, Hugo, Jekyll, and the usual
+ * fallbacks.
+ */
+const KNOWN_PORTS = [3000, 4321, 5173, 4173, 4200, 8000, 1313, 4000, 8080, 3001]
 
 /** How long to wait for a started server to answer. */
 const SERVER_START_TIMEOUT_MS = 90_000
@@ -206,11 +212,41 @@ async function answers(origin: string): Promise<boolean> {
  * on any port, and only falls back to probing the common ones. Returns undefined
  * if nothing came up before the timeout, having already stopped the process.
  */
-export async function startServer(cwd: string, script: string): Promise<RunningServer | undefined> {
+export interface StartServerOptions {
+  /** Run this instead of a package script, e.g. Next's standalone server.js. */
+  command?: { bin: string; args: string[]; cwd?: string }
+}
+
+/** A port nothing is listening on right now, from the operating system. */
+async function freePort(): Promise<number | undefined> {
+  return new Promise((resolve) => {
+    const probe = createServer()
+    probe.once('error', () => resolve(undefined))
+    probe.listen(0, '127.0.0.1', () => {
+      const address = probe.address()
+      const port = typeof address === 'object' && address !== null ? address.port : undefined
+      probe.close(() => resolve(port))
+    })
+  })
+}
+
+export async function startServer(
+  cwd: string,
+  script: string,
+  options: StartServerOptions = {},
+): Promise<RunningServer | undefined> {
   const manager = await detectPackageManager(cwd)
-  const { command: bin, args } = scriptCommand(manager, script)
+  const { command: bin, args } =
+    options.command === undefined
+      ? scriptCommand(manager, script)
+      : { command: options.command.bin, args: options.command.args }
+  // Offered through PORT, which Next, Nuxt, Remix and most Node servers read,
+  // so a server already on 3000 is not mistaken for this one. A server that
+  // ignores it announces its own address, and that is taken instead.
+  const port = await freePort()
   const child = spawn(bin, args, {
-    cwd,
+    cwd: options.command?.cwd ?? cwd,
+    env: port === undefined ? process.env : { ...process.env, PORT: String(port) },
     stdio: ['ignore', 'pipe', 'pipe'],
     // Its own process group, so the whole tree can be signalled. `npm run start`
     // spawns the real server as a grandchild: signalling npm alone leaves that
@@ -221,7 +257,11 @@ export async function startServer(cwd: string, script: string): Promise<RunningS
 
   let announced: string | undefined
   const watch = (chunk: Buffer): void => {
-    const match = /https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\]):(\d{2,5})/.exec(String(chunk))
+    // Colour codes are stripped first: Next prints its URL between two of them,
+    // and 0.0.0.0 is a server listening everywhere, reachable as localhost.
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: matching ANSI escapes is the point
+    const text = String(chunk).replace(/\u001b\[[0-9;]*m/g, '')
+    const match = /https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1?\]):(\d{2,5})/.exec(text)
     if (match && announced === undefined) announced = `http://localhost:${match[1]}`
   }
   child.stdout?.on('data', watch)
@@ -268,8 +308,9 @@ export async function startServer(cwd: string, script: string): Promise<RunningS
   const deadline = Date.now() + SERVER_START_TIMEOUT_MS
   while (Date.now() < deadline) {
     if (child.exitCode !== null) return undefined
+    const ports = port === undefined ? KNOWN_PORTS : [port, ...KNOWN_PORTS]
     for (const origin of announced === undefined
-      ? KNOWN_PORTS.map((port) => `http://localhost:${port}`)
+      ? ports.map((candidate) => `http://localhost:${candidate}`)
       : [announced]) {
       if (await answers(origin)) return { origin, stop }
     }
@@ -286,6 +327,13 @@ export interface AutoSource {
   directory?: string
   /** Site to crawl, when it did not. */
   url?: string
+  /**
+   * Pages the project's build says it has, as URLs on `url`'s server: the crawl
+   * starts from these as well as from `url`.
+   */
+  seeds?: string[]
+  /** Parts of the site known to exist that the crawl has no list of. */
+  unreachable?: Unmeasured[]
   /** Called when the audit is done, to stop anything this started. */
   cleanup?: () => Promise<void>
   /** What was done, for the reader. One line per step. */
@@ -370,6 +418,8 @@ export async function autoDetectSource(
 
   // Built and still no HTML anywhere: the site renders on a server. Start it
   // and audit what it actually serves, which is the only honest view of it.
+  if (detected?.framework.id === 'next') return serveNext(cwd, scripts, steps, step)
+
   const serveScript = ['start', 'preview', 'serve'].find((name) => scripts[name] !== undefined)
   if (serveScript === undefined) return { steps }
 
@@ -382,4 +432,77 @@ export async function autoDetectSource(
 
   step(`Auditing ${server.origin}`)
   return { url: server.origin, cleanup: server.stop, steps }
+}
+
+/**
+ * Serve a Next.js build and list its pages from the build's own manifests.
+ *
+ * Never `next dev`: the development overlay and unoptimised output are not the
+ * site anybody visits. A standalone build is served by the server.js it wrote,
+ * when the static files were copied beside it as Next's docs say; otherwise by
+ * `next start`, which serves any build.
+ */
+async function serveNext(
+  cwd: string,
+  scripts: Record<string, string>,
+  steps: string[],
+  step: (message: string) => void,
+): Promise<AutoSource> {
+  const { nextPageUrl, nextRoutes, readNextConfig } = await import('./next.ts')
+  const config = await readNextConfig(cwd)
+  const dist = config.distDir ?? '.next'
+  const standalone = path.join(cwd, dist, 'standalone')
+
+  let options: StartServerOptions | undefined
+  let how: string
+  if (
+    config.output === 'standalone' &&
+    (await exists(path.join(standalone, 'server.js'))) &&
+    (await exists(path.join(standalone, dist, 'static')))
+  ) {
+    options = { command: { bin: process.execPath, args: ['server.js'], cwd: standalone } }
+    how = `node ${toPosix(path.join(dist, 'standalone', 'server.js'))}`
+  } else if (scripts['start'] !== undefined) {
+    how = 'start'
+  } else {
+    const bin = path.join(cwd, 'node_modules', 'next', 'dist', 'bin', 'next')
+    if (!(await exists(bin))) return { steps }
+    options = { command: { bin: process.execPath, args: [bin, 'start'] } }
+    how = 'next start'
+  }
+
+  step(`This site renders on a server; starting it with ${how}`)
+  const server = await startServer(cwd, 'start', options)
+  if (server === undefined) {
+    step(`Could not start the site with ${how}`)
+    return { steps }
+  }
+
+  const routes = await nextRoutes(cwd)
+  if (routes === undefined) {
+    step(`Auditing ${server.origin}`)
+    return { url: server.origin, cleanup: server.stop, steps }
+  }
+
+  const url = nextPageUrl(server.origin, routes, '/')
+  const seeds = routes.pages.map((page) => nextPageUrl(server.origin, routes, page))
+  step(
+    `Read ${seeds.length} ${seeds.length === 1 ? 'page' : 'pages'} from the Next.js build manifests`,
+  )
+  step(`Auditing ${url}`)
+  return {
+    url,
+    seeds,
+    ...(routes.dynamic.length === 0
+      ? {}
+      : {
+          unreachable: routes.dynamic.map((route) => ({
+            location: `${routes.basePath}${route}`,
+            reason:
+              'a dynamic route rendered on request, with no list of its pages: only pages that links reached were audited',
+          })),
+        }),
+    cleanup: server.stop,
+    steps,
+  }
 }
