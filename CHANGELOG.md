@@ -71,6 +71,12 @@ It finds your site, whatever it is built with.
   prints is read through colour codes and `0.0.0.0`. The Angular, Gatsby, Hugo and Jekyll
   default ports are also tried.
 
+### Fixed
+
+- **On Windows, a server the audit started is stopped with everything it started.**
+  Stopping only the `cmd.exe` that ran the script left the real server running after
+  the report was written, holding its port and its directory.
+
 ### Report format
 
 - `completeness.discovery` can now be `"manifest"`: the pages came from the project's own

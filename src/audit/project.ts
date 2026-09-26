@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
 import { createServer } from 'node:net'
 import path from 'node:path'
@@ -276,8 +276,15 @@ export async function startServer(
     const signal = (name: NodeJS.Signals): void => {
       try {
         if (child.pid === undefined) return
-        if (process.platform === 'win32') child.kill(name)
-        else process.kill(-child.pid, name)
+        if (process.platform === 'win32') {
+          // Windows has no process groups to signal. Killing cmd.exe alone
+          // leaves the server it started running, holding its port and its
+          // directory, so the whole tree goes, forcibly: Windows has no
+          // SIGTERM for a console process to catch anyway.
+          spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' })
+        } else {
+          process.kill(-child.pid, name)
+        }
       } catch {
         // Already gone, which is the outcome wanted anyway.
       }
