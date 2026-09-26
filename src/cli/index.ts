@@ -338,6 +338,18 @@ program
   })
 
 program
+  .command('doctor')
+  .description('Check everything this needs to work here, and say how to fix what is missing')
+  .argument('[dir]', 'the project to check (default: this directory)')
+  .action(async (dir: string | undefined) => {
+    const { formatDoctor, runDoctor } = await import('./doctor.ts')
+    const { resolve } = await import('node:path')
+    const result = await runDoctor(resolve(dir ?? '.'))
+    process.stdout.write(formatDoctor(result))
+    process.exitCode = result.exitCode
+  })
+
+program
   .command('diff')
   .description('Compare two JSON reports: what a change made worse, and what it fixed')
   .argument('<before>', 'JSON report from before the change')
