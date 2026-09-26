@@ -450,10 +450,11 @@ export async function autoDetectSource(
   const serveScript = ['start', 'preview', 'serve'].find((name) => scripts[name] !== undefined)
   if (serveScript === undefined) return { steps }
 
-  step(`This site renders on a server; starting it with ${serveScript}`)
+  const shown = await scriptLabel(cwd, serveScript)
+  step(`This site renders on a server; starting it with ${shown}`)
   const server = await startServer(cwd, serveScript)
   if (server === undefined) {
-    step(`Could not start the site with ${serveScript}`)
+    step(`Could not start the site with ${shown}`)
     return { steps }
   }
 
@@ -490,7 +491,7 @@ async function serveNext(
     options = { command: { bin: process.execPath, args: ['server.js'], cwd: standalone } }
     how = `node ${toPosix(path.join(dist, 'standalone', 'server.js'))}`
   } else if (scripts['start'] !== undefined) {
-    how = 'start'
+    how = await scriptLabel(cwd, 'start')
   } else {
     const bin = path.join(cwd, 'node_modules', 'next', 'dist', 'bin', 'next')
     if (!(await exists(bin))) return { steps }
@@ -532,4 +533,10 @@ async function serveNext(
     cleanup: server.stop,
     steps,
   }
+}
+
+/** How a script is run here, for a message: `pnpm run start`. */
+async function scriptLabel(cwd: string, script: string): Promise<string> {
+  const manager = await detectPackageManager(cwd)
+  return `${manager} ${manager === 'deno' ? 'task' : 'run'} ${script}`
 }

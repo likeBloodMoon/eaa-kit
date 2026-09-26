@@ -1,0 +1,122 @@
+name: Soak
+
+# Real projects, built from scratch, every night.
+#
+# The stack fixtures in tests/fixtures/stacks are file layouts, checked on every
+# pull request, and they are only as true as the day they were copied. A
+# framework's next release can move its output directory or change a manifest
+# format without touching any of them. This scaffolds each framework with its
+# own official starter, installs it, builds it the way `npx eaa-kit` would, and
+# audits it, so a change on the framework's side shows up here within a day,
+# and before somebody's first run meets it.
+#
+# Too slow and too dependent on registries to gate a pull request. A red run
+# here is triaged into a fix or an issue, not left standing.
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  stack:
+    name: ${{ matrix.stack }} on ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        stack: [next, astro, sveltekit, nuxt, docusaurus, vite]
+        include:
+          # The one most people meet first, on the other two platforms too.
+          - os: windows-latest
+            stack: next
+            scaffold: npx --yes create-next-app@16 site --yes --use-npm --skip-install
+          - os: macos-latest
+            stack: next
+            scaffold: npx --yes create-next-app@16 site --yes --use-npm --skip-install
+          - stack: next
+            scaffold: npx --yes create-next-app@16 site --yes --use-npm --skip-install
+          - stack: astro
+            scaffold: npm create --yes astro@4 site -- --template minimal --no-install --no-git --yes
+          - stack: sveltekit
+            scaffold: npx --yes sv@0 create site --template minimal --types ts --no-add-ons --no-install
+          - stack: nuxt
+            scaffold: npx --yes nuxi@3 init site --template minimal --packageManager npm --gitInit false --no-install
+          - stack: docusaurus
+            scaffold: npx --yes create-docusaurus@3 site classic --javascript --package-manager npm --skip-install
+          - stack: vite
+            scaffold: npm create --yes vite@7 site -- --template react-ts --no-interactive
+            # A Vite app is an empty shell until its script runs.
+            browser: true
+
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm build
+
+      - name: Scaffold ${{ matrix.stack }}
+        working-directory: ${{ runner.temp }}
+        shell: bash
+        # No terminal, as in CI: every starter here was checked to run
+        # without asking anything.
+        run: ${{ matrix.scaffold }} < /dev/null
+
+      - name: Install its dependencies
+        working-directory: ${{ runner.temp }}/site
+        shell: bash
+        run: |
+          npm install --no-audit --no-fund
+          if [ "${{ matrix.browser }}" = "true" ]; then
+            npm install --no-audit --no-fund -D playwright
+            npx playwright install ${{ runner.os == 'Linux' && '--with-deps' || '' }} chromium
+          fi
+
+      - name: What detect makes of it
+        working-directory: ${{ runner.temp }}/site
+        shell: bash
+        run: node "$GITHUB_WORKSPACE/dist/cli/index.js" detect --json | tee detect.json
+
+      # Exit 1 means barriers were found, which is a working run. Exit 2 means
+      # it could not audit the project at all, which is what this job exists
+      # to catch.
+      - name: Audit it with no directory, so detection decides
+        working-directory: ${{ runner.temp }}/site
+        shell: bash
+        run: |
+          set +e
+          node "$GITHUB_WORKSPACE/dist/cli/index.js" audit ${{ matrix.browser && '--browser' || '' }} \
+            --format json --output report.json
+          code=$?
+          set -e
+          echo "exit code $code"
+          test "$code" -le 1
+          node -e '
+            const r = require("./report.json")
+            const pages = r.pages.length
+            console.log(`${pages} pages, discovery ${r.completeness.discovery}`)
+            if (pages === 0) process.exit(1)
+          '
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: soak-${{ matrix.stack }}-${{ matrix.os }}
+          path: |
+            ${{ runner.temp }}/site/detect.json
+            ${{ runner.temp }}/site/report.json
+          if-no-files-found: ignore
