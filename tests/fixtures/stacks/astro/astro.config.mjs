@@ -1,0 +1,1 @@
+export default { outDir: './public-html' }

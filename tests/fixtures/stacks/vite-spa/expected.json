@@ -1,0 +1,27 @@
+{
+  "framework": {
+    "id": "vite",
+    "name": "Vite",
+    "evidence": [
+      "package.json depends on vite"
+    ]
+  },
+  "packageManager": {
+    "name": "yarn",
+    "evidence": "found yarn.lock"
+  },
+  "plan": "build",
+  "summary": "run yarn run build and audit what it writes, expected in dist/, which is an empty app shell until JavaScript runs: add --browser",
+  "outputs": [
+    "dist",
+    "out",
+    "build",
+    "_site",
+    "public",
+    ".output/public"
+  ],
+  "build": "yarn run build",
+  "directory": "dist",
+  "serve": "yarn run preview",
+  "appShell": true
+}

@@ -1,0 +1,50 @@
+{
+  "packageManager": {
+    "name": "pnpm",
+    "evidence": "found pnpm-lock.yaml"
+  },
+  "plan": "build",
+  "summary": "go into apps/web/, this monorepo's one site, and run pnpm run build and audit what it writes, expected in dist/",
+  "outputs": [
+    "dist",
+    "out",
+    "build",
+    "_site",
+    "public",
+    ".output/public"
+  ],
+  "workspace": {
+    "evidence": "pnpm-workspace.yaml",
+    "sites": [
+      {
+        "dir": "apps/web",
+        "framework": "Astro"
+      }
+    ]
+  },
+  "site": {
+    "framework": {
+      "id": "astro",
+      "name": "Astro",
+      "evidence": [
+        "package.json depends on astro"
+      ]
+    },
+    "packageManager": {
+      "name": "pnpm",
+      "evidence": "found ../../pnpm-lock.yaml"
+    },
+    "plan": "build",
+    "summary": "run pnpm run build and audit what it writes, expected in dist/",
+    "outputs": [
+      "dist",
+      "out",
+      "build",
+      "_site",
+      "public",
+      ".output/public"
+    ],
+    "build": "pnpm run build",
+    "directory": "dist"
+  }
+}

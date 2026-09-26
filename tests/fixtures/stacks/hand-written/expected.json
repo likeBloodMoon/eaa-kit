@@ -1,0 +1,13 @@
+{
+  "plan": "audit-build",
+  "summary": "audit the hand-written HTML in this folder",
+  "outputs": [
+    "dist",
+    "out",
+    "build",
+    "_site",
+    "public",
+    ".output/public"
+  ],
+  "directory": "."
+}

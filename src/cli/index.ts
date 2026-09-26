@@ -328,6 +328,16 @@ program
   })
 
 program
+  .command('detect')
+  .description('Say what an audit here would do and why, without building or starting anything')
+  .argument('[dir]', 'the project to look at (default: this directory)')
+  .option('--json', 'print it as JSON, for tools and bug reports')
+  .action(async (dir: string | undefined, flags: { json?: true }) => {
+    const { runDetectCommand } = await import('./detect.ts')
+    process.stdout.write(await runDetectCommand(dir, flags))
+  })
+
+program
   .command('diff')
   .description('Compare two JSON reports: what a change made worse, and what it fixed')
   .argument('<before>', 'JSON report from before the change')

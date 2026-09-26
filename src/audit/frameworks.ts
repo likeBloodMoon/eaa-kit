@@ -60,6 +60,11 @@ export interface Framework {
    * that gets the site up, so `--url` has something to point at.
    */
   serveCommand?: string
+  /**
+   * How to build it, for a generator that is not an npm package and so has no
+   * `build` script for this tool to run: `hugo`, `mkdocs build`.
+   */
+  buildCommand?: string
 }
 
 /**
@@ -219,6 +224,7 @@ export const FRAMEWORKS: readonly Framework[] = [
     outputs: ['site'],
     configs: ['mkdocs.yml', 'mkdocs.yaml'],
     outputPattern: /^site_dir:\s*['"]?([^'"\s#]+)/m,
+    buildCommand: 'mkdocs build',
     serves: false,
   },
   {
@@ -233,6 +239,7 @@ export const FRAMEWORKS: readonly Framework[] = [
       'docs/build/html',
       'doc/_build/html',
     ],
+    buildCommand: 'sphinx-build -M html docs docs/_build',
     serves: false,
   },
   {
@@ -243,6 +250,7 @@ export const FRAMEWORKS: readonly Framework[] = [
     outputs: ['book'],
     configs: ['book.toml'],
     outputPattern: /build-dir\s*=\s*['"]([^'"]+)['"]/,
+    buildCommand: 'mdbook build',
     serves: false,
   },
   {
@@ -253,6 +261,7 @@ export const FRAMEWORKS: readonly Framework[] = [
     outputs: ['_site'],
     configs: ['_quarto.yml', '_quarto.yaml'],
     outputPattern: /output-dir:\s*['"]?([^'"\s#]+)/,
+    buildCommand: 'quarto render',
     serves: false,
   },
   {
@@ -263,6 +272,7 @@ export const FRAMEWORKS: readonly Framework[] = [
     outputs: ['output'],
     configs: ['pelicanconf.py', 'publishconf.py'],
     outputPattern: /OUTPUT_PATH\s*=\s*['"]([^'"]+)['"]/,
+    buildCommand: 'pelican content',
     serves: false,
   },
   {
@@ -273,6 +283,7 @@ export const FRAMEWORKS: readonly Framework[] = [
     files: ['zola.toml'],
     contents: { file: 'config.toml', pattern: /^\s*base_url\s*=/m },
     outputs: ['public'],
+    buildCommand: 'zola build',
     serves: false,
   },
   {
@@ -281,6 +292,7 @@ export const FRAMEWORKS: readonly Framework[] = [
     packages: [],
     files: ['hugo.toml', 'hugo.yaml', 'hugo.json', 'config.toml', 'config/_default'],
     outputs: ['public'],
+    buildCommand: 'hugo',
     serves: false,
   },
   {
@@ -289,6 +301,7 @@ export const FRAMEWORKS: readonly Framework[] = [
     packages: [],
     files: ['_config.yml'],
     outputs: ['_site'],
+    buildCommand: 'bundle exec jekyll build',
     serves: false,
   },
   // Everything below renders on a server and writes no browsable HTML to disk.

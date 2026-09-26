@@ -1,0 +1,24 @@
+{
+  "framework": {
+    "id": "wordpress",
+    "name": "WordPress",
+    "evidence": [
+      "found wp-config.php"
+    ]
+  },
+  "packageManager": {
+    "name": "npm",
+    "evidence": "no lockfile, so npm"
+  },
+  "plan": "url",
+  "summary": "do nothing on its own: WordPress renders on a server, so start the site and audit it with --url",
+  "outputs": [
+    "dist",
+    "out",
+    "build",
+    "_site",
+    "public",
+    ".output/public"
+  ],
+  "serveCommand": "wp-env start, ddev start, or whichever local stack this site uses"
+}

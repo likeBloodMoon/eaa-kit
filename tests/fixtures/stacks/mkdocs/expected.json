@@ -1,0 +1,21 @@
+{
+  "framework": {
+    "id": "mkdocs",
+    "name": "MkDocs",
+    "evidence": [
+      "found mkdocs.yml"
+    ]
+  },
+  "plan": "nothing",
+  "summary": "do nothing yet: build the site with mkdocs build first",
+  "outputs": [
+    "site",
+    "dist",
+    "out",
+    "build",
+    "_site",
+    "public",
+    ".output/public"
+  ],
+  "build": "mkdocs build"
+}

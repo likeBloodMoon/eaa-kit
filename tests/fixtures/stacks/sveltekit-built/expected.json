@@ -1,0 +1,25 @@
+{
+  "framework": {
+    "id": "sveltekit",
+    "name": "SvelteKit",
+    "evidence": [
+      "package.json depends on @sveltejs/kit"
+    ]
+  },
+  "packageManager": {
+    "name": "pnpm",
+    "evidence": "package.json declares packageManager pnpm@10.4.1"
+  },
+  "plan": "audit-build",
+  "summary": "audit the build already in build/",
+  "outputs": [
+    "build",
+    ".svelte-kit/output/prerendered/pages",
+    "dist",
+    "out",
+    "_site",
+    "public",
+    ".output/public"
+  ],
+  "directory": "build"
+}

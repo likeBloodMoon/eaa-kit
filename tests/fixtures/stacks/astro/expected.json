@@ -1,0 +1,28 @@
+{
+  "framework": {
+    "id": "astro",
+    "name": "Astro",
+    "evidence": [
+      "package.json depends on astro",
+      "astro.config.mjs sets the output to public-html/"
+    ]
+  },
+  "packageManager": {
+    "name": "pnpm",
+    "evidence": "found pnpm-lock.yaml"
+  },
+  "plan": "build",
+  "summary": "run pnpm run build and audit what it writes, expected in public-html/",
+  "outputs": [
+    "public-html",
+    "dist",
+    "out",
+    "build",
+    "_site",
+    "public",
+    ".output/public"
+  ],
+  "build": "pnpm run build",
+  "directory": "public-html",
+  "serve": "pnpm run preview"
+}
