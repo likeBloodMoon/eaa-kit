@@ -45,14 +45,11 @@ jobs:
       - run: pnpm build
       - run: pnpm smoke
 
-      - name: Check the tag matches package.json
-        run: |
-          tag="${GITHUB_REF_NAME#v}"
-          pkg="$(node -p "require('./package.json').version")"
-          if [ "$tag" != "$pkg" ]; then
-            echo "::error::tag v${tag} does not match package.json version ${pkg}"
-            exit 1
-          fi
+      # The tag against package.json, the dated changelog, the Action pins
+      # and the examples. CI already ran this on the release PR; running it
+      # again here covers a tag pushed by hand onto some other commit.
+      - name: Check this commit is ready to publish as this tag
+        run: pnpm release:check "$GITHUB_REF_NAME"
 
       # access and provenance come from publishConfig in package.json, so a
       # manual publish behaves the same way.

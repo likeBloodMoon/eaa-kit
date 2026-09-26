@@ -77,3 +77,21 @@ jobs:
         run: |
           pnpm examples
           git diff --exit-code examples/
+
+      # A release PR is one that changes the version. It gets the checks the
+      # tag will need, while they can still be fixed in the PR: v0.8.0 was
+      # tagged on a commit that still said 0.7.0, and the release workflow only
+      # noticed after the tag was public.
+      - name: Check a release PR is ready to tag
+        if: github.event_name == 'pull_request' && runner.os == 'Linux' && matrix.node-version == 24
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch --no-tags --depth=1 origin "$BASE_REF"
+          base="$(git show "origin/$BASE_REF:package.json" | node -p "JSON.parse(require('fs').readFileSync(0, 'utf8')).version")"
+          head="$(node -p "require('./package.json').version")"
+          if [ "$base" != "$head" ]; then
+            pnpm release:check
+          else
+            echo "Version unchanged at $head: not a release PR."
+          fi
