@@ -2,7 +2,8 @@ import { spawn } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { glob } from 'tinyglobby'
-import { exists, isDirectory } from '../fs.ts'
+import { exists, isDirectory, toPosix } from '../fs.ts'
+import { DEFAULT_EXCLUDE } from './collect.ts'
 import { candidateOutputs } from './frameworks.ts'
 
 /**
@@ -30,6 +31,10 @@ export interface PackageJson {
   scripts?: Record<string, string>
   dependencies?: Record<string, string>
   devDependencies?: Record<string, string>
+  /** Corepack's `name@version`, e.g. `pnpm@10.4.1`. */
+  packageManager?: string
+  /** npm and yarn workspaces: an array, or yarn's `{ packages }`. */
+  workspaces?: string[] | { packages?: string[] }
 }
 
 export async function readPackageJson(cwd: string): Promise<PackageJson | undefined> {
@@ -40,22 +45,62 @@ export async function readPackageJson(cwd: string): Promise<PackageJson | undefi
   }
 }
 
+export type PackageManager = 'pnpm' | 'yarn' | 'bun' | 'deno' | 'npm'
+
+const MANAGERS: readonly PackageManager[] = ['pnpm', 'yarn', 'bun', 'deno', 'npm']
+
+/** Lockfiles, in the order they are believed when more than one is present. */
+const LOCKFILES: ReadonlyArray<readonly [string, PackageManager]> = [
+  ['pnpm-lock.yaml', 'pnpm'],
+  ['yarn.lock', 'yarn'],
+  // Bun 1.2 writes a text lockfile; earlier versions the binary one.
+  ['bun.lock', 'bun'],
+  ['bun.lockb', 'bun'],
+  ['deno.lock', 'deno'],
+  ['package-lock.json', 'npm'],
+  ['npm-shrinkwrap.json', 'npm'],
+]
+
+export interface PackageManagerFinding {
+  manager: PackageManager
+  /** What decided it, for `eaa-kit detect`. */
+  evidence: string
+}
+
 /**
- * The package manager this project uses, from its lockfile.
+ * The package manager this project uses, and how that was decided.
  *
  * Running the wrong one either fails or, worse, silently installs a second
- * dependency tree, so the lockfile decides rather than a guess.
+ * dependency tree, so this is read rather than guessed: corepack's
+ * `packageManager` field first, because it is the project saying so outright,
+ * then a lockfile. An app inside a monorepo has no lockfile of its own, so the
+ * search walks up to the repository root, and no further: a lockfile above the
+ * repository belongs to somebody else's project.
  */
-export async function detectPackageManager(cwd: string): Promise<'pnpm' | 'yarn' | 'bun' | 'npm'> {
-  const lockfiles = [
-    ['pnpm-lock.yaml', 'pnpm'],
-    ['yarn.lock', 'yarn'],
-    ['bun.lockb', 'bun'],
-  ] as const
-  for (const [file, manager] of lockfiles) {
-    if (await exists(path.join(cwd, file))) return manager
+export async function findPackageManager(cwd: string): Promise<PackageManagerFinding> {
+  let dir = path.resolve(cwd)
+  for (;;) {
+    const declared = (await readPackageJson(dir))?.packageManager
+    const name = typeof declared === 'string' ? declared.split('@')[0] : undefined
+    const known = MANAGERS.find((manager) => manager === name)
+    if (known !== undefined) {
+      return { manager: known, evidence: `package.json declares packageManager ${declared}` }
+    }
+    for (const [file, manager] of LOCKFILES) {
+      if (await exists(path.join(dir, file))) {
+        const where = path.relative(cwd, path.join(dir, file)) || file
+        return { manager, evidence: `found ${toPosix(where)}` }
+      }
+    }
+    const parent = path.dirname(dir)
+    if (parent === dir || (await exists(path.join(dir, '.git')))) break
+    dir = parent
   }
-  return 'npm'
+  return { manager: 'npm', evidence: 'no lockfile, so npm' }
+}
+
+export async function detectPackageManager(cwd: string): Promise<PackageManager> {
+  return (await findPackageManager(cwd)).manager
 }
 
 /**
@@ -74,7 +119,7 @@ export async function findBuildOutput(cwd: string): Promise<string | undefined> 
     if (!(await isDirectory(directory))) continue
     const found = await glob(['**/*.html', '**/*.htm'], {
       cwd: directory,
-      ignore: ['**/node_modules/**'],
+      ignore: [...DEFAULT_EXCLUDE],
       onlyFiles: true,
       dot: false,
     })
@@ -99,10 +144,12 @@ async function holdsTopLevelHtml(cwd: string): Promise<boolean> {
  * directly — so cmd.exe is invoked explicitly with one command string instead.
  */
 function scriptCommand(manager: string, script: string): { command: string; args: string[] } {
-  if (process.platform !== 'win32') return { command: manager, args: ['run', script] }
+  // Deno runs package.json scripts as tasks; `deno run` would execute a file.
+  const verb = manager === 'deno' ? 'task' : 'run'
+  if (process.platform !== 'win32') return { command: manager, args: [verb, script] }
   return {
     command: process.env['ComSpec'] ?? 'cmd.exe',
-    args: ['/d', '/s', '/c', `${manager} run ${script}`],
+    args: ['/d', '/s', '/c', `${manager} ${verb} ${script}`],
   }
 }
 
@@ -122,7 +169,7 @@ export interface ScriptRun {
  */
 export async function runScript(cwd: string, script: string): Promise<ScriptRun> {
   const manager = await detectPackageManager(cwd)
-  const command = `${manager} run ${script}`
+  const command = `${manager} ${manager === 'deno' ? 'task' : 'run'} ${script}`
   return new Promise((resolve) => {
     const { command: bin, args } = scriptCommand(manager, script)
     const child = spawn(bin, args, { cwd, stdio: ['ignore', 'inherit', 'inherit'] })

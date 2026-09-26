@@ -43,6 +43,12 @@ describe('findBuildOutput', () => {
     expect(await findBuildOutput(dir)).toBeUndefined()
   })
 
+  it('does not take a Storybook build for the site', async () => {
+    const dir = await project({ 'build/storybook-static/index.html': '<html></html>' })
+
+    expect(await findBuildOutput(dir)).toBeUndefined()
+  })
+
   it('finds HTML nested inside the directory', async () => {
     const dir = await project({ 'dist/blog/post/index.html': '<html></html>' })
 
@@ -66,8 +72,53 @@ describe('detectPackageManager', () => {
     ['pnpm-lock.yaml', 'pnpm'],
     ['yarn.lock', 'yarn'],
     ['bun.lockb', 'bun'],
+    ['bun.lock', 'bun'],
+    ['deno.lock', 'deno'],
+    ['package-lock.json', 'npm'],
   ])('reads %s as %s', async (lockfile, expected) => {
     expect(await detectPackageManager(await project({ [lockfile]: '' }))).toBe(expected)
+  })
+
+  it('takes the packageManager field before any lockfile', async () => {
+    // Corepack's field is the project stating it outright; a stray lockfile
+    // from somebody running the wrong tool once is not.
+    const dir = await project({
+      'package.json': JSON.stringify({ packageManager: 'pnpm@10.4.1+sha512.abc' }),
+      'package-lock.json': '',
+    })
+
+    expect(await detectPackageManager(dir)).toBe('pnpm')
+  })
+
+  it('ignores a packageManager field it does not know', async () => {
+    const dir = await project({
+      'package.json': JSON.stringify({ packageManager: 'cargo@1.0.0' }),
+      'yarn.lock': '',
+    })
+
+    expect(await detectPackageManager(dir)).toBe('yarn')
+  })
+
+  it('finds the lockfile at the workspace root, above an app that has none', async () => {
+    const dir = await project({
+      'pnpm-lock.yaml': '',
+      'pnpm-workspace.yaml': 'packages:\n  - apps/*\n',
+      'apps/web/package.json': '{}',
+    })
+
+    expect(await detectPackageManager(path.join(dir, 'apps/web'))).toBe('pnpm')
+  })
+
+  it('stops looking at the repository root', async () => {
+    // Above the repository is somebody else's directory, and a lockfile there
+    // says nothing about this project.
+    const outer = await project({
+      'yarn.lock': '',
+      'repo/.git/HEAD': '',
+      'repo/package.json': '{}',
+    })
+
+    expect(await detectPackageManager(path.join(outer, 'repo'))).toBe('npm')
   })
 
   it('falls back to npm', async () => {

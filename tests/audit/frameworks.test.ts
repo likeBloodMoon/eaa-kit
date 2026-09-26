@@ -83,6 +83,16 @@ describe('detectFramework', () => {
     ['react-scripts', 'Create React App', 'build'],
     ['@react-router/dev', 'React Router / Remix', 'build/client'],
     ['vite', 'Vite', 'dist'],
+    ['@builder.io/qwik-city', 'Qwik', 'dist'],
+    ['@solidjs/start', 'SolidStart', '.output/public'],
+    ['@tanstack/react-start', 'TanStack Start', '.output/public'],
+    ['@analogjs/platform', 'Analog', 'dist/analog/public'],
+    ['@vue/cli-service', 'Vue CLI', 'dist'],
+    ['parcel', 'Parcel', 'dist'],
+    ['@rsbuild/core', 'Rsbuild', 'dist'],
+    ['@rspack/cli', 'Rspack', 'dist'],
+    ['ember-cli', 'Ember', 'dist'],
+    ['hexo', 'Hexo', 'public'],
   ])('recognises %s as %s writing to %s', async (dependency, name, output) => {
     const cwd = await project({ 'package.json': '{}' })
 
@@ -95,10 +105,59 @@ describe('detectFramework', () => {
   it.each([
     ['hugo.toml', 'Hugo'],
     ['_config.yml', 'Jekyll'],
+    ['config/_default/hugo.toml', 'Hugo'],
+    ['mkdocs.yml', 'MkDocs'],
+    ['docs/conf.py', 'Sphinx'],
+    ['book.toml', 'mdBook'],
+    ['zola.toml', 'Zola'],
+    ['_quarto.yml', 'Quarto'],
+    ['pelicanconf.py', 'Pelican'],
   ])('recognises %s, which has no package.json to read', async (file, name) => {
     const detected = await detectFramework(await project({ [file]: '' }))
 
     expect(detected?.framework.name).toBe(name)
+  })
+
+  it('tells Zola from Hugo by what config.toml says', async () => {
+    // Both read config.toml. Zola's has base_url; Hugo's has baseURL.
+    const zola = await detectFramework(await project({ 'config.toml': 'base_url = "https://x"\n' }))
+    const hugo = await detectFramework(await project({ 'config.toml': 'baseURL = "https://x"\n' }))
+
+    expect(zola?.framework.id).toBe('zola')
+    expect(hugo?.framework.id).toBe('hugo')
+  })
+
+  it('reads a Hexo project as Hexo, although it has a _config.yml like Jekyll', async () => {
+    const dir = await project({ '_config.yml': 'public_dir: public\n' })
+
+    expect((await detectFramework(dir, pkg({ hexo: '7.0.0' }, false)))?.framework.id).toBe('hexo')
+  })
+
+  it.each([
+    ['mkdocs.yml', 'site_dir: build/site\n', 'build/site'],
+    ['_quarto.yml', 'project:\n  output-dir: docs\n', 'docs'],
+    ['book.toml', '[build]\nbuild-dir = "out"\n', 'out'],
+  ])('reads the output directory out of %s', async (file, body, output) => {
+    const detected = await detectFramework(await project({ [file]: body }))
+
+    expect(detected?.outputs[0]).toBe(output)
+  })
+
+  it('says why it recognised the framework', async () => {
+    const dir = await project({ 'astro.config.mjs': "export default { outDir: './public-html' }" })
+
+    const detected = await detectFramework(dir, pkg({ astro: '5.0.0' }))
+
+    expect(detected?.evidence).toEqual([
+      'package.json depends on astro',
+      'astro.config.mjs sets the output to public-html/',
+    ])
+  })
+
+  it('names the file when that is what recognised it', async () => {
+    const detected = await detectFramework(await project({ 'hugo.toml': '' }))
+
+    expect(detected?.evidence).toEqual(['found hugo.toml'])
   })
 
   it('prefers the specific framework over the bundler underneath it', async () => {
@@ -195,6 +254,10 @@ describe('projects that render on a server and write no HTML', () => {
     ['symfony', 'Symfony', 'symfony.lock'],
     ['rails', 'Ruby on Rails', 'config.ru'],
     ['django', 'Django', 'manage.py'],
+    ['drupal', 'Drupal', 'web/core/lib/Drupal.php'],
+    ['statamic', 'Statamic', 'please'],
+    ['ghost', 'Ghost theme', 'default.hbs'],
+    ['shopify', 'Shopify theme', 'layout/theme.liquid'],
   ])('recognises %s by a file rather than a dependency', async (id, name, file) => {
     // Their package.json, where there is one, belongs to a theme's asset build
     // and says nothing about the CMS around it.
@@ -214,6 +277,12 @@ describe('projects that render on a server and write no HTML', () => {
     expect(detected?.framework.outputs).toEqual([])
     expect(detected?.framework.serves).toBe(true)
     expect(detected?.framework.serveCommand).toContain('artisan serve')
+  })
+
+  it('reads a Statamic site as Statamic, although it is also a Laravel one', async () => {
+    const dir = await project({ please: '', artisan: '' })
+
+    expect((await detectFramework(dir, undefined))?.framework.id).toBe('statamic')
   })
 
   it('beats a bundler in the theme, because the site is the CMS', async () => {

@@ -25,6 +25,21 @@ afterEach(async () => {
 })
 
 describe('collectPages', () => {
+  it('leaves out a Storybook build, which is a component catalogue and not the site', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'eaa-kit-storybook-'))
+    try {
+      await mkdir(path.join(dir, 'storybook-static'), { recursive: true })
+      await writeFile(path.join(dir, 'index.html'), '<html lang="en"><title>x</title></html>')
+      await writeFile(path.join(dir, 'storybook-static/index.html'), '<html></html>')
+
+      const pages = await collectPages(dir)
+
+      expect(pages.map((page) => page.relativePath)).toEqual(['index.html'])
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
   it('collects .html and .htm files recursively, sorted by relative path', async () => {
     const pages = await collectPages(SITE)
 

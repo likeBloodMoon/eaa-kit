@@ -80,6 +80,7 @@ export async function workflowFor(inputs: WorkflowInputs): Promise<string> {
     )
   }
   if (manager === 'bun') setup.push('      - uses: oven-sh/setup-bun@v2')
+  if (manager === 'deno') setup.push('      - uses: denoland/setup-deno@v2')
 
   const install =
     manager === undefined
@@ -89,10 +90,11 @@ export async function workflowFor(inputs: WorkflowInputs): Promise<string> {
           pnpm: 'pnpm install --frozen-lockfile',
           yarn: 'yarn install --frozen-lockfile',
           bun: 'bun install --frozen-lockfile',
+          deno: 'deno install --frozen',
         }[manager]
   const build =
     manager !== undefined && pkg?.scripts?.['build'] !== undefined
-      ? `${manager} run build`
+      ? `${manager} ${manager === 'deno' ? 'task' : 'run'} build`
       : undefined
 
   const withLines = [

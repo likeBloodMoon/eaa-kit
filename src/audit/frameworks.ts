@@ -25,6 +25,11 @@ export interface Framework {
   packages: readonly string[]
   /** Files that identify it, for the ones that are not npm packages. */
   files?: readonly string[]
+  /**
+   * A file that identifies it only by what it says, for a name two tools share:
+   * Zola and Hugo both read `config.toml`, and only Zola's has `base_url`.
+   */
+  contents?: { file: string; pattern: RegExp }
   /** Where it writes browsable HTML, best candidate first. */
   outputs: readonly string[]
   /**
@@ -110,6 +115,38 @@ export const FRAMEWORKS: readonly Framework[] = [
     serves: true,
   },
   {
+    id: 'qwik',
+    name: 'Qwik',
+    packages: ['@builder.io/qwik-city', '@qwik.dev/router'],
+    outputs: ['dist'],
+    staticOutput: {
+      needs: 'the static adapter',
+      how: 'run npm run qwik add static, then build',
+    },
+    serves: true,
+  },
+  {
+    id: 'solidstart',
+    name: 'SolidStart',
+    packages: ['@solidjs/start'],
+    outputs: ['.output/public', 'dist'],
+    serves: true,
+  },
+  {
+    id: 'tanstack-start',
+    name: 'TanStack Start',
+    packages: ['@tanstack/react-start', '@tanstack/solid-start'],
+    outputs: ['.output/public', 'dist/client'],
+    serves: true,
+  },
+  {
+    id: 'analog',
+    name: 'Analog',
+    packages: ['@analogjs/platform'],
+    outputs: ['dist/analog/public'],
+    serves: true,
+  },
+  {
     id: 'astro',
     name: 'Astro',
     packages: ['astro'],
@@ -166,10 +203,83 @@ export const FRAMEWORKS: readonly Framework[] = [
     serves: false,
   },
   {
+    id: 'hexo',
+    name: 'Hexo',
+    packages: ['hexo'],
+    outputs: ['public'],
+    configs: ['_config.yml'],
+    outputPattern: /^public_dir:\s*['"]?([^'"\s#]+)/m,
+    serves: false,
+  },
+  {
+    id: 'mkdocs',
+    name: 'MkDocs',
+    packages: [],
+    files: ['mkdocs.yml', 'mkdocs.yaml'],
+    outputs: ['site'],
+    configs: ['mkdocs.yml', 'mkdocs.yaml'],
+    outputPattern: /^site_dir:\s*['"]?([^'"\s#]+)/m,
+    serves: false,
+  },
+  {
+    id: 'sphinx',
+    name: 'Sphinx',
+    packages: [],
+    files: ['conf.py', 'docs/conf.py', 'doc/conf.py', 'source/conf.py', 'docs/source/conf.py'],
+    outputs: [
+      '_build/html',
+      'docs/_build/html',
+      'build/html',
+      'docs/build/html',
+      'doc/_build/html',
+    ],
+    serves: false,
+  },
+  {
+    id: 'mdbook',
+    name: 'mdBook',
+    packages: [],
+    files: ['book.toml'],
+    outputs: ['book'],
+    configs: ['book.toml'],
+    outputPattern: /build-dir\s*=\s*['"]([^'"]+)['"]/,
+    serves: false,
+  },
+  {
+    id: 'quarto',
+    name: 'Quarto',
+    packages: [],
+    files: ['_quarto.yml', '_quarto.yaml'],
+    outputs: ['_site'],
+    configs: ['_quarto.yml', '_quarto.yaml'],
+    outputPattern: /output-dir:\s*['"]?([^'"\s#]+)/,
+    serves: false,
+  },
+  {
+    id: 'pelican',
+    name: 'Pelican',
+    packages: [],
+    files: ['pelicanconf.py'],
+    outputs: ['output'],
+    configs: ['pelicanconf.py', 'publishconf.py'],
+    outputPattern: /OUTPUT_PATH\s*=\s*['"]([^'"]+)['"]/,
+    serves: false,
+  },
+  {
+    // Before Hugo: both read config.toml, and only Zola's says base_url.
+    id: 'zola',
+    name: 'Zola',
+    packages: [],
+    files: ['zola.toml'],
+    contents: { file: 'config.toml', pattern: /^\s*base_url\s*=/m },
+    outputs: ['public'],
+    serves: false,
+  },
+  {
     id: 'hugo',
     name: 'Hugo',
     packages: [],
-    files: ['hugo.toml', 'hugo.yaml', 'config.toml'],
+    files: ['hugo.toml', 'hugo.yaml', 'hugo.json', 'config.toml', 'config/_default'],
     outputs: ['public'],
     serves: false,
   },
@@ -215,6 +325,25 @@ export const FRAMEWORKS: readonly Framework[] = [
     serveCommand: 'ddev start, or php craft serve',
   },
   {
+    id: 'drupal',
+    name: 'Drupal',
+    packages: [],
+    files: ['core/lib/Drupal.php', 'web/core/lib/Drupal.php', 'docroot/core/lib/Drupal.php'],
+    outputs: [],
+    serves: true,
+    serveCommand: 'ddev start, or drush runserver',
+  },
+  {
+    // Before Laravel: a Statamic site is a Laravel app too, and has artisan.
+    id: 'statamic',
+    name: 'Statamic',
+    packages: [],
+    files: ['please'],
+    outputs: [],
+    serves: true,
+    serveCommand: 'php artisan serve',
+  },
+  {
     id: 'laravel',
     name: 'Laravel',
     packages: [],
@@ -251,6 +380,63 @@ export const FRAMEWORKS: readonly Framework[] = [
     serveCommand: 'python manage.py runserver',
   },
   {
+    id: 'ghost',
+    name: 'Ghost theme',
+    packages: [],
+    files: ['default.hbs'],
+    outputs: [],
+    serves: true,
+    serveCommand: 'ghost start, in the Ghost install this theme belongs to',
+  },
+  {
+    id: 'shopify',
+    name: 'Shopify theme',
+    packages: [],
+    files: ['layout/theme.liquid'],
+    outputs: [],
+    serves: true,
+    serveCommand: 'shopify theme dev',
+  },
+  // Bundlers, after everything that might use one: a Vue CLI or Parcel build in
+  // a CMS theme is that CMS's asset pipeline, not the site.
+  {
+    id: 'vue-cli',
+    name: 'Vue CLI',
+    packages: ['@vue/cli-service'],
+    outputs: ['dist'],
+    configs: ['vue.config.js', 'vue.config.mjs', 'vue.config.ts'],
+    outputPattern: /outputDir\s*:\s*['"`]([^'"`]+)['"`]/,
+    serves: false,
+  },
+  {
+    id: 'ember',
+    name: 'Ember',
+    packages: ['ember-cli'],
+    outputs: ['dist'],
+    serves: false,
+  },
+  {
+    id: 'parcel',
+    name: 'Parcel',
+    packages: ['parcel'],
+    outputs: ['dist'],
+    serves: false,
+  },
+  {
+    id: 'rsbuild',
+    name: 'Rsbuild',
+    packages: ['@rsbuild/core'],
+    outputs: ['dist'],
+    serves: false,
+  },
+  {
+    id: 'rspack',
+    name: 'Rspack',
+    packages: ['@rspack/cli', '@rspack/core'],
+    outputs: ['dist'],
+    serves: false,
+  },
+  {
     id: 'vite',
     name: 'Vite',
     packages: ['vite'],
@@ -278,6 +464,8 @@ export interface DetectedFramework {
    * then the framework's defaults.
    */
   outputs: string[]
+  /** Why it was recognised, in words, for `eaa-kit detect`. */
+  evidence: string[]
 }
 
 /**
@@ -295,26 +483,54 @@ export async function detectFramework(
   const deps = { ...pkg?.dependencies, ...pkg?.devDependencies }
 
   for (const framework of FRAMEWORKS) {
-    const byPackage = framework.packages.some((name) => deps[name] !== undefined)
-    let byFile = false
-    if (!byPackage && framework.files !== undefined) {
-      for (const file of framework.files) {
-        if (await exists(file, cwd)) {
-          byFile = true
-          break
-        }
-      }
-    }
-    if (!byPackage && !byFile) continue
+    const evidence = await identify(cwd, framework, deps)
+    if (evidence === undefined) continue
 
-    const configured = await outputFromConfig(cwd, framework)
+    const configured = await configuredOutput(cwd, framework)
     // Configured first, then the defaults: a project that moved its output
     // still usually has the default directory lying around from before.
     const outputs =
-      configured === undefined ? [...framework.outputs] : [configured, ...framework.outputs]
-    return { framework, outputs: [...new Set(outputs)] }
+      configured === undefined ? [...framework.outputs] : [configured.output, ...framework.outputs]
+    return {
+      framework,
+      outputs: [...new Set(outputs)],
+      evidence: [
+        evidence,
+        ...(configured === undefined
+          ? []
+          : [`${configured.file} sets the output to ${configured.output}/`]),
+      ],
+    }
   }
   return undefined
+}
+
+/** What identifies this framework here, in words, or undefined if nothing does. */
+async function identify(
+  cwd: string,
+  framework: Framework,
+  deps: Record<string, string>,
+): Promise<string | undefined> {
+  const dependency = framework.packages.find((name) => deps[name] !== undefined)
+  if (dependency !== undefined) return `package.json depends on ${dependency}`
+  for (const file of framework.files ?? []) {
+    if (await exists(file, cwd)) return `found ${file}`
+  }
+  if (framework.contents !== undefined) {
+    const { file, pattern } = framework.contents
+    try {
+      if (pattern.test(await readFile(path.resolve(cwd, file), 'utf8'))) {
+        return `${file} is ${article(framework.name)} ${framework.name} config`
+      }
+    } catch {
+      // not there
+    }
+  }
+  return undefined
+}
+
+function article(name: string): string {
+  return /^[AEFHILMNORSX]/.test(name) ? 'an' : 'a'
 }
 
 /**
@@ -330,6 +546,13 @@ export async function outputFromConfig(
   cwd: string,
   framework: Framework,
 ): Promise<string | undefined> {
+  return (await configuredOutput(cwd, framework))?.output
+}
+
+async function configuredOutput(
+  cwd: string,
+  framework: Framework,
+): Promise<{ file: string; output: string } | undefined> {
   if (framework.configs === undefined || framework.outputPattern === undefined) return undefined
   for (const name of framework.configs) {
     let source: string
@@ -344,7 +567,7 @@ export async function outputFromConfig(
     // Relative to the project. An absolute one is somebody's machine, not a
     // fact about the project, and joining it would produce nonsense.
     if (path.isAbsolute(value)) continue
-    return value.replace(/^\.\//, '')
+    return { file: name, output: value.replace(/^\.\//, '').replace(/\/$/, '') }
   }
   return undefined
 }

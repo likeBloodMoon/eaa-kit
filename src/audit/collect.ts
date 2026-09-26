@@ -7,7 +7,16 @@ import { exists, toPosix } from '../fs.ts'
 export const DEFAULT_INCLUDE = ['**/*.html', '**/*.htm'] as const
 
 /** Vendored and tooling directories are never part of the shipped site. */
-export const DEFAULT_EXCLUDE = ['**/node_modules/**', '**/.git/**'] as const
+/**
+ * Never pages of the site. `storybook-static/` is Storybook's build: a
+ * catalogue of components out of context, whose findings would be reported
+ * against the site as though a visitor could reach them.
+ */
+export const DEFAULT_EXCLUDE = [
+  '**/node_modules/**',
+  '**/.git/**',
+  '**/storybook-static/**',
+] as const
 
 /** Number of files read in parallel; keeps large builds under the fd limit. */
 const READ_CONCURRENCY = 24
