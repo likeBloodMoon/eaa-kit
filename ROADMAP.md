@@ -13,7 +13,7 @@ record shows what was planned as well as what shipped.
 
 1.0 is the release where somebody who has never read this file can install the tool, answer
 a few questions, and end up with an audit in CI and a statement they can publish, without
-having to learn the tool first. Three releases get there:
+having to learn the tool first. These releases get there:
 
 - **0.8.0 — reach.** More of the EU single market, and the loop between editing and seeing
   a result made short enough to use while working rather than after.
@@ -21,10 +21,19 @@ having to learn the tool first. Three releases get there:
   result: `init` that sets up CI and a baseline as well as a config, errors that say what to
   type next, a German rendering for Belgium's third language community, and Sweden,
   Denmark, Finland and Czechia.
-- **1.0.0 — the promise, kept.** The contracts frozen under semver, stack detection that
-  covers what people actually build with (Next.js first), and "everything works" shown by
-  tests that run the tool the way its users do, on every platform, against real projects
-  and hostile input. See [1.0.0](#100--the-promise-kept) for the plan.
+- **0.9.1 — the corrected statements.** The Danish, Czech and Portuguese fixes from the
+  citation check, and `pnpm release:check`, so a tag can no longer point at a commit with
+  the wrong version.
+- **0.10.0 — it finds your site.** Stack detection for what people actually build with
+  (Next.js properly first), monorepos and package managers, and `eaa-kit detect` and
+  `eaa-kit doctor` to explain what it found.
+- **0.11.0 — it fits your workflow.** GitLab and Bitbucket CI from `init`, a Markdown
+  summary for job summaries and PR comments, and an HTML report that prints, speaks the
+  site's language and shows what changed since last time.
+- **1.0.0 — the promise, kept.** A public `audit()` API, the contracts frozen under semver,
+  and "everything works" shown by tests that run the tool the way its users do, on every
+  platform, against real projects and hostile input. See
+  [1.0.0](#100--the-promise-kept) for the plan.
 
 Known before 1.0: on 1 January 2027, supervision under the Swedish Act moves from Post- och
 telestyrelsen to Digitaliseringsmyndigheten (förordning 2026:1769, 21 §). The Swedish
@@ -38,10 +47,64 @@ build their site with, and get a correct audit, a CI job and a statement they ca
 It is also the release where "it works" stops being a claim and becomes a set of checks
 anyone can re-run.
 
-The earlier outline said 1.0 would add no new surface: 0.9 with the guarantees written
-down. That still holds everywhere except one place. Stack detection has to cover what
-people actually use, Next.js above all, because a tool that cannot find the site cannot
-audit it, and every other guarantee here depends on that first step.
+The earlier outline said 1.0 would add no new surface, only 0.9 with the guarantees
+written down. That turned out to be too narrow for a finished product, and the plan below
+adds surface where a user would otherwise hit a wall:
+- stack detection that covers what people actually use, Next.js above all, because a tool
+  that cannot find the site cannot audit it;
+- CI beyond GitHub;
+- a report a client can read in their own language;
+- an API to build on.
+
+It adds nothing else. Everything is in place before the contracts are frozen, so nothing
+arrives after the freeze.
+
+### What 1.0 looks like to the person using it
+
+It is built for freelancers and small agencies in the EU, who have had to comply since 28
+June 2025 without an accessibility budget. It does five jobs for them: **find** the
+barriers, **keep** them from coming back in CI, **prove** what a person checked by hand,
+**publish** the statement their country's law asks for, and **show** a client the result in
+a report a non-developer can read.
+
+- **The first five minutes.**
+  - `npx eaa-kit` with nothing set up detects the stack, builds or starts the site if it
+    needs to, audits it and writes `.eaa-kit/report.html`. It ends with three lines: what it
+    found, what it could not check, and the one command to run next.
+  - `npx eaa-kit init` asks at most five questions, each with a default read from the site.
+    It writes the config, a baseline, and a CI workflow for GitHub, GitLab or Bitbucket,
+    whichever the repository is on. After that, every push is checked.
+- **A small, stable set of commands**, one per job:
+
+  | Job | Commands |
+  | --- | --- |
+  | First run | `eaa-kit` |
+  | Set up | `init` |
+  | Find | `audit` |
+  | Explain | `detect`, new |
+  | Keep | `baseline`, `diff` |
+  | Prove | `checklist` |
+  | Publish | `statement`, `countries` |
+  | Diagnose | `doctor`, new: Node, Playwright, config, detection and CI file on one screen |
+
+  Every command has examples in `--help`, and every failure ends with the command to type
+  next. The exit codes mean the same everywhere: 0 clean, 1 barriers found, 2 could not run.
+- **What it hands back.**
+  - The HTML report is the product's face, the one file a freelancer sends a client. At 1.0
+    it also:
+    - prints cleanly, and can be saved as a PDF;
+    - is written in the site's language, starting with de, fr, nl, es and it;
+    - has a "since last time" section when there is a baseline or an earlier report;
+    - is itself accessible, which CI checks by auditing it.
+  - For CI: SARIF, and a new Markdown summary for job summaries and PR comments that says
+    only what this change did.
+  - The statement for fifteen countries, with authorities that switch on the date the law
+    says.
+  - For anyone building on it: a JSON report with a published schema, and a typed
+    `audit()` and `detect()` library API. The build integrations become thin callers of
+    that API.
+
+The rest of this section is how that gets built and shown to work.
 
 ### How the work is done: loops with exit conditions
 
@@ -143,8 +206,8 @@ output directory, dev/preview port and anything to skip:
 - Prints what was recognised and the evidence for it (which package, file or config
   line), the output directory chosen, and what an audit would build or start. `--json`
   prints the same as data.
-- Detection becomes debuggable by users and testable by the suite. This is the one piece
-  of new surface in 1.0, and it is marked as a decision below.
+- Detection becomes debuggable by users and testable by the suite. The `detect()` library
+  function returns the same result.
 
 **Gate:**
 - An offline fixture per framework and major version in `tests/fixtures/stacks/`: the file
@@ -341,15 +404,26 @@ machine (4 cores, Node 22), so compare checkouts, not machines:
 
 ### Order of work
 
-1. 0.9.1: the corrected templates.
-2. The contract inventory and surface locks, so nothing after this can change a contract
-   without it showing.
-3. The acceptance and robustness harnesses, which are the tests that guard everything after
-   them.
-4. Stack detection, Next.js first, then monorepos, then the missing frameworks.
-5. Speed work, measured against 0.9.x.
-6. Content: Sweden's date switch, the citations for all fifteen countries, and the reviews.
-7. The release-candidate loop and the soak, then 1.0.0.
+Each step is its own release, usable on its own, never a half-done step.
+
+1. **0.9.1:** the corrected templates, and `release:check` from section 6.
+2. **0.10.0:**
+   - stack detection from section 1, Next.js first, then monorepos and package managers,
+     then the missing frameworks;
+   - `detect` and `doctor`;
+   - the per-framework fixtures, and the nightly real-project job.
+3. **0.11.0:**
+   - GitLab and Bitbucket workflows from `init`, and the `markdown` report format;
+   - the HTML report's print layout, languages and "since last time";
+   - Sweden's date switch, and the citations for all fifteen countries.
+4. **1.0.0-rc.N:**
+   - the `audit()` and `detect()` API, with the integrations moved onto it;
+   - the contract inventory and surface locks;
+   - the acceptance and robustness harnesses;
+   - the speed work measured against 0.9.x;
+   - the README rewritten around the five jobs;
+   - the reviews.
+5. **1.0.0:** the release-candidate loop and the soak, until the exit condition holds.
 
 ### Done means
 
@@ -360,17 +434,21 @@ machine (4 cores, Node 22), so compare checkouts, not machines:
   the tag.
 - The speed targets are met, and the published numbers were regenerated with `--against`.
 
-### Decisions needed before work starts
+### Decisions, taken with the plan on 26 September 2026
 
-1. **`eaa-kit detect` as a new command.** Recommended: yes. It is the only new surface in
-   1.0, and it makes detection explainable and testable.
-2. **Native-speaker review as a release blocker.** Recommended: blocking for Czech, Danish,
-   Finnish and Swedish, the texts written for 0.9.0, and advisory for the rest.
-3. **A moving `v1` tag for the GitHub Action.** Until now the Action was pinned to exact
-   tags on purpose, because 0.x promised nothing. Under semver a `v1` tag is the
-   convention. Recommended: yes, from 1.0.0.
-4. **The deprecated schemaVersion-1 field** in the JSON report: keep it until 2.0
-   (recommended), or remove it now as schemaVersion 3.
+1. **`detect` and `doctor` are the new commands.** They are the only new commands in 1.0:
+   `detect` makes detection explainable and testable, and `doctor` puts the environment on
+   one screen.
+2. **GitLab and Bitbucket workflows come from `init`**, next to GitHub's. Many EU agencies
+   are not on GitHub.
+3. **The HTML report speaks the site's language**, starting with de, fr, nl, es and it.
+4. **A public `audit()` API ships in 1.0.** Adding it after the freeze would take a 2.0.
+5. **Native-speaker review blocks the release** for Czech, Danish, Finnish and Swedish (the
+   texts written for 0.9.0). It is advisory for the rest.
+6. **The GitHub Action gets a moving `v1` tag from 1.0.0.** Until now it was pinned to
+   exact tags on purpose, because 0.x promised nothing; under semver, a `v1` tag is the
+   convention.
+7. **The deprecated schemaVersion-1 field** in the JSON report stays until 2.0.
 
 ## 0.9.0 — the first ten minutes
 
