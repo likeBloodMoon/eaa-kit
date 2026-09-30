@@ -206,6 +206,33 @@ describe('crawlSite', () => {
     expect(result.pages.map((p) => p.relativePath)).toEqual(['/', 'orphan'])
   })
 
+  it("crawls the build's own list before a sitemap, so a page limit keeps it", async () => {
+    // A sitemap larger than --max-pages would otherwise use the whole budget,
+    // leaving pages only the build lists unrequested under a report that says
+    // the build's list was followed.
+    const { fetchImpl } = site({
+      '/sitemap.xml': {
+        body: `<urlset>${['a', 'b', 'c']
+          .map((name) => `<url><loc>http://localhost:3000/${name}</loc></url>`)
+          .join('')}</urlset>`,
+        type: 'application/xml',
+      },
+      '/': page('<h1>Home</h1>'),
+      '/a': page('a'),
+      '/b': page('b'),
+      '/c': page('c'),
+      '/only-in-build': page('built'),
+    })
+
+    const result = await crawlSite(entry, {
+      fetchImpl,
+      maxPages: 2,
+      seeds: ['http://localhost:3000/', 'http://localhost:3000/only-in-build'],
+    })
+
+    expect(result.pages.map((p) => p.relativePath)).toEqual(['/', 'only-in-build'])
+  })
+
   it('ignores a seed on another origin', async () => {
     const { fetchImpl, requests } = site({ '/': page('<h1>Home</h1>') })
 

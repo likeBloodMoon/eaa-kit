@@ -88,6 +88,46 @@ describe('workflowFor', () => {
     expect(yaml).toContain('fail-on: critical')
   })
 
+  it('sets up Deno for a Deno project with no package.json, and runs its build task', async () => {
+    // A native Deno site has deno.json and deno.lock and nothing for npm.
+    const root = await repo({
+      '.git/HEAD': 'ref: refs/heads/main\n',
+      'deno.json': JSON.stringify({ tasks: { build: 'deno run -A build.ts' } }),
+      'deno.lock': '{}',
+    })
+
+    const yaml = await workflowFor({ cwd: root, root, failOn: 'serious' })
+
+    expect(yaml).toContain('uses: denoland/setup-deno@v2')
+    expect(yaml).toContain('build-command: deno task build')
+  })
+
+  it('writes no install step for Deno, whose tasks fetch their own dependencies', async () => {
+    // `deno install` with a flag and no module is not a dependency install on
+    // every Deno version, and a failing first step stops the whole workflow.
+    const root = await repo({
+      '.git/HEAD': 'ref: refs/heads/main\n',
+      'package.json': JSON.stringify({ scripts: { build: 'vite build' } }),
+      'deno.lock': '{}',
+    })
+
+    const yaml = await workflowFor({ cwd: root, root, failOn: 'serious' })
+
+    expect(yaml).not.toContain('install-command')
+    expect(yaml).toContain('build-command: deno task build')
+  })
+
+  it('reads deno.jsonc, comments and all', async () => {
+    const root = await repo({
+      '.git/HEAD': 'ref: refs/heads/main\n',
+      'deno.jsonc': '{\n  // how the site is built\n  "tasks": { "build": "lume" }\n}\n',
+    })
+
+    expect(await workflowFor({ cwd: root, root, failOn: 'serious' })).toContain(
+      'build-command: deno task build',
+    )
+  })
+
   it('installs and builds nothing for a site written by hand', async () => {
     const root = await repo({ '.git/HEAD': 'ref: refs/heads/main\n', 'index.html': PAGE })
 

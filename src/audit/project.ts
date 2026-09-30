@@ -51,6 +51,58 @@ export async function readPackageJson(cwd: string): Promise<PackageJson | undefi
   }
 }
 
+export interface DenoConfig {
+  tasks?: Record<string, string>
+}
+
+/**
+ * `deno.json` or `deno.jsonc`, the config of a Deno project, which may have no
+ * package.json at all. Undefined when there is neither, or it does not parse.
+ */
+export async function readDenoConfig(cwd: string): Promise<DenoConfig | undefined> {
+  for (const name of ['deno.json', 'deno.jsonc']) {
+    let source: string
+    try {
+      source = await readFile(path.join(cwd, name), 'utf8')
+    } catch {
+      continue
+    }
+    try {
+      return JSON.parse(withoutComments(source)) as DenoConfig
+    } catch {
+      return undefined
+    }
+  }
+  return undefined
+}
+
+/**
+ * JSONC to JSON: comments out, strings untouched. A task is often a command
+ * with a URL in it, so `//` inside a string is not a comment.
+ */
+function withoutComments(source: string): string {
+  let out = ''
+  for (let i = 0; i < source.length; i++) {
+    const char = source[i]
+    if (char === '"') {
+      const start = i
+      for (i++; i < source.length && source[i] !== '"'; i++) if (source[i] === '\\') i++
+      out += source.slice(start, i + 1)
+    } else if (char === '/' && source[i + 1] === '/') {
+      while (i < source.length && source[i] !== '\n') i++
+      out += '\n'
+    } else if (char === '/' && source[i + 1] === '*') {
+      i = source.indexOf('*/', i + 2)
+      if (i === -1) break
+      i++
+    } else {
+      out += char
+    }
+  }
+  // Trailing commas are allowed in JSONC and not in JSON.
+  return out.replace(/,(\s*[}\]])/g, '$1')
+}
+
 export type PackageManager = 'pnpm' | 'yarn' | 'bun' | 'deno' | 'npm'
 
 const MANAGERS: readonly PackageManager[] = ['pnpm', 'yarn', 'bun', 'deno', 'npm']
@@ -96,6 +148,13 @@ export async function findPackageManager(cwd: string): Promise<PackageManagerFin
       if (await exists(path.join(dir, file))) {
         const where = path.relative(cwd, path.join(dir, file)) || file
         return { manager, evidence: `found ${toPosix(where)}` }
+      }
+    }
+    // A Deno project before its first lockfile still has its config.
+    for (const file of ['deno.json', 'deno.jsonc']) {
+      if (await exists(path.join(dir, file))) {
+        const where = path.relative(cwd, path.join(dir, file)) || file
+        return { manager: 'deno', evidence: `found ${toPosix(where)}` }
       }
     }
     const parent = path.dirname(dir)

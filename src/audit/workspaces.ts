@@ -36,9 +36,22 @@ export async function findWorkspaceSites(root: string): Promise<WorkspaceScan | 
   const listed = await workspaceGlobs(root)
   if (listed === undefined) return undefined
 
+  // `!apps/legacy` excludes a package from the workspace, in pnpm's list and in
+  // package.json's alike, and an excluded package is not one of its sites.
+  const trim = (pattern: string): string => pattern.replace(/^!/, '').replace(/\/$/, '')
+  const included = listed.globs.filter((pattern) => !pattern.startsWith('!'))
+  const excluded = listed.globs.filter((pattern) => pattern.startsWith('!'))
   const manifests = await glob(
-    listed.globs.map((pattern) => `${pattern.replace(/\/$/, '')}/package.json`),
-    { cwd: root, ignore: ['**/node_modules/**'], onlyFiles: true, dot: false },
+    included.map((pattern) => `${trim(pattern)}/package.json`),
+    {
+      cwd: root,
+      ignore: [
+        '**/node_modules/**',
+        ...excluded.flatMap((pattern) => [`${trim(pattern)}/package.json`, `${trim(pattern)}/**`]),
+      ],
+      onlyFiles: true,
+      dot: false,
+    },
   )
 
   const sites: WorkspaceSite[] = []
@@ -91,13 +104,13 @@ async function workspaceGlobs(
 /**
  * The `packages:` list out of pnpm-workspace.yaml, read with a pattern. It is a
  * list of strings, and a YAML parser would be a dependency for one list.
- * Negated entries are exclusions, which the site check makes moot.
+ * Negated entries are kept: they are exclusions, applied when scanning.
  */
 function yamlPackages(source: string): string[] {
   const block = /^packages:\s*\n((?:[ \t]*(?:-.*|#.*)?\n?)*)/m.exec(source)?.[1] ?? ''
   return [...block.matchAll(/^[ \t]*-[ \t]*['"]?([^'"\n#]+?)['"]?[ \t]*(?:#.*)?$/gm)]
     .map((match) => match[1] ?? '')
-    .filter((entry) => entry !== '' && !entry.startsWith('!'))
+    .filter((entry) => entry !== '')
 }
 
 async function readText(file: string): Promise<string | undefined> {

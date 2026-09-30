@@ -1,6 +1,6 @@
 import { readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
-import { detectPackageManager, readPackageJson } from '../audit/project.ts'
+import { detectPackageManager, readDenoConfig, readPackageJson } from '../audit/project.ts'
 import { TOOL_VERSION } from '../version.ts'
 
 /**
@@ -62,7 +62,15 @@ export interface WorkflowInputs {
  */
 export async function workflowFor(inputs: WorkflowInputs): Promise<string> {
   const pkg = await readPackageJson(inputs.cwd)
-  const manager = pkg === undefined ? undefined : await detectPackageManager(inputs.cwd)
+  const deno = await readDenoConfig(inputs.cwd)
+  // A Deno project may have no package.json at all; anything else without one
+  // is a site written by hand, with nothing to install or build.
+  const manager =
+    pkg !== undefined
+      ? await detectPackageManager(inputs.cwd)
+      : deno !== undefined
+        ? 'deno'
+        : undefined
   const branch = (await currentBranch(inputs.root)) ?? 'main'
   const workingDirectory = toPosix(path.relative(inputs.root, inputs.cwd))
   const directory =
@@ -90,10 +98,17 @@ export async function workflowFor(inputs: WorkflowInputs): Promise<string> {
           pnpm: 'pnpm install --frozen-lockfile',
           yarn: 'yarn install --frozen-lockfile',
           bun: 'bun install --frozen-lockfile',
-          deno: 'deno install --frozen',
+          // None: `deno task` fetches what the build needs as it runs, and
+          // `deno install` is not a dependency install on every Deno version.
+          deno: undefined,
         }[manager]
+  // Deno runs a package.json script as a task too; npm and the rest cannot run
+  // a Deno task.
+  const hasBuild =
+    pkg?.scripts?.['build'] !== undefined ||
+    (manager === 'deno' && deno?.tasks?.['build'] !== undefined)
   const build =
-    manager !== undefined && pkg?.scripts?.['build'] !== undefined
+    manager !== undefined && hasBuild
       ? `${manager} ${manager === 'deno' ? 'task' : 'run'} build`
       : undefined
 

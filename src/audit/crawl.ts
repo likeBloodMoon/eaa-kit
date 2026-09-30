@@ -460,13 +460,10 @@ export async function crawlSite(entry: URL, options: CrawlOptions = {}): Promise
     maxBodyBytes,
     options.headers,
   )
-  const listed = sitemap === undefined ? [] : urlsFromSitemap(sitemap, entry)
-  if (listed.length > 0) {
-    discovery = 'sitemap'
-    for (const url of listed) enqueue(url, 0)
-  }
-  // The build's own list outranks the sitemap as the account of how pages were
-  // found: it is what was built, where a sitemap is what somebody chose to list.
+  // The build's own list goes first, ahead of the sitemap, both as the account
+  // of how pages were found and in the queue: it is what was built, where a
+  // sitemap is what somebody chose to list, and a page limit that ran out on
+  // sitemap entries would leave built pages unrequested.
   const seeded = (options.seeds ?? []).flatMap((raw) => {
     try {
       const url = new URL(raw, entry)
@@ -478,6 +475,11 @@ export async function crawlSite(entry: URL, options: CrawlOptions = {}): Promise
   if (seeded.length > 0) {
     discovery = 'manifest'
     for (const url of seeded) enqueue(url, 0)
+  }
+  const listed = sitemap === undefined ? [] : urlsFromSitemap(sitemap, entry)
+  if (listed.length > 0) {
+    if (discovery !== 'manifest') discovery = 'sitemap'
+    for (const url of listed) enqueue(url, 0)
   }
   enqueue(entry, 0)
 
