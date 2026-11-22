@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="generator" content="eaa-kit 0.10.0">
+<meta name="generator" content="eaa-kit 0.11.0">
 <title>Accessibility audit · tests/fixtures/site</title>
 <style>
 :root { color-scheme: light dark; }
@@ -93,7 +93,8 @@ p.reach, p.sources, p.selector, p.more, p.written-in { margin: 0.35rem 0; font-s
 .element details { font-size: 0.9rem; color: #4a4a4a; }
 .element summary { cursor: pointer; }
 ul.page-list { margin: 0.35rem 0 0; padding-left: 1.25rem; }
-@media (prefers-color-scheme: dark) {
+/* Screen only: a reader whose system is dark still prints on white paper. */
+@media screen and (prefers-color-scheme: dark) {
   body { background: #121212; color: #ededed; }
   a { color: #9ec1ff; }
   h2, hr { border-color: #3a3a3a; }
@@ -129,9 +130,26 @@ ul.page-list { margin: 0.35rem 0 0; padding-left: 1.25rem; }
   .badge.unclassified { background: #1f1f1f; border-color: #b6b6b6; color: #d8d8d8; }
 }
 @media print {
-  body { background: #ffffff; color: #000000; }
-  main { max-width: none; }
+  @page { margin: 16mm 14mm; }
+  :root { color-scheme: light; }
+  body { background: #ffffff; color: #000000; font-size: 10.5pt; line-height: 1.45; }
+  main { max-width: none; padding: 0; }
   a { color: #000000; }
+  /* Paper has no links, so the address goes beside the text it was behind. */
+  a[href^="http"]::after { content: " <" attr(href) ">"; font-size: 0.8em; color: #333333;
+    overflow-wrap: anywhere; }
+  h1, h2, h3, p.rule, p.review-heading, p.accepted-heading { break-after: avoid; }
+  h2 { margin-top: 1.5rem; padding-top: 0.75rem; }
+  li.finding, li.issue, .element, .tile, .verdict, dl.run, tr, ul.counts { break-inside: avoid; }
+  pre, pre code { white-space: pre-wrap; overflow-wrap: anywhere; overflow: visible; }
+  .scroll { overflow: visible; }
+  /* Collapsed detail is still detail: a printed report is read without a mouse. */
+  details::details-content { content-visibility: visible; display: block; }
+  summary { list-style: none; font-weight: 600; }
+  .badge, .tile, .verdict, pre.suggested { print-color-adjust: exact;
+    -webkit-print-color-adjust: exact; }
+  .scoreboard { gap: 0.4rem; }
+  .tile { padding: 0.4rem 0.6rem; }
 }
 </style>
 </head>
@@ -139,6 +157,7 @@ ul.page-list { margin: 0.35rem 0 0; padding-left: 1.25rem; }
 <main>
 <h1>Accessibility audit</h1>
 <p class="verdict fail"><strong>Violations found</strong> 3 violations at or above serious.</p>
+
 <ul class="scoreboard">
 <li class="tile critical"><span class="figure">1</span> <span class="label">critical</span></li>
 <li class="tile serious"><span class="figure">2</span> <span class="label">serious</span></li>
@@ -210,7 +229,7 @@ ul.page-list { margin: 0.35rem 0 0; padding-left: 1.25rem; }
   <div><dt>Engine</dt><dd>jsdom (browserless)</dd></div>
   <div><dt>Threshold</dt><dd>serious and above fails the run</dd></div>
   <div><dt>Generated</dt><dd>2026-01-01T00:00:00.000Z</dd></div>
-  <div><dt>eaa-kit</dt><dd>0.10.0 · axe-core 4.13.0</dd></div>
+  <div><dt>eaa-kit</dt><dd>0.11.0 · axe-core 4.13.0</dd></div>
 </dl>
 
 <h2>Summary</h2>

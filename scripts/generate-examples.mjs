@@ -17,6 +17,7 @@ const outputs = [
   { format: 'json', file: 'examples/report.json' },
   { format: 'sarif', file: 'examples/report.sarif' },
   { format: 'html', file: 'examples/report.html' },
+  { format: 'markdown', file: 'examples/summary.md' },
 ]
 
 // The last one is generated from examples/report.json, which the audit above

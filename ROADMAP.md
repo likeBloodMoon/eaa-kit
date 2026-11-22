@@ -31,16 +31,23 @@ having to learn the tool first. These releases get there:
   recorded `detect` answer per stack fixture, and a nightly soak over six real starters.
 - **0.11.0 — it fits your workflow.** GitLab and Bitbucket CI from `init`, a Markdown
   summary for job summaries and PR comments, and an HTML report that prints, speaks the
-  site's language and shows what changed since last time.
+  site's language and shows what changed since last time. *Done:* GitLab and Bitbucket
+  from `init`, the Markdown summary and the Action's job summary, the print layout, a
+  "since the baseline" section, and Sweden's date switch. It also closed four security
+  holes in the crawler and browser runner (credentials sent off-origin, and scans of
+  hostile markup that could hang). *Moved to 0.12.0:* the report in the site's language,
+  and the citations for all fifteen countries, both of which want people as much as code.
+- **0.12.0 — your language.** The HTML report in de, fr, nl, es and it, the citations
+  recorded for all fifteen countries, and the native-speaker reviews started.
 - **1.0.0 — the promise, kept.** A public `audit()` API, the contracts frozen under semver,
   and "everything works" shown by tests that run the tool the way its users do, on every
   platform, against real projects and hostile input. See
   [1.0.0](#100--the-promise-kept) for the plan.
 
 Known before 1.0: on 1 January 2027, supervision under the Swedish Act moves from Post- och
-telestyrelsen to Digitaliseringsmyndigheten (förordning 2026:1769, 21 §). The Swedish
-templates have to change on that date, not before, because until then PTS is right. See
-[docs/citations.md](docs/citations.md#sweden-se).
+telestyrelsen to Digitaliseringsmyndigheten (förordning 2026:1769, 21 §). *Done in
+0.11.0:* the templates switch on the date a statement is generated. The new agency's web
+address goes in once it publishes one. See [docs/citations.md](docs/citations.md#sweden-se).
 
 ## 1.0.0 — the promise, kept
 
