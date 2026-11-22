@@ -112,7 +112,7 @@ jobs:
             if (pages === 0) process.exit(1)
           '
 
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: soak-${{ matrix.stack }}-${{ matrix.os }}
