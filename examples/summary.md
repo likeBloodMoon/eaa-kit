@@ -21,4 +21,4 @@
 
 - 5 rules this engine could not evaluate, such as colour contrast without a browser. They are not counted as passes.
 
-<sub>eaa-kit 0.11.0 · tests/fixtures/site · Automated testing finds only some barriers. This is not a conformance claim.</sub>
+<sub>eaa-kit 0.11.1 · tests/fixtures/site · Automated testing finds only some barriers. This is not a conformance claim.</sub>

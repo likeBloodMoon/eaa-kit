@@ -65,6 +65,24 @@ describe('release:check', () => {
     },
   )
 
+  it('refuses a bin path that npm would rewrite on publish', async () => {
+    const root = await repo({
+      'package.json': JSON.stringify({ version: '1.2.3', bin: { tool: './dist/cli.js' } }),
+    })
+
+    expect(await checkRelease({ root })).toEqual([
+      'bin "tool" is "./dist/cli.js" in package.json: drop the leading ./',
+    ])
+  })
+
+  it('accepts a bin path without the leading ./', async () => {
+    const root = await repo({
+      'package.json': JSON.stringify({ version: '1.2.3', bin: { tool: 'dist/cli.js' } }),
+    })
+
+    expect(await checkRelease({ root })).toEqual([])
+  })
+
   it('refuses a changelog with no heading for the version', async () => {
     const root = await repo({ 'CHANGELOG.md': '# Changelog\n\n## 1.2.2 — 2026-09-01\n' })
 

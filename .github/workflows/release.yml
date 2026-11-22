@@ -29,7 +29,11 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-          registry-url: https://registry.npmjs.org
+          # No registry-url. It makes setup-node write an .npmrc line reading
+          # _authToken=${NODE_AUTH_TOKEN}, which with no token set is an empty
+          # credential that npm takes as configured, so it never tries the
+          # trusted-publisher login and the staging fails. The default
+          # registry is npmjs.org anyway.
 
       - run: pnpm install --frozen-lockfile
 
@@ -51,15 +55,16 @@ jobs:
       - name: Check this commit is ready to publish as this tag
         run: pnpm release:check "$GITHUB_REF_NAME"
 
-      # npm 11.5.1 or later can publish as a trusted publisher (OIDC through
-      # the id-token permission above, no stored token), and falls back to
-      # NPM_TOKEN when no trusted publisher is configured for this workflow on
-      # npmjs.com. Node 22 ships npm 10, which can only use the token, and npm
-      # now caps a publishing token at 90 days.
+      # npm 11.5.1 or later, for trusted publishing and `npm stage`. Node 22
+      # ships npm 10, which has neither.
       - run: npm install --global npm@11
 
-      # access and provenance come from publishConfig in package.json, so a
-      # manual publish behaves the same way.
-      - run: npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      # Staged, not published. This workflow authenticates as a trusted
+      # publisher (OIDC, through the id-token permission above; no token is
+      # stored anywhere), and npmjs.com lets that publisher stage only. The
+      # version goes live when a maintainer approves it on npmjs.com, or with
+      # `npm stage approve <id>`, either of which asks for 2FA: a compromised
+      # workflow or a stolen GitHub token can upload, but cannot release.
+      #
+      # access and provenance come from publishConfig in package.json.
+      - run: npm stage publish

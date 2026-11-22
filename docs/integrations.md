@@ -250,7 +250,7 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 22
-      - uses: likeBloodMoon/eaa-kit@v0.11.0
+      - uses: likeBloodMoon/eaa-kit@v0.11.1
         with:
           install-command: npm ci
           build-command: npm run build
@@ -370,7 +370,7 @@ accessibility:
   script:
     - npm ci
     - npm run build
-    - npx --yes eaa-kit@0.11.0 audit dist --fail-on serious --baseline eaa-baseline.json --no-build --summary eaa-kit-summary.md
+    - npx --yes eaa-kit@0.11.1 audit dist --fail-on serious --baseline eaa-baseline.json --no-build --summary eaa-kit-summary.md
   artifacts:
     when: always
     expose_as: accessibility summary
@@ -407,7 +407,7 @@ pipelines:
         script:
           - npm ci
           - npm run build
-          - npx --yes eaa-kit@0.11.0 audit dist --fail-on serious --no-build --summary eaa-kit-summary.md
+          - npx --yes eaa-kit@0.11.1 audit dist --fail-on serious --no-build --summary eaa-kit-summary.md
         artifacts:
           - eaa-kit-summary.md
   pull-requests:
