@@ -289,9 +289,9 @@ function githubWorkflow(facts: ProjectFacts, inputs: WorkflowInputs): string {
     '  audit:',
     '    runs-on: ubuntu-latest',
     '    steps:',
-    '      - uses: actions/checkout@v4',
+    '      - uses: actions/checkout@v6',
     ...setup,
-    '      - uses: actions/setup-node@v4',
+    '      - uses: actions/setup-node@v6',
     '        with:',
     '          node-version: 22',
     // The exact release that wrote this file. There is no moving tag to

@@ -246,8 +246,8 @@ jobs:
   audit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
       - uses: likeBloodMoon/eaa-kit@v0.10.0
@@ -334,7 +334,7 @@ before the job is allowed to fail:
   run: npx eaa-kit audit ./dist --format sarif --output a11y.sarif
   continue-on-error: true
 
-- uses: github/codeql-action/upload-sarif@v3
+- uses: github/codeql-action/upload-sarif@v4
   with:
     sarif_file: a11y.sarif
     category: eaa-kit
@@ -350,7 +350,7 @@ carries the categories SARIF leaves out:
 ```yaml
 - run: npx eaa-kit audit ./dist --format json --output a11y.json
   continue-on-error: true
-- uses: actions/upload-artifact@v4
+- uses: actions/upload-artifact@v5
   with:
     name: accessibility-report
     path: a11y.json
