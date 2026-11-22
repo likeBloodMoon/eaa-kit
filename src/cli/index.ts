@@ -12,6 +12,7 @@ import {
   STATEMENT_LOCALES,
   type StatementLocale,
 } from '../config/define.ts'
+import { isCalendarDate } from '../text.ts'
 import { TOOL_VERSION } from '../version.ts'
 import { OUTPUT_FORMATS, runAuditCommand } from './audit.ts'
 import { runBaselineCommand } from './baseline.ts'
@@ -104,7 +105,7 @@ function wholeNumber(min: number): (value: string) => number {
 }
 
 function parseDate(value: string): string {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(Date.parse(`${value}T00:00:00Z`))) {
+  if (!isCalendarDate(value)) {
     throw new InvalidArgumentError('expected an ISO date, e.g. 2026-12-31')
   }
   return value
@@ -322,9 +323,11 @@ program
   .command('countries')
   .description('List the countries a statement can be written for, and what each one names')
   .option('--json', 'print the list as JSON')
-  .action(async (flags: { json?: true }) => {
+  .option('--date <yyyy-mm-dd>', 'list the authorities as of this day (default: today)', parseDate)
+  .action(async (flags: { json?: true; date?: string }) => {
     const { formatCountries } = await import('./countries.ts')
-    process.stdout.write(formatCountries(flags))
+    const { date, ...rest } = flags
+    process.stdout.write(formatCountries({ ...rest, ...(date ? { today: date } : {}) }))
   })
 
 program
@@ -417,6 +420,11 @@ program
     parseStatementFormat,
   )
   .option('--output <path>', 'write the statement to a file instead of stdout')
+  .option(
+    '--date <yyyy-mm-dd>',
+    'generate as of this day, which decides a supervisor the law has scheduled to change (default: today)',
+    parseDate,
+  )
   .action(async (flags: StatementFlags) => {
     const { lang, ...options } = flags
     const { exitCode } = await runStatementCommand({

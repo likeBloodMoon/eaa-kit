@@ -35,6 +35,11 @@ export interface StatementCommandOptions {
   format?: StatementFormat
   /** Write the statement here instead of stdout. */
   output?: string
+  /**
+   * The day to generate as of, as an ISO date. Decides which supervisor is
+   * named where the law has scheduled a change. Defaults to today.
+   */
+  date?: string
 }
 
 export interface StatementCommandResult {
@@ -91,6 +96,7 @@ export async function runStatementCommand(
       ...(options.country ? { country: options.country } : {}),
       ...(audit ? { audit } : {}),
       ...(review ? { review } : {}),
+      ...(options.date ? { today: options.date } : {}),
     })
 
     note(

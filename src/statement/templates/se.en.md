@@ -124,11 +124,20 @@ We aim to respond to your feedback promptly.
 
 ## Enforcement procedure
 
+{{#if supervision.unchanged}}
 If you are not satisfied with our response, you can report the matter to the Swedish Post
 and Telecom Authority (PTS), which supervises e-commerce services under the Act.
 
 Post- och telestyrelsen (PTS)
 https://pts.se
+{{/if}}
+{{#if supervision.changed}}
+If you are not satisfied with our response, you can report the matter to
+Digitaliseringsmyndigheten, the Swedish government agency for digitalisation, which
+supervises e-commerce services under the Act.
+
+Digitaliseringsmyndigheten
+{{/if}}
 
 Websites and mobile applications of public sector bodies fall under a separate act, which
 requires an accessibility statement of its own. This document is not that statement.

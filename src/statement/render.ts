@@ -3,6 +3,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { WCAG22_AA_CRITERIA } from '../audit/criteria.ts'
 import type { ReviewRecord } from '../audit/review.ts'
+import { authorityChanged, localToday } from '../config/countries.ts'
 import {
   type Country,
   type EaaConfig,
@@ -11,7 +12,7 @@ import {
   type StatementLocale,
 } from '../config/define.ts'
 import { isDirectory } from '../fs.ts'
-import { standardsReference } from '../text.ts'
+import { isCalendarDate, standardsReference } from '../text.ts'
 import { StatementError } from './error.ts'
 import type { AuditFinding, AuditSummary } from './findings.ts'
 import { toHtmlDocument } from './html.ts'
@@ -41,6 +42,13 @@ export interface RenderStatementOptions {
    * statement is the barrier list, which a person writes.
    */
   review?: ReviewRecord
+  /**
+   * The day the statement is generated, as an ISO date. Decides which
+   * supervisor a country names where the law has scheduled a change, such as
+   * Sweden's on 1 January 2027. Defaults to today in the local calendar; tests
+   * and previews set it.
+   */
+  today?: string
 }
 
 export interface RenderedStatement {
@@ -69,7 +77,7 @@ export async function renderStatement(
   const template = `${country.toLowerCase()}.${locale}`
 
   const source = await loadTemplate(country, locale)
-  const markdown = tidy(renderTemplate(source, buildScope(config, locale, options)))
+  const markdown = tidy(renderTemplate(source, buildScope(config, country, locale, options)))
   const html = toHtmlDocument(markdown, { lang: locale, fallbackTitle: config.site.name })
 
   return { markdown, html, locale, country, template }
@@ -96,10 +104,15 @@ function defaultLocale(config: EaaConfig): StatementLocale {
  */
 function buildScope(
   config: EaaConfig,
+  country: Country,
   locale: StatementLocale,
   options: RenderStatementOptions,
 ): TemplateScope {
   const audit = options.audit
+  if (options.today !== undefined && !isCalendarDate(options.today)) {
+    throw new StatementError(`today must be an ISO date (YYYY-MM-DD), got "${options.today}"`)
+  }
+  const changed = authorityChanged(country, options.today ?? localToday())
   const review = options.review ? toReviewScope(options.review, locale) : undefined
   // Configured barriers come first: they are written by a human, in the
   // statement's own language, and are the ones a reader should meet first.
@@ -133,6 +146,9 @@ function buildScope(
     hasReview: review !== undefined,
     hasKnownIssues: issues.length > 0,
     hasNoKnownIssues: issues.length === 0,
+    // Two booleans because the template language has `if` and no `else`. Only
+    // a country with a change scheduled in the registry ever sees `changed`.
+    supervision: { changed, unchanged: !changed },
   }
 }
 

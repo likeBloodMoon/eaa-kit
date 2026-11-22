@@ -23,6 +23,7 @@ eaa-kit statement --review eaa-review.json          # say what a person checked
 | `--review <path>` | — | A [review record](review.md); the statement says how many criteria a person checked, and refuses a false claim of conformance |
 | `--format <format>` | from `--output` | `markdown` or `html` |
 | `--output <path>` | stdout | Write to a file; parent directories are created |
+| `--date <yyyy-mm-dd>` | today | Generate as of that day. It decides which supervisor is named where the law has scheduled a change, such as Sweden's on 1 January 2027 |
 
 Exit codes are `0` when the statement was produced and `2` when it could not be: no
 config, an invalid one, a country whose template does not exist yet, or an audit report
@@ -183,10 +184,19 @@ is the French statement, and there is no French rendering of the Austrian one.
 | `CZ` | `cs`, `en` | Zákon č. 424/2023 Sb., o požadavcích na přístupnost některých výrobků a služeb | [Česká obchodní inspekce](https://coi.gov.cz) (ČOI) for e-commerce, and says supervision is split |
 | `DK` | `da`, `en` | Lov nr. 801 af 7. juni 2022 om tilgængelighedskrav for produkter og tjenester | [Sikkerhedsstyrelsen](https://www.sik.dk) for e-commerce, and says supervision is split |
 | `FI` | `fi`, `en` | Laki digitaalisten palvelujen tarjoamisesta (306/2019), as amended for the Directive | [Traficom](https://www.traficom.fi) |
-| `SE` | `sv`, `en` | Lag (2023:254) om vissa produkters och tjänsters tillgänglighet | [Post- och telestyrelsen](https://pts.se) (PTS) |
+| `SE` | `sv`, `en` | Lag (2023:254) om vissa produkters och tjänsters tillgänglighet | [Post- och telestyrelsen](https://pts.se) (PTS) until 31 December 2026; Digitaliseringsmyndigheten from 1 January 2027 |
 
 `eaa-kit countries` prints the same list in the terminal, and `--json` prints it for
 anything that wants to build on it.
+
+**A supervisor that changes on a date.** Sweden merges Post- och telestyrelsen and Digg into
+Digitaliseringsmyndigheten on 1 January 2027, and from that day the new body supervises
+the Act (förordning 2026:1769, 21 §). A Swedish statement generated before that day names
+PTS, and one generated on or after it names Digitaliseringsmyndigheten, whichever version
+of eaa-kit is installed. Regenerate a Swedish statement after New Year, or generate it now
+with `--date 2027-01-01` if it goes live then. The new agency had not published a web
+address when this was written, so the statement names it without a link; add one by hand
+when it exists.
 
 **How the newer countries were checked.** The eight countries added in 0.8.0 and 0.9.0
 (Belgium, Czechia, Denmark, Finland, Ireland, Poland, Portugal and Sweden) were written from
