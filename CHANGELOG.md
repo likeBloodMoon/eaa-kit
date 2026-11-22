@@ -24,6 +24,8 @@ It fits your workflow, and it keeps your credentials where you gave them.
   now checked before it is requested, with at most 10 redirects.
 - **In browser mode, `--header` values go to the audited site only.** They were set on the
   whole browser context, so the site's fonts, analytics and CDN scripts received them too.
+  Requests to the site are now fetched without following redirects, so a page or asset
+  that redirects elsewhere sends the browser on without them.
 - **The page cache keys on credentials with scrypt**, not a fast hash that let anyone
   holding `.eaa-kit/cache` test password guesses against it offline.
 - **Crawled markup and sitemaps are scanned in linear time.** A sitemap with an unclosed
@@ -41,11 +43,12 @@ It fits your workflow, and it keeps your credentials where you gave them.
   on by default).
 - **GitLab CI and Bitbucket Pipelines from `init`**, chosen from the git remote, or with
   `--ci github|gitlab|bitbucket`. An existing pipeline file is never overwritten: GitLab's
-  job goes in a file of its own to include, and Bitbucket gets a pointer to the step.
+  job goes in a file of its own to include, in `.post` when the project's own `stages:` has
+  no `test`, and Bitbucket gets a pointer to the step.
 - **Sweden's new supervisor, by date.** From 1 January 2027 a Swedish statement names
   Digitaliseringsmyndigheten (förordning 2026:1769, 21 §); before that it names PTS,
   whichever version is installed. `statement --date` and `countries --date` preview either
-  side, and `countries` announces the change before it happens.
+  side (in `countries --json` too), and `countries` announces the change before it happens.
 - **The HTML report prints**, on white whatever the system colour scheme, with each finding
   kept on one page, link addresses written out and collapsed detail opened. With a
   baseline it has a "Since the baseline" section: new violations, what is still accepted,
