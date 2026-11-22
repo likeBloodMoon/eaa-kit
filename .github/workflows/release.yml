@@ -51,6 +51,13 @@ jobs:
       - name: Check this commit is ready to publish as this tag
         run: pnpm release:check "$GITHUB_REF_NAME"
 
+      # npm 11.5.1 or later can publish as a trusted publisher (OIDC through
+      # the id-token permission above, no stored token), and falls back to
+      # NPM_TOKEN when no trusted publisher is configured for this workflow on
+      # npmjs.com. Node 22 ships npm 10, which can only use the token, and npm
+      # now caps a publishing token at 90 days.
+      - run: npm install --global npm@11
+
       # access and provenance come from publishConfig in package.json, so a
       # manual publish behaves the same way.
       - run: npm publish
