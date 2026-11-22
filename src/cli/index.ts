@@ -209,6 +209,10 @@ program
     parseFormat,
   )
   .option('--output <path>', 'write the report to a file instead of stdout')
+  .option(
+    '--summary <path>',
+    'also write a Markdown summary of what this run found, e.g. to $GITHUB_STEP_SUMMARY',
+  )
   .option('--browser', 'audit in real Chromium, covering the rules jsdom cannot evaluate')
   .option(
     '--fast',

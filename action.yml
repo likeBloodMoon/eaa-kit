@@ -136,6 +136,15 @@ inputs:
     required: false
     default: 'false'
 
+  job-summary:
+    description: >-
+      Write a Markdown summary of the run to the job's summary page: the
+      verdict, the barriers that fail it, what a baseline accepted, and what
+      the run could not check. Needs eaa-kit 0.11.0 or later, so set it to
+      false when "version" pins an older release.
+    required: false
+    default: 'true'
+
   cache:
     description: >-
       Reuse the result for any page whose markup has not changed since the last
@@ -194,6 +203,7 @@ runs:
         EAA_CONCURRENCY: ${{ inputs.concurrency }}
         EAA_FAST: ${{ inputs.fast }}
         EAA_CACHE: ${{ inputs.cache }}
+        EAA_JOB_SUMMARY: ${{ inputs.job-summary }}
         EAA_BASELINE: ${{ inputs.baseline }}
         EAA_HEADERS: ${{ inputs.headers }}
         EAA_BASIC_AUTH: ${{ inputs.basic-auth }}
@@ -240,6 +250,11 @@ runs:
         fi
         if [ -n "$EAA_BASELINE" ]; then
           args+=(--baseline "$EAA_BASELINE")
+        fi
+        # GITHUB_STEP_SUMMARY is a file per step, so writing it whole is safe:
+        # nothing else in this step writes to it.
+        if [ "$EAA_JOB_SUMMARY" = "true" ] && [ -n "$GITHUB_STEP_SUMMARY" ]; then
+          args+=(--summary "$GITHUB_STEP_SUMMARY")
         fi
         if [ -n "$EAA_BASIC_AUTH" ]; then
           args+=(--basic-auth "$EAA_BASIC_AUTH")

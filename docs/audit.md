@@ -363,8 +363,9 @@ chatter coming along.
 | `--exclude <globs...>` | `node_modules`, `.git` | Glob patterns to skip |
 | `--base-url <url>` | — | Audit pages under their real site URL instead of `file://` |
 | `--fail-on <impact>` | `serious` | Lowest impact that fails the run |
-| `--format <format>` | `console` | `console`, `json`, `sarif`, or `html` |
+| `--format <format>` | `console` | `console`, `json`, `sarif`, `html` or `markdown` |
 | `--output <path>` | stdout | Write the report to a file; parent directories are created |
+| `--summary <path>` | — | Also write the Markdown summary there, e.g. `$GITHUB_STEP_SUMMARY` |
 | `--browser` | off | Audit in real Chromium instead of jsdom |
 | `--concurrency <n>` | from page and core count | Pages to audit at once — threads without `--browser`, tabs with it; `1` turns both off |
 | `--fast` | off | Skip the rules the browserless engine cannot decide, rather than running them and discarding the answer |
@@ -504,6 +505,10 @@ eaa-kit audit ./dist                                      # console, to the term
 eaa-kit audit ./dist --format json --output a11y.json     # JSON, to a file
 eaa-kit audit ./dist --format sarif --output a11y.sarif   # SARIF, for code scanning
 eaa-kit audit ./dist --format html --output a11y.html     # a report you can send someone
+eaa-kit audit ./dist --format markdown                    # a summary for a CI job or a PR
+
+# SARIF for code scanning, and the summary on the job page, from one run:
+eaa-kit audit ./dist --format sarif --output a11y.sarif --summary "$GITHUB_STEP_SUMMARY"
 ```
 
 ### `--fast`

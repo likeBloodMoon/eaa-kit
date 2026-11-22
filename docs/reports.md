@@ -1,8 +1,8 @@
 # Report formats
 
-`--format` selects what the audit produces. `console` is the default and is documented
-with [the audit command](audit.md); the three below are the machine-readable and
-shareable ones.
+`--format` selects what the audit produces: `console`, `json`, `sarif`, `html` or
+`markdown`. `console` is the default and is documented with [the audit command](audit.md);
+the four below are the machine-readable and shareable ones.
 
 ## JSON report format
 
@@ -437,6 +437,33 @@ Three things worth knowing before you wire it up:
    would bury the real failures. They are counted in `runs[0].properties` so a log with no
    results is not mistaken for "everything was checked" — and the JSON format carries them
    in full. **A green code-scanning result is not a compliance statement.**
+
+## Markdown summary
+
+`--format markdown` writes a short summary for a CI job page or a pull request comment.
+The other reports describe the site. This one describes the run in front of the reviewer:
+the verdict on its first line, a table of counts, the rules that fail the run, and what the
+run did not check.
+
+```bash
+eaa-kit audit ./dist --format markdown --output summary.md
+# or beside another format, which is what CI wants:
+eaa-kit audit ./dist --format sarif --output eaa-kit.sarif --summary "$GITHUB_STEP_SUMMARY"
+```
+
+- **With a baseline it says what this change did.** The verdict and the table count new
+  violations only, list the ones the baseline accepts separately, and say how many
+  baseline entries no longer match anything (fixed, or gone) and how many have expired.
+- **It keeps the refusals the other reports make.** Rules the engine could not evaluate are
+  counted, and listed under "Not checked by this run". A run that reached only part of the
+  site says so in the verdict. A page that could not be audited means no verdict.
+- **It fits in a comment.** At most 25 rules are listed and three pages per rule, and the
+  rest are counted, so even a site with a broken shared component stays under GitHub's
+  65,536-character comment limit. The HTML or JSON report has everything.
+- **It is for people, not programs.** Its wording can change in any release. Build on the
+  JSON report instead.
+
+The GitHub Action writes it to the job summary by default (`job-summary: true`).
 
 ## HTML report
 

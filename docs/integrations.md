@@ -287,6 +287,7 @@ watching is the wrong default for something whose job is to fail that build.
 | `concurrency` | from page and core count | Worker threads for the browserless engine; `1` for none |
 | `fast` | `false` | Skip the rules the browserless engine cannot decide instead of running them and discarding the answer |
 | `cache` | `true` | Reuse the result for any page whose markup has not changed; worth nothing on a fresh runner unless `.eaa-kit/cache` is restored |
+| `job-summary` | `true` | Write the Markdown summary to the job's summary page. Needs eaa-kit 0.11.0 or later; set `false` when `version` pins an older release |
 | `version` | `latest` | Version of eaa-kit to run |
 
 ### Outputs

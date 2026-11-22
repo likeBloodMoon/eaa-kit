@@ -23,7 +23,7 @@ import { TOOL_VERSION } from '../version.ts'
 import { advise, emitDocument, fail, failWith, note, runEngine, warn } from './command.ts'
 import { type CrawlCommandOptions, resolvePages } from './pages.ts'
 
-export const OUTPUT_FORMATS = ['console', 'json', 'sarif', 'html'] as const
+export const OUTPUT_FORMATS = ['console', 'json', 'sarif', 'html', 'markdown'] as const
 
 export type OutputFormat = (typeof OUTPUT_FORMATS)[number]
 
@@ -87,6 +87,12 @@ export interface AuditCommandOptions extends CrawlCommandOptions {
    * the HTML page is the one they can open, keep, and send on.
    */
   htmlReport?: string
+  /**
+   * Also write the Markdown summary here, beside whatever `format` produces.
+   * For CI: point it at `$GITHUB_STEP_SUMMARY` and the job page shows what this
+   * push did, while the SARIF log goes to code scanning.
+   */
+  summary?: string
 }
 
 export interface AuditCommandResult {
@@ -202,10 +208,12 @@ export async function runAuditCommand(
 
     const failOn = options.failOn ?? DEFAULT_FAIL_ON
 
+    let baseline: BaselineCounts | undefined
     if (options.baseline) {
       const applied = await acceptBaseline(audits, options)
       if (!applied) return { audits, ...found, exitCode: 2 }
-      audits = applied
+      audits = applied.audits
+      baseline = applied.counts
     }
 
     const completeness = runCompleteness(audits, collection)
@@ -218,7 +226,7 @@ export async function runAuditCommand(
     // label, not dir: it is what the run actually audited. dir is undefined
     // under auto-detection, and was the unused ./dist default under --url,
     // which put a directory nobody read into the report.
-    await emit(audits, label, failOn, completeness, options, review)
+    await emit(audits, label, failOn, completeness, options, review, baseline)
 
     // A page that could not be audited is not a clean page. Exiting 0 here would
     // hand back a pass for markup nothing ever looked at, so it is reported as a
@@ -311,7 +319,7 @@ function inCollectedOrder(
 async function acceptBaseline(
   audits: PageAudit[],
   options: AuditCommandOptions,
-): Promise<PageAudit[] | undefined> {
+): Promise<{ audits: PageAudit[]; counts: BaselineCounts } | undefined> {
   const { applyBaseline, BaselineError, readBaseline } = await import('../audit/baseline.ts')
 
   try {
@@ -336,7 +344,10 @@ async function acceptBaseline(
       )
     }
 
-    return outcome.audits
+    return {
+      audits: outcome.audits,
+      counts: { stale: outcome.stale.length, expired: outcome.expired.length },
+    }
   } catch (cause) {
     if (cause instanceof BaselineError) {
       failWith(cause)
@@ -344,6 +355,12 @@ async function acceptBaseline(
     }
     throw cause
   }
+}
+
+/** What the baseline said about the run, for the report that says what a change did. */
+interface BaselineCounts {
+  stale: number
+  expired: number
 }
 
 /** Distinguishes "no review asked for" from "the review could not be read". */
@@ -415,9 +432,10 @@ async function emit(
   completeness: RunCompleteness,
   options: AuditCommandOptions,
   review: ReviewOptions | undefined,
+  baseline: BaselineCounts | undefined,
 ): Promise<void> {
   const toFile = typeof options.output === 'string'
-  const body = await render(audits, dir, failOn, completeness, toFile, options, review)
+  const body = await render(audits, dir, failOn, completeness, toFile, options, review, baseline)
 
   // Against the same working directory as --baseline, rather than the process's:
   // a caller that says where relative paths start means it for all of them.
@@ -433,8 +451,23 @@ async function emit(
       true,
       { ...options, format: 'html' },
       review,
+      baseline,
     )
     await emitDocument(html, options.htmlReport, options.cwd ?? process.cwd())
+  }
+
+  if (options.summary !== undefined) {
+    const markdown = await render(
+      audits,
+      dir,
+      failOn,
+      completeness,
+      true,
+      { ...options, format: 'markdown' },
+      review,
+      baseline,
+    )
+    await emitDocument(markdown, options.summary, options.cwd ?? process.cwd())
   }
 }
 
@@ -446,8 +479,18 @@ async function render(
   toFile: boolean,
   options: AuditCommandOptions,
   review: ReviewOptions | undefined,
+  baseline: BaselineCounts | undefined,
 ): Promise<string> {
   switch (options.format ?? 'console') {
+    case 'markdown': {
+      const { buildMarkdownReport } = await import('../audit/report/markdown.ts')
+      return buildMarkdownReport(audits, {
+        directory: dir,
+        failOn,
+        completeness,
+        ...(baseline === undefined ? {} : { baseline }),
+      })
+    }
     case 'json': {
       const { buildJsonReport, serialiseJsonReport } = await import('../audit/report/json.ts')
       return serialiseJsonReport(
