@@ -182,10 +182,16 @@ export function linksFrom(html: string, from: URL): URL[] {
   const found: URL[] = []
   const seen = new Set<string>()
 
-  // Deliberately a regex rather than a parse: this runs before the audit, on
+  // Deliberately a scan rather than a parse: this runs before the audit, on
   // markup that has not been vetted, and standing up a DOM per page to read
   // hrefs would double the cost of a crawl for something a scan does as well.
-  for (const match of html.matchAll(/<a\b[^>]*?\shref\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/gi)) {
+  //
+  // One tag at a time, and never back over one: the single pattern this used
+  // to be ran on from every `<a` to the end of a page with no `>` in it, so a
+  // page of nothing but `<a ` took seconds per hundred kilobytes.
+  for (const tag of anchorTags(html)) {
+    const match = /\shref\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i.exec(tag)
+    if (match === null) continue
     const raw = (match[2] ?? match[3] ?? match[4] ?? '').trim()
     if (raw === '' || raw.startsWith('#')) continue
     if (/^(?:mailto|tel|javascript|data):/i.test(raw)) continue
@@ -206,12 +212,56 @@ export function linksFrom(html: string, from: URL): URL[] {
   return found
 }
 
+/**
+ * Each `<a …>` start tag, up to its `>`, with a `>` inside a quoted attribute
+ * kept in. Linear: every character is looked at once, and a tag left open
+ * ends the scan rather than being searched past from every `<a` inside it.
+ */
+function* anchorTags(html: string): Generator<string> {
+  const lower = html.toLowerCase()
+  let cursor = 0
+  for (;;) {
+    let start = lower.indexOf('<a', cursor)
+    while (start !== -1 && /[a-z0-9:_-]/.test(lower[start + 2] ?? '')) {
+      start = lower.indexOf('<a', start + 2)
+    }
+    if (start === -1) return
+    let quote: string | undefined
+    let end = -1
+    for (let at = start + 2; at < html.length; at += 1) {
+      const char = html[at]
+      if (quote !== undefined) {
+        if (char === quote) quote = undefined
+      } else if (char === '"' || char === "'") {
+        quote = char
+      } else if (char === '>') {
+        end = at
+        break
+      }
+    }
+    if (end === -1) return
+    yield html.slice(start, end)
+    cursor = end + 1
+  }
+}
+
 /** Page URLs listed in a sitemap, including one level of sitemap index. */
 export function urlsFromSitemap(xml: string, origin: URL): URL[] {
   const urls: URL[] = []
-  for (const match of xml.matchAll(/<loc>\s*([^<]+?)\s*<\/loc>/gi)) {
-    const raw = match[1]
-    if (!raw) continue
+  // indexOf rather than `<loc>\s*([^<]+?)\s*<\/loc>`: three quantifiers that
+  // all match whitespace backtrack cubically, and a sitemap of `<loc>` and
+  // spaces with no closing tag hung the crawl for good — on a file any site
+  // serves, and that the crawl fetches before its first page.
+  const lower = xml.toLowerCase()
+  let cursor = 0
+  for (;;) {
+    const open = lower.indexOf('<loc>', cursor)
+    if (open === -1) break
+    const close = lower.indexOf('</loc>', open + 5)
+    if (close === -1) break
+    cursor = close + 6
+    const raw = xml.slice(open + 5, close).trim()
+    if (raw === '' || raw.includes('<')) continue
     try {
       const url = new URL(raw)
       url.hash = ''

@@ -681,3 +681,48 @@ describe('the files a site publishes about itself', () => {
     expect(result.pages.map((found) => found.relativePath)).toEqual(['/'])
   })
 })
+
+describe('scanning hostile markup', () => {
+  // Pages and sitemaps come from whatever site is crawled. The patterns these
+  // replaced took seconds, and for the sitemap for ever, on a few hundred
+  // kilobytes built to make them backtrack.
+  const base = new URL('http://localhost:3000/')
+  const fast = (fn: () => unknown): number => {
+    const started = performance.now()
+    fn()
+    return performance.now() - started
+  }
+
+  it.each([
+    ['anchors with no end', '<a '.repeat(100_000)],
+    ['an anchor of attributes', `<a${' x'.repeat(150_000)}`],
+    ['unclosed hrefs', '<a href="'.repeat(30_000)],
+  ])('reads links from %s in linear time', (_name, html) => {
+    expect(fast(() => linksFrom(html, base))).toBeLessThan(250)
+  })
+
+  it.each([
+    ['unclosed locs', '<loc>'.repeat(60_000)],
+    ['a loc of spaces', `<loc>${' '.repeat(300_000)}`],
+  ])('reads a sitemap of %s in linear time', (_name, xml) => {
+    expect(fast(() => urlsFromSitemap(xml, base))).toBeLessThan(250)
+  })
+
+  it('keeps a > inside a quoted attribute, and does not mistake <abbr> for a link', () => {
+    const links = linksFrom(
+      '<abbr href="/no">x</abbr><a title="a > b" href="/yes">y</a><A HREF=/upper>z</A>',
+      base,
+    )
+
+    expect(links.map((link) => link.pathname)).toEqual(['/yes', '/upper'])
+  })
+
+  it('reads locs with surrounding whitespace and any case, and skips markup inside one', () => {
+    const urls = urlsFromSitemap(
+      '<urlset><url><LOC>\n  http://localhost:3000/a  \n</LOC></url><loc><![CDATA[x]]></loc><loc>http://localhost:3000/b</loc></urlset>',
+      base,
+    )
+
+    expect(urls.map((url) => url.pathname)).toEqual(['/a', '/b'])
+  })
+})
