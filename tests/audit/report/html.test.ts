@@ -574,3 +574,46 @@ describe('the source location of a failing element', () => {
     expect(text(html)).toContain('src/components/Header.astro:12')
   })
 })
+
+describe('since the baseline', () => {
+  it('says what is new, what is still accepted and what was fixed', () => {
+    const html = build(
+      [blank({ violations: [finding()], accepted: [finding({ ruleId: 'label' })] })],
+      { baseline: { stale: 3, expired: 1 } },
+    )
+    const said = text(html)
+
+    expect(html).toContain('<h2>Since the baseline</h2>')
+    expect(said).toContain('1 new violation at or above serious, which the baseline does not list')
+    expect(said).toContain('1 element the baseline still accepts')
+    expect(said).toContain('3 baseline entries no longer found: fixed, or the element is gone')
+    expect(said).toContain('1 baseline entry has expired and no longer suppresses anything')
+  })
+
+  it('appears only when a baseline was used', () => {
+    expect(build([blank()])).not.toContain('Since the baseline')
+  })
+
+  it('comes straight after the verdict', () => {
+    const html = build([blank()], { baseline: { stale: 0, expired: 0 } })
+
+    expect(html.indexOf('Since the baseline')).toBeGreaterThan(html.indexOf('class="verdict'))
+    expect(html.indexOf('Since the baseline')).toBeLessThan(html.indexOf('class="scoreboard'))
+  })
+})
+
+describe('on paper', () => {
+  it('prints on white whatever the system colour scheme', () => {
+    expect(report).toContain('@media screen and (prefers-color-scheme: dark)')
+    expect(report).not.toMatch(/@media \(prefers-color-scheme: dark\)/)
+  })
+
+  it('has a print layout that keeps findings whole and spells out links', () => {
+    const print = report.slice(report.indexOf('@media print'))
+
+    expect(print).toContain('@page')
+    expect(print).toContain('break-inside: avoid')
+    expect(print).toContain('a[href^="http"]::after')
+    expect(print).toContain('details::details-content')
+  })
+})

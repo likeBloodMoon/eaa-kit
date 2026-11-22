@@ -490,6 +490,12 @@ rules the engine could not evaluate.
   place this document could overstate, because the same run may have left whole rule
   categories unchecked, and a reader who stops at the top would take it for a clean site.
 
+- **It says what changed since the baseline.** With `--baseline`, a section under the
+  verdict counts the new violations, the elements the baseline still accepts, the entries
+  that no longer match anything (fixed, or gone) and any that have expired.
+- **It prints.** Print it or save it as a PDF from the browser: it prints on white even
+  when the system is in dark mode, keeps each finding on one page, writes each link's
+  address beside its text, and opens collapsed detail.
 - **One file, no assets, no scripts.** It can be attached to an email and opened. Nothing
   in it fetches anything, which also means it cannot phone home from a client's machine.
 - **The element markup is escaped.** This is the one document eaa-kit produces that quotes

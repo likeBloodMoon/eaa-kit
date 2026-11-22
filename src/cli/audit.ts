@@ -522,6 +522,7 @@ async function render(
         failOn,
         completeness,
         ...(review === undefined ? {} : { review }),
+        ...(baseline === undefined ? {} : { baseline }),
         ...(options.baseUrl ? { baseUrl: options.baseUrl } : {}),
       })
     }
