@@ -313,13 +313,24 @@ export async function loadChromium(cwd = process.cwd()): Promise<ChromiumLike> {
   //
   // @playwright/test is included because it is what most projects actually
   // install, and it re-exports the same launchers.
+  //
+  // The project's own install is looked for on its own first. `require.resolve`
+  // also searches NODE_PATH and the global folders, so a global `playwright`
+  // used to win over the `@playwright/test` the project had installed, and the
+  // run drove whichever Chromium that global copy happened to pair with.
   const specifiers = ['playwright', '@playwright/test']
-  const roots = [cwd, undefined]
+  const passes: Array<{ root: string | undefined; installedIn?: string }> = [
+    { root: cwd, installedIn: cwd },
+    { root: cwd },
+    { root: undefined },
+  ]
+  const seen = new Set<unknown>()
 
-  for (const root of roots) {
+  for (const { root, installedIn } of passes) {
     for (const specifier of specifiers) {
-      const loaded = await tryLoad(specifier, root)
-      if (loaded === undefined) continue
+      const loaded = await tryLoad(specifier, root, installedIn)
+      if (loaded === undefined || seen.has(loaded)) continue
+      seen.add(loaded)
       tried.push(`${specifier}${root === undefined ? ' (from eaa-kit)' : ''}`)
       const chromium = launcherIn(loaded)
       if (chromium !== undefined) return chromium
@@ -346,13 +357,37 @@ export async function loadChromium(cwd = process.cwd()): Promise<ChromiumLike> {
 }
 
 /** Import a specifier, resolved from `root` when given. Undefined if absent. */
-async function tryLoad(specifier: string, root: string | undefined): Promise<unknown> {
+async function tryLoad(
+  specifier: string,
+  root: string | undefined,
+  /** Accept only a copy installed for this project, not one found on NODE_PATH. */
+  installedIn?: string,
+): Promise<unknown> {
   try {
     if (root === undefined) return await import(specifier)
     const require = createRequire(pathToFileURL(path.join(root, 'package.json')).href)
-    return await import(pathToFileURL(require.resolve(specifier)).href)
+    const resolved = require.resolve(specifier)
+    if (installedIn !== undefined && !isInstalledFor(resolved, installedIn)) return undefined
+    return await import(pathToFileURL(resolved).href)
   } catch {
     return undefined
+  }
+}
+
+/**
+ * Whether a resolved file came from the project's own dependencies: a
+ * node_modules directory in the project or above it (a monorepo hoists to its
+ * root), or Yarn's cache, which is where Plug'n'Play keeps them.
+ */
+export function isInstalledFor(resolved: string, project: string): boolean {
+  let dir = path.resolve(project)
+  for (;;) {
+    for (const store of ['node_modules', '.yarn']) {
+      if (resolved.startsWith(path.join(dir, store) + path.sep)) return true
+    }
+    const parent = path.dirname(dir)
+    if (parent === dir) return false
+    dir = parent
   }
 }
 

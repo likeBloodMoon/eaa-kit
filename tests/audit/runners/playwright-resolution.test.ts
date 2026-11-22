@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   BrowserUnavailableError,
+  isInstalledFor,
   launcherIn,
   loadChromium,
 } from '../../../src/audit/runners/playwright.ts'
@@ -166,5 +167,26 @@ describe('launcherIn', () => {
     expect(launcherIn(null)).toBeUndefined()
     expect(launcherIn({})).toBeUndefined()
     expect(launcherIn({ default: undefined })).toBeUndefined()
+  })
+})
+
+describe('isInstalledFor', () => {
+  const project = path.join(path.sep, 'work', 'agency', 'apps', 'site')
+
+  it.each([
+    [path.join(project, 'node_modules', 'playwright', 'index.js'), true],
+    // A monorepo hoists to its root.
+    [path.join(path.sep, 'work', 'agency', 'node_modules', '.pnpm', 'x', 'index.js'), true],
+    // Yarn Plug'n'Play.
+    [path.join(project, '.yarn', 'cache', 'playwright.zip', 'index.js'), true],
+    // NODE_PATH and the global folders are not the project's.
+    [
+      path.join(path.sep, 'usr', 'local', 'lib', 'node_modules_global', 'playwright', 'index.js'),
+      false,
+    ],
+    [path.join(path.sep, 'opt', 'npm-tools', 'node_modules', 'playwright', 'index.js'), false],
+    [path.join(project + '-other', 'node_modules', 'playwright', 'index.js'), false],
+  ])("%s is the project's own: %s", (resolved, expected) => {
+    expect(isInstalledFor(resolved, project)).toBe(expected)
   })
 })
