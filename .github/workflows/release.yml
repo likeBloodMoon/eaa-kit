@@ -29,7 +29,11 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-          registry-url: https://registry.npmjs.org
+          # No registry-url. It makes setup-node write an .npmrc line reading
+          # _authToken=${NODE_AUTH_TOKEN}, which with no token set is an empty
+          # credential that npm takes as configured, so it never tries the
+          # trusted-publisher login and the staging fails. The default
+          # registry is npmjs.org anyway.
 
       - run: pnpm install --frozen-lockfile
 
