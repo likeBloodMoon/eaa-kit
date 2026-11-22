@@ -67,6 +67,20 @@ A compaction pass (folding duplication, removing indirection with one caller) fo
 [the ponytail skill](.claude/skills/ponytail/SKILL.md): behaviour must stay identical, and
 `pnpm examples` proves it.
 
+## Releasing
+
+For the maintainer. A release is a merged pull request that bumps `version`, dates its
+CHANGELOG heading and runs `pnpm examples`; `pnpm release:check vX.Y.Z` says what is
+missing. Then:
+
+1. Push the tag, or publish a GitHub release that creates it: `git tag vX.Y.Z && git push
+   origin vX.Y.Z`.
+2. The Release workflow runs every check again and **stages** the version on npm. It
+   authenticates as a trusted publisher and is not allowed to publish on its own.
+3. Approve it: on npmjs.com under the package's staged versions, or with
+   `npm stage list eaa-kit` and `npm stage approve <id>`. Either asks for 2FA. Until then
+   nothing is public; `npm stage reject <id>` throws a bad one away.
+
 ## Kinds of contribution
 
 **A stack eaa-kit does not recognise.** Add it to the registry in `src/audit/frameworks.ts`

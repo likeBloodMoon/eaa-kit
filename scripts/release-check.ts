@@ -32,7 +32,9 @@ export async function checkRelease(options: ReleaseCheckOptions): Promise<string
   const read = (file: string): Promise<string> => readFile(path.join(options.root, file), 'utf8')
 
   const pkg = JSON.parse(await read('package.json')) as {
+    name?: string
     version: string
+    bin?: string | Record<string, string>
     dependencies?: Record<string, string>
   }
   const version = pkg.version
@@ -41,6 +43,17 @@ export async function checkRelease(options: ReleaseCheckOptions): Promise<string
   // was never tested with, and a minor adds rules: somebody's CI fails on
   // findings no changelog announced. The policy is that upgrades are pinned
   // and named, so the range may move patches and nothing more.
+  // npm 11 rewrites a bin path written ./like/this on publish, and says it
+  // was "invalid and removed" while doing so: a warning in every release log
+  // that reads like the command is gone. Written without the ./, nothing is
+  // rewritten.
+  const bins = typeof pkg.bin === 'string' ? { [pkg.name ?? 'bin']: pkg.bin } : (pkg.bin ?? {})
+  for (const [name, target] of Object.entries(bins)) {
+    if (target.startsWith('./')) {
+      problems.push(`bin "${name}" is "${target}" in package.json: drop the leading ./`)
+    }
+  }
+
   const axe = pkg.dependencies?.['axe-core']
   if (axe !== undefined && !/^(~|=)?\d+\.\d+\.\d+$/.test(axe)) {
     problems.push(

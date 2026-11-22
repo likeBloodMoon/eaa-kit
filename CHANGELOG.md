@@ -9,6 +9,18 @@ move: the JSON report's `schemaVersion` and the baseline file's. Both are bumped
 a field is removed, renamed, or changes meaning — new fields may appear without one, so
 consumers must ignore what they do not recognise.
 
+## 0.11.1 — 2026-11-22
+
+How eaa-kit is released, and nothing about what it does.
+
+- **Releases are staged and approved by hand.** The release workflow authenticates to npm
+  as a trusted publisher, with no stored token, and may only stage a version. It goes live
+  once a maintainer approves it on npmjs.com with 2FA, so a compromised workflow can upload
+  but cannot release.
+- The `bin` path no longer starts with `./`. npm 11 rewrote it on publish and warned that it
+  was "invalid and removed"; the command was never actually lost, and 0.11.0's `eaa-kit`
+  works, but the warning is gone and `release:check` refuses the form that causes it.
+
 ## 0.11.0 — 2026-11-22
 
 It fits your workflow, and it keeps your credentials where you gave them.
