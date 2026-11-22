@@ -46,8 +46,8 @@ export interface BrowserRunnerOptions {
   concurrency?: number
   /**
    * Extra request headers, for a site behind a login or preview protection.
-   * Set on the browser context, so every tab and every asset it fetches carries
-   * them. Credentials: never recorded in a report.
+   * Added to every request to the audited site's own origin, page and asset
+   * alike, and to nothing else. Credentials: never recorded in a report.
    */
   headers?: Record<string, string>
 }
@@ -120,14 +120,23 @@ export async function runBrowserAudit(
     // otherwise refuse the injected axe-core as an inline script and every page
     // would come back unaudited. Observed on a real build the first time this
     // ran outside the fixtures.
-    // Credentials for a staging site or a preview deployment, on the context so
-    // every tab carries them: a protected site protects its assets too, and a
-    // page audited without its stylesheet is a page audited wrong.
-    const context = await browser.newContext({
-      viewport,
-      bypassCSP: true,
-      ...(options.headers === undefined ? {} : { extraHTTPHeaders: options.headers }),
-    })
+    const context = await browser.newContext({ viewport, bypassCSP: true })
+
+    // Credentials for a staging site or a preview deployment, on every request
+    // to that site: a protected site protects its assets too, and a page
+    // audited without its stylesheet is a page audited wrong. Only to that
+    // site. They used to be set as the context's extraHTTPHeaders, which
+    // Chromium sends on every request a page makes, so the fonts, analytics
+    // and CDN scripts of the audited site all received the preview token too.
+    if (options.headers !== undefined) {
+      const credentials = options.headers
+      const origins = siteOrigins(pages, server?.origin)
+      await context.route('**/*', async (route) => {
+        const request = route.request()
+        if (!origins.has(originOf(request.url()))) return route.continue()
+        return route.continue({ headers: { ...request.headers(), ...credentials } })
+      })
+    }
 
     // Indexed by position rather than pushed in completion order: the pages
     // finish in whatever order the server answers them, and two runs of one
@@ -239,9 +248,40 @@ export function servedUrl(origin: string, relativePath: string): string {
 }
 
 /** The bits of playwright this runner uses, so the import can stay dynamic. */
+interface RouteLike {
+  request(): { url(): string; headers(): Record<string, string> }
+  continue(overrides?: { headers?: Record<string, string> }): Promise<void>
+}
+
 interface BrowserContextLike {
   newPage(): Promise<PageLike>
+  route(url: string, handler: (route: RouteLike) => Promise<void>): Promise<void>
   close(): Promise<void>
+}
+
+/**
+ * The origins credentials may go to: those of the crawled pages, which a crawl
+ * keeps to one origin, and the loopback server for a build off disk.
+ */
+export function siteOrigins(
+  pages: readonly CollectedPage[],
+  serverOrigin: string | undefined,
+): Set<string> {
+  const origins = new Set<string>()
+  if (serverOrigin !== undefined) origins.add(serverOrigin)
+  for (const page of pages) {
+    const origin = originOf(page.absolutePath)
+    if (origin.startsWith('http')) origins.add(origin)
+  }
+  return origins
+}
+
+function originOf(url: string): string {
+  try {
+    return new URL(url).origin
+  } catch {
+    return 'null'
+  }
 }
 
 interface PageLike {
@@ -259,7 +299,6 @@ interface BrowserLike {
   newContext(options?: {
     viewport?: { width: number; height: number }
     bypassCSP?: boolean
-    extraHTTPHeaders?: Record<string, string>
   }): Promise<BrowserContextLike>
   close(): Promise<void>
 }
