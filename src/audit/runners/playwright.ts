@@ -131,11 +131,7 @@ export async function runBrowserAudit(
     if (options.headers !== undefined) {
       const credentials = options.headers
       const origins = siteOrigins(pages, server?.origin)
-      await context.route('**/*', async (route) => {
-        const request = route.request()
-        if (!origins.has(originOf(request.url()))) return route.continue()
-        return route.continue({ headers: { ...request.headers(), ...credentials } })
-      })
+      await context.route('**/*', credentialsRoute(origins, credentials))
     }
 
     // Indexed by position rather than pushed in completion order: the pages
@@ -248,15 +244,56 @@ export function servedUrl(origin: string, relativePath: string): string {
 }
 
 /** The bits of playwright this runner uses, so the import can stay dynamic. */
-interface RouteLike {
+export interface RouteLike {
   request(): { url(): string; headers(): Record<string, string> }
-  continue(overrides?: { headers?: Record<string, string> }): Promise<void>
+  continue(): Promise<void>
+  fetch(options: { headers: Record<string, string>; maxRedirects: number }): Promise<unknown>
+  fulfill(options: { response: unknown }): Promise<void>
+  abort(): Promise<void>
 }
 
 interface BrowserContextLike {
   newPage(): Promise<PageLike>
   route(url: string, handler: (route: RouteLike) => Promise<void>): Promise<void>
   close(): Promise<void>
+}
+
+/**
+ * A route handler that adds `credentials` to requests for `origins`, and to
+ * nothing else, redirects included.
+ *
+ * Requests to the site are fetched here and handed back, not continued with
+ * the headers added: Playwright carries a continued request's header
+ * overrides onto every redirect hop, so a page or asset on the site that
+ * redirected elsewhere took the credentials with it. With no redirects
+ * followed here, a 3xx goes back to the browser, which follows it as a new
+ * request; that one is routed again, and leaves the site bare.
+ *
+ * One side effect, on the safe side: Chromium treats a document handed back
+ * this way as public, so it may not load assets from another loopback or
+ * private address. Turning that check off would let an audited page probe the
+ * network of the machine running the audit.
+ */
+export function credentialsRoute(
+  origins: ReadonlySet<string>,
+  credentials: Record<string, string>,
+): (route: RouteLike) => Promise<void> {
+  return async (route) => {
+    const request = route.request()
+    if (!origins.has(originOf(request.url()))) return route.continue()
+    try {
+      const response = await route.fetch({
+        headers: { ...request.headers(), ...credentials },
+        maxRedirects: 0,
+      })
+      return await route.fulfill({ response })
+    } catch {
+      // Unreachable, timed out, or the page went away: the failure the browser
+      // would have recorded, without a retry that could send the credentials
+      // anywhere else.
+      return route.abort()
+    }
+  }
 }
 
 /**
