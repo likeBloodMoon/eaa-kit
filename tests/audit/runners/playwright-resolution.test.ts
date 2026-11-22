@@ -189,4 +189,19 @@ describe('isInstalledFor', () => {
   ])("%s is the project's own: %s", (resolved, expected) => {
     expect(isInstalledFor(resolved, project)).toBe(expected)
   })
+  it.each([
+    // The drive letter in another case, as require.resolve and process.cwd()
+    // can disagree on Windows.
+    ['c:\\work\\site\\node_modules\\playwright\\index.js', 'C:\\work\\site', true],
+    ['C:\\Work\\Agency\\node_modules\\.pnpm\\x\\index.js', 'c:\\work\\agency\\apps\\site', true],
+    ['C:\\work\\site\\.yarn\\cache\\playwright.zip\\index.js', 'C:\\work\\site', true],
+    [
+      'C:\\Users\\me\\AppData\\Roaming\\npm\\node_modules\\playwright\\index.js',
+      'C:\\work\\site',
+      false,
+    ],
+    ['D:\\work\\site\\node_modules\\playwright\\index.js', 'C:\\work\\site', false],
+  ])("on Windows, %s is the project %s's own: %s", (resolved, project, expected) => {
+    expect(isInstalledFor(resolved, project, path.win32)).toBe(expected)
+  })
 })

@@ -455,13 +455,24 @@ async function tryLoad(
  * node_modules directory in the project or above it (a monorepo hoists to its
  * root), or Yarn's cache, which is where Plug'n'Play keeps them.
  */
-export function isInstalledFor(resolved: string, project: string): boolean {
-  let dir = path.resolve(project)
+export function isInstalledFor(
+  resolved: string,
+  project: string,
+  /** Injectable so the Windows rules can be tested anywhere. */
+  paths: typeof path = path,
+): boolean {
+  // Both sides absolute, and on Windows compared without case: a drive letter
+  // can come back from require.resolve as c: and from the working directory
+  // as C:, and NTFS does not care, so neither may this.
+  const fold =
+    paths.sep === '\\' ? (value: string) => value.toLowerCase() : (value: string) => value
+  const file = fold(paths.resolve(resolved))
+  let dir = fold(paths.resolve(project))
   for (;;) {
     for (const store of ['node_modules', '.yarn']) {
-      if (resolved.startsWith(path.join(dir, store) + path.sep)) return true
+      if (file.startsWith(paths.join(dir, store) + paths.sep)) return true
     }
-    const parent = path.dirname(dir)
+    const parent = paths.dirname(dir)
     if (parent === dir) return false
     dir = parent
   }
