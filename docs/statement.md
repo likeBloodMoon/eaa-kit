@@ -50,14 +50,18 @@ Then it offers the other two things a project needs:
 - **A baseline**, when a built site is already there. `init` never runs a build to get
   one. The config's `audit` block points at the baseline, so `eaa-kit audit` reads it
   without being told.
-- **A GitHub Actions workflow** at `.github/workflows/accessibility.yml`, when the project
-  is in a git repository. It is written for the project: the package manager from the
-  lockfile, the `build` script, the build directory, the baseline, and the action pinned
-  to the release that wrote it. It sits in a subdirectory's `working-directory` when the
-  project is below the repository root.
+- **A CI pipeline**, when the project is in a git repository: a GitHub Actions workflow
+  at `.github/workflows/accessibility.yml`, a [GitLab CI job](integrations.md#gitlab-ci)
+  or a [Bitbucket Pipelines step](integrations.md#bitbucket-pipelines), whichever host the
+  repository's remote is on. `--ci github|gitlab|bitbucket` picks one by hand. It is
+  written for the project: the package manager from the lockfile, the `build` script, the
+  build directory, the baseline, and eaa-kit pinned to the release that wrote it. It runs
+  from the project's directory when that is below the repository root.
 
-An existing workflow is never overwritten. `--no-baseline` and `--no-ci` keep `init` from
-offering either one.
+An existing pipeline file is never overwritten. GitLab's job goes in a file of its own to
+include when `.gitlab-ci.yml` is already there, and Bitbucket, which cannot include
+files, gets nothing written and a pointer to the step to copy. `--no-baseline` and
+`--no-ci` keep `init` from offering either one.
 
 What it writes is `partially-compliant`, never `compliant`. The file is written before any
 audit has run, and a statement claiming full conformance for a site nobody has assessed is

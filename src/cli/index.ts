@@ -28,6 +28,7 @@ import {
   note,
 } from './command.ts'
 import { DIFF_FORMATS, type DiffCommandOptions, runDiffCommand } from './diff.ts'
+import { CI_HOSTS, type CiHost } from './hosts.ts'
 import {
   runStatementCommand,
   STATEMENT_FORMATS,
@@ -114,6 +115,7 @@ function parseDate(value: string): string {
 const parseLocale = oneOf(STATEMENT_LOCALES)
 const parseCountry = oneOf(COUNTRIES, (value) => value.toUpperCase())
 const parseStatementFormat = oneOf(STATEMENT_FORMATS)
+const parseCiHost = oneOf(CI_HOSTS, (value) => value.toLowerCase())
 const parseImpact = oneOf(IMPACT_LEVELS)
 const parseFormat = oneOf(OUTPUT_FORMATS)
 const parsePositive = wholeNumber(1)
@@ -380,23 +382,32 @@ program
   .option('--output <path>', 'write here instead of eaa.config.json')
   .option('--force', 'overwrite a config that is already there')
   .option('-y, --yes', 'take every default without asking')
-  .option('--no-ci', 'never offer the GitHub Actions workflow')
+  .option('--no-ci', 'never offer a CI pipeline')
+  .option(
+    '--ci <host>',
+    `CI to write a pipeline for (${CI_HOSTS.join('|')}; default: from the git remote)`,
+    parseCiHost,
+  )
   .option('--no-baseline', 'never offer to record a baseline')
   .action(
     async (flags: {
       output?: string
       force?: true
       yes?: true
-      ci: boolean
+      ci: boolean | CiHost
       baseline: boolean
     }) => {
-      const { ci, baseline, ...rest } = flags
+      const { ci: ciFlag, baseline, ...rest } = flags
+      // --ci <host> and --no-ci share commander's `ci` key.
+      const ci = ciFlag !== false
+      const ciHost = typeof ciFlag === 'string' ? ciFlag : undefined
       const { runInitCommand } = await import('./init.ts')
       // Commander sets both to true unless the --no- form was typed, and true
       // means "ask", which is what init does anyway.
       const { exitCode } = await runInitCommand({
         ...rest,
         ...(ci ? {} : { ci: false as const }),
+        ...(ciHost === undefined ? {} : { ciHost }),
         ...(baseline ? {} : { baseline: false as const }),
       })
       process.exitCode = exitCode

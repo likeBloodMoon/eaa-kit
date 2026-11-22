@@ -355,3 +355,62 @@ carries the categories SARIF leaves out:
     name: accessibility-report
     path: a11y.json
 ```
+
+## GitLab CI
+
+`eaa-kit init` writes this for a repository whose remote is on GitLab (gitlab.com, or a
+host with "gitlab" in its name), or when told `--ci gitlab`. Without a `.gitlab-ci.yml` it
+writes one. With one, it never touches it: the job goes in
+`.gitlab/eaa-kit.gitlab-ci.yml`, and `init` prints the two lines that include it.
+
+```yaml
+accessibility:
+  image: node:22
+  stage: test
+  script:
+    - npm ci
+    - npm run build
+    - npx --yes eaa-kit@0.11.0 audit dist --fail-on serious --baseline eaa-baseline.json --no-build --summary eaa-kit-summary.md
+  artifacts:
+    when: always
+    expose_as: accessibility summary
+    paths:
+      - eaa-kit-summary.md
+```
+
+The console report is in the job log, which is where somebody reading a failed job looks.
+The [Markdown summary](reports.md#markdown-summary) is kept as an artifact and linked from
+merge requests through `expose_as`. A job exiting 1 fails the pipeline the same way it fails
+a GitHub workflow. For pnpm and Yarn `init` adds `corepack enable`, and for Bun and Deno it
+installs them first, since the audit runs through `npx` in the Node image.
+
+## Bitbucket Pipelines
+
+`eaa-kit init` writes this for a repository on bitbucket.org, or when told
+`--ci bitbucket`. Bitbucket reads one file and has no way to include another, so when a
+`bitbucket-pipelines.yml` is already there `init` writes nothing and points here. Add the
+step to your own pipelines by hand:
+
+```yaml
+image: node:22
+
+pipelines:
+  default:
+    - step:
+        name: Accessibility
+        caches:
+          - node
+        script:
+          - npm ci
+          - npm run build
+          - npx --yes eaa-kit@0.11.0 audit dist --fail-on serious --no-build --summary eaa-kit-summary.md
+        artifacts:
+          - eaa-kit-summary.md
+  pull-requests:
+    '**':
+      - step:
+          # the same step again
+```
+
+Change `dist` to your build directory, and add `--baseline eaa-baseline.json` once you have
+recorded one with `eaa-kit baseline`.

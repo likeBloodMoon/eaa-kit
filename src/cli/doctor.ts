@@ -176,6 +176,8 @@ async function ciCheck(cwd: string): Promise<DoctorCheck> {
   const candidates = [
     ...(await glob(['.github/workflows/*.{yml,yaml}'], { cwd: root, dot: true })).sort(),
     '.gitlab-ci.yml',
+    // Where `init` puts the job when a .gitlab-ci.yml was already there.
+    '.gitlab/eaa-kit.gitlab-ci.yml',
     'bitbucket-pipelines.yml',
   ]
   for (const file of candidates) {
