@@ -105,6 +105,33 @@ describe('the identity of everything else', () => {
 
     expect(key).not.toContain('sk-secret')
   })
+
+  it('cannot be checked against a guessed password with a fast hash', async () => {
+    // What an attacker holding the cache would try first: the old construction.
+    const { createHash } = await import('node:crypto')
+    const headers = { Authorization: 'Basic dXNlcjpodW50ZXIy' }
+    const fast = createHash('sha256').update('authorization=Basic dXNlcjpodW50ZXIy').digest('hex')
+    const key = inputsKey({ ...INPUTS, headers })
+
+    expect(inputsKey({ ...INPUTS, headers })).toBe(key)
+    expect(inputsKey({ ...INPUTS, headers: { Authorization: 'Basic other' } })).not.toBe(key)
+    const oldKey = createHash('sha256')
+      .update(
+        [
+          `tool=${INPUTS.toolVersion}`,
+          `axe=${INPUTS.axeVersion}`,
+          `tags=${[...INPUTS.tags].join(',')}`,
+          `engine=${INPUTS.engine}`,
+          `fast=${INPUTS.fast}`,
+          'viewport=',
+          `baseUrl=${INPUTS.baseUrl ?? ''}`,
+          `timeout=${INPUTS.timeoutMs ?? ''}`,
+          `headers=${fast}`,
+        ].join('\n'),
+      )
+      .digest('hex')
+    expect(key).not.toBe(oldKey)
+  })
 })
 
 describe('reading and writing', () => {
