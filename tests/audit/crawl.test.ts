@@ -9,7 +9,15 @@ import {
   urlsFromSitemap,
 } from '../../src/audit/crawl.ts'
 
-/** A site in a record, served by a fetch stand-in. No network, no server. */
+/**
+ * A site in a record, served by a fetch stand-in. No network, no server.
+ *
+ * `redirectedTo` answers the way a real server does under `redirect: 'manual'`:
+ * a 302 with a Location, and the body served when the target is requested. A
+ * request made with `redirect: 'follow'` gets the old shortcut, a response
+ * whose `url` says where it landed, so a crawler that stopped following by
+ * hand would still be caught by the tests below that count requests.
+ */
 function site(
   pages: Record<
     string,
@@ -18,12 +26,23 @@ function site(
 ): {
   fetchImpl: typeof fetch
   requests: string[]
+  /** Every request in full: URL and the headers it carried. */
+  sent: Array<{ url: string; headers: Record<string, string> }>
 } {
   const requests: string[] = []
-  const fetchImpl = (async (input: string | URL) => {
+  const sent: Array<{ url: string; headers: Record<string, string> }> = []
+  const targets = new Map<string, string>()
+  for (const [path, entry] of Object.entries(pages)) {
+    if (typeof entry !== 'string' && entry.redirectedTo !== undefined) {
+      targets.set(entry.redirectedTo, path)
+    }
+  }
+  const fetchImpl = (async (input: string | URL, init?: RequestInit) => {
     const url = new URL(typeof input === 'string' ? input : input.href)
     requests.push(url.pathname)
-    const entry = pages[url.pathname]
+    sent.push({ url: url.href, headers: { ...((init?.headers ?? {}) as Record<string, string>) } })
+    const source = targets.get(url.href)
+    const entry = source !== undefined ? pages[source] : pages[url.pathname]
     if (entry === undefined) {
       return new Response('gone', { status: 404, headers: { 'content-type': 'text/html' } })
     }
@@ -33,15 +52,17 @@ function site(
       status = 200,
       redirectedTo,
     } = typeof entry === 'string' ? { body: entry, redirectedTo: undefined } : entry
-    const response = new Response(body, { status, headers: { 'content-type': type } })
-    // redirect: 'follow' resolves with the final response, whose `url` is where
-    // it ended up. That is the only thing the crawler can see a redirect by.
-    if (redirectedTo !== undefined) {
-      Object.defineProperty(response, 'url', { value: redirectedTo })
+    if (redirectedTo !== undefined && source === undefined) {
+      if (init?.redirect === 'manual') {
+        return new Response(null, { status: 302, headers: { location: redirectedTo } })
+      }
+      const followed = new Response(body, { status, headers: { 'content-type': type } })
+      Object.defineProperty(followed, 'url', { value: redirectedTo })
+      return followed
     }
-    return response
+    return new Response(body, { status, headers: { 'content-type': type } })
   }) as unknown as typeof fetch
-  return { fetchImpl, requests }
+  return { fetchImpl, requests, sent }
 }
 
 const page = (body: string): string => `<!doctype html><html lang="en"><body>${body}</body></html>`
@@ -438,6 +459,63 @@ describe('crawlSite and redirects', () => {
     expect(result.failures[0]?.reason).toMatch(/^redirected off/)
   })
 
+  it('never makes the off-origin request, so nothing reaches the other host', async () => {
+    // Checking where a followed redirect landed is too late: the request has
+    // been made by then. From CI that request can be to an internal address
+    // the crawl was confined away from.
+    const { fetchImpl, sent } = site({
+      '/': page('<a href="/away">away</a>'),
+      '/away': { body: page('x'), redirectedTo: 'http://169.254.169.254/latest/meta-data/' },
+    })
+
+    const result = await crawlSite(entry, { fetchImpl })
+
+    expect(sent.map((request) => new URL(request.url).host)).not.toContain('169.254.169.254')
+    expect(result.failures[0]?.reason).toBe(
+      'redirected off http://localhost:3000 to http://169.254.169.254',
+    )
+  })
+
+  it("never sends the caller's headers to another origin", async () => {
+    // fetch drops Authorization on a cross-origin redirect and nothing else.
+    // A preview bypass token or a session cookie would have gone with it.
+    const { fetchImpl, sent } = site({
+      '/': page('<a href="/login">l</a>'),
+      '/login': { body: page('x'), redirectedTo: 'https://attacker.example/collect' },
+      '/sitemap.xml': { body: '<urlset></urlset>', redirectedTo: 'https://attacker.example/s.xml' },
+      '/robots.txt': { body: '', redirectedTo: 'https://attacker.example/r.txt' },
+    })
+
+    await crawlSite(entry, {
+      fetchImpl,
+      headers: { cookie: 'session=secret', 'x-vercel-protection-bypass': 'token' },
+    })
+
+    const offOrigin = sent.filter((request) => !request.url.startsWith('http://localhost:3000/'))
+    expect(offOrigin).toEqual([])
+    expect(sent.some((request) => request.headers.cookie === 'session=secret')).toBe(true)
+  })
+
+  it('gives up on a redirect loop instead of following it for ever', async () => {
+    let requests = 0
+    const fetchImpl = (async (input: string) => {
+      requests += 1
+      const url = new URL(input)
+      if (url.pathname === '/') {
+        return new Response(page('<a href="/a">a</a>'), {
+          headers: { 'content-type': 'text/html' },
+        })
+      }
+      const next = url.pathname === '/a' ? '/b' : '/a'
+      return new Response(null, { status: 302, headers: { location: next } })
+    }) as unknown as typeof fetch
+
+    const result = await crawlSite(entry, { fetchImpl })
+
+    expect(result.failures.map((failure) => failure.reason)).toContain('more than 10 redirects')
+    expect(requests).toBeLessThan(40)
+  })
+
   it('still follows a redirect that stays on the origin', async () => {
     // Trailing-slash and canonical redirects are ordinary, and refusing them
     // would make the crawler useless on most real sites.
@@ -601,5 +679,50 @@ describe('the files a site publishes about itself', () => {
 
     expect(result.discovery).toBe('links')
     expect(result.pages.map((found) => found.relativePath)).toEqual(['/'])
+  })
+})
+
+describe('scanning hostile markup', () => {
+  // Pages and sitemaps come from whatever site is crawled. The patterns these
+  // replaced took seconds, and for the sitemap for ever, on a few hundred
+  // kilobytes built to make them backtrack.
+  const base = new URL('http://localhost:3000/')
+  const fast = (fn: () => unknown): number => {
+    const started = performance.now()
+    fn()
+    return performance.now() - started
+  }
+
+  it.each([
+    ['anchors with no end', '<a '.repeat(100_000)],
+    ['an anchor of attributes', `<a${' x'.repeat(150_000)}`],
+    ['unclosed hrefs', '<a href="'.repeat(30_000)],
+  ])('reads links from %s in linear time', (_name, html) => {
+    expect(fast(() => linksFrom(html, base))).toBeLessThan(250)
+  })
+
+  it.each([
+    ['unclosed locs', '<loc>'.repeat(60_000)],
+    ['a loc of spaces', `<loc>${' '.repeat(300_000)}`],
+  ])('reads a sitemap of %s in linear time', (_name, xml) => {
+    expect(fast(() => urlsFromSitemap(xml, base))).toBeLessThan(250)
+  })
+
+  it('keeps a > inside a quoted attribute, and does not mistake <abbr> for a link', () => {
+    const links = linksFrom(
+      '<abbr href="/no">x</abbr><a title="a > b" href="/yes">y</a><A HREF=/upper>z</A>',
+      base,
+    )
+
+    expect(links.map((link) => link.pathname)).toEqual(['/yes', '/upper'])
+  })
+
+  it('reads locs with surrounding whitespace and any case, and skips markup inside one', () => {
+    const urls = urlsFromSitemap(
+      '<urlset><url><LOC>\n  http://localhost:3000/a  \n</LOC></url><loc><![CDATA[x]]></loc><loc>http://localhost:3000/b</loc></urlset>',
+      base,
+    )
+
+    expect(urls.map((url) => url.pathname)).toEqual(['/a', '/b'])
   })
 })

@@ -1,5 +1,5 @@
 import pc from 'picocolors'
-import { COUNTRY_INFO } from '../config/countries.ts'
+import { authorityOn, COUNTRY_INFO, localToday } from '../config/countries.ts'
 import { COUNTRIES } from '../config/define.ts'
 
 /**
@@ -16,11 +16,22 @@ export interface CountriesCommandOptions {
   json?: boolean
   /** Colour. Defaults to whatever picocolors detects for this terminal. */
   color?: boolean
+  /** The day to list authorities for, as an ISO date. Defaults to today. */
+  today?: string
 }
 
 export function formatCountries(options: CountriesCommandOptions = {}): string {
+  const today = options.today ?? localToday()
   if (options.json) {
-    const entries = COUNTRIES.map((code) => ({ code, ...COUNTRY_INFO[code] }))
+    // `authority` is the body on the day asked about, as in the text listing,
+    // so a program reading the JSON agrees with a person reading the list.
+    // `authorityChange` stays in: it is the schedule, and says when the
+    // answer changes.
+    const entries = COUNTRIES.map((code) => ({
+      code,
+      ...COUNTRY_INFO[code],
+      authority: authorityOn(code, today),
+    }))
     return `${JSON.stringify(entries, null, 2)}\n`
   }
 
@@ -31,8 +42,14 @@ export function formatCountries(options: CountriesCommandOptions = {}): string {
     lines.push(
       `${colors.bold(code)}  ${info.name}  ${colors.dim(`(${info.languages.join(', ')})`)}`,
       `    Statute:   ${info.statute}`,
-      `    Authority: ${info.authority}`,
+      `    Authority: ${authorityOn(code, today)}`,
     )
+    // A change still to come is shown before it happens, so somebody publishing
+    // in December knows their statement will name another body in January.
+    const change = info.authorityChange
+    if (change && today < change.on) {
+      lines.push(colors.dim(`    From ${change.on}: ${change.authority} (${change.source})`))
+    }
     // Said on the list itself, and not only in the docs, because this list is
     // where somebody picks the country they will publish a document under.
     if (info.unverified) {

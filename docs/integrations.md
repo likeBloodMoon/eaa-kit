@@ -246,11 +246,11 @@ jobs:
   audit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
-      - uses: likeBloodMoon/eaa-kit@v0.10.0
+      - uses: likeBloodMoon/eaa-kit@v0.11.0
         with:
           install-command: npm ci
           build-command: npm run build
@@ -287,6 +287,7 @@ watching is the wrong default for something whose job is to fail that build.
 | `concurrency` | from page and core count | Worker threads for the browserless engine; `1` for none |
 | `fast` | `false` | Skip the rules the browserless engine cannot decide instead of running them and discarding the answer |
 | `cache` | `true` | Reuse the result for any page whose markup has not changed; worth nothing on a fresh runner unless `.eaa-kit/cache` is restored |
+| `job-summary` | `true` | Write the Markdown summary to the job's summary page. Needs eaa-kit 0.11.0 or later; set `false` when `version` pins an older release |
 | `version` | `latest` | Version of eaa-kit to run |
 
 ### Outputs
@@ -333,7 +334,7 @@ before the job is allowed to fail:
   run: npx eaa-kit audit ./dist --format sarif --output a11y.sarif
   continue-on-error: true
 
-- uses: github/codeql-action/upload-sarif@v3
+- uses: github/codeql-action/upload-sarif@v4
   with:
     sarif_file: a11y.sarif
     category: eaa-kit
@@ -349,8 +350,71 @@ carries the categories SARIF leaves out:
 ```yaml
 - run: npx eaa-kit audit ./dist --format json --output a11y.json
   continue-on-error: true
-- uses: actions/upload-artifact@v4
+- uses: actions/upload-artifact@v5
   with:
     name: accessibility-report
     path: a11y.json
 ```
+
+## GitLab CI
+
+`eaa-kit init` writes this for a repository whose remote is on GitLab (gitlab.com, or a
+host with "gitlab" in its name), or when told `--ci gitlab`. Without a `.gitlab-ci.yml` it
+writes one. With one, it never touches it: the job goes in
+`.gitlab/eaa-kit.gitlab-ci.yml`, and `init` prints the two lines that include it.
+
+```yaml
+accessibility:
+  image: node:22
+  stage: test
+  script:
+    - npm ci
+    - npm run build
+    - npx --yes eaa-kit@0.11.0 audit dist --fail-on serious --baseline eaa-baseline.json --no-build --summary eaa-kit-summary.md
+  artifacts:
+    when: always
+    expose_as: accessibility summary
+    paths:
+      - eaa-kit-summary.md
+```
+
+The job runs in the `test` stage. When your `.gitlab-ci.yml` declares its own `stages:`
+without `test`, GitLab would refuse a job in it, so `init` uses `.post`, which GitLab adds to
+every pipeline, and the audit runs after your own stages.
+
+The console report is in the job log, which is where somebody reading a failed job looks.
+The [Markdown summary](reports.md#markdown-summary) is kept as an artifact and linked from
+merge requests through `expose_as`. A job exiting 1 fails the pipeline the same way it fails
+a GitHub workflow. For pnpm and Yarn `init` adds `corepack enable`, and for Bun and Deno it
+installs them first, since the audit runs through `npx` in the Node image.
+
+## Bitbucket Pipelines
+
+`eaa-kit init` writes this for a repository on bitbucket.org, or when told
+`--ci bitbucket`. Bitbucket reads one file and has no way to include another, so when a
+`bitbucket-pipelines.yml` is already there `init` writes nothing and points here. Add the
+step to your own pipelines by hand:
+
+```yaml
+image: node:22
+
+pipelines:
+  default:
+    - step:
+        name: Accessibility
+        caches:
+          - node
+        script:
+          - npm ci
+          - npm run build
+          - npx --yes eaa-kit@0.11.0 audit dist --fail-on serious --no-build --summary eaa-kit-summary.md
+        artifacts:
+          - eaa-kit-summary.md
+  pull-requests:
+    '**':
+      - step:
+          # the same step again
+```
+
+Change `dist` to your build directory, and add `--baseline eaa-baseline.json` once you have
+recorded one with `eaa-kit baseline`.

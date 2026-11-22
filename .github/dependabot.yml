@@ -1,0 +1,25 @@
+# Security updates and a weekly batch of version bumps, for the npm packages and for the
+# GitHub actions the workflows use.
+#
+# axe-core is left out of the version bumps: a new axe-core release adds rules, and so
+# findings, which is a release decision of its own and is named in the changelog.
+# Security updates for it still come through.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: axe-core
+        update-types: [version-update:semver-minor, version-update:semver-major]
+    groups:
+      dev-dependencies:
+        dependency-type: development
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

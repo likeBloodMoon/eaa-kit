@@ -182,10 +182,16 @@ export function linksFrom(html: string, from: URL): URL[] {
   const found: URL[] = []
   const seen = new Set<string>()
 
-  // Deliberately a regex rather than a parse: this runs before the audit, on
+  // Deliberately a scan rather than a parse: this runs before the audit, on
   // markup that has not been vetted, and standing up a DOM per page to read
   // hrefs would double the cost of a crawl for something a scan does as well.
-  for (const match of html.matchAll(/<a\b[^>]*?\shref\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/gi)) {
+  //
+  // One tag at a time, and never back over one: the single pattern this used
+  // to be ran on from every `<a` to the end of a page with no `>` in it, so a
+  // page of nothing but `<a ` took seconds per hundred kilobytes.
+  for (const tag of anchorTags(html)) {
+    const match = /\shref\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i.exec(tag)
+    if (match === null) continue
     const raw = (match[2] ?? match[3] ?? match[4] ?? '').trim()
     if (raw === '' || raw.startsWith('#')) continue
     if (/^(?:mailto|tel|javascript|data):/i.test(raw)) continue
@@ -206,12 +212,56 @@ export function linksFrom(html: string, from: URL): URL[] {
   return found
 }
 
+/**
+ * Each `<a …>` start tag, up to its `>`, with a `>` inside a quoted attribute
+ * kept in. Linear: every character is looked at once, and a tag left open
+ * ends the scan rather than being searched past from every `<a` inside it.
+ */
+function* anchorTags(html: string): Generator<string> {
+  const lower = html.toLowerCase()
+  let cursor = 0
+  for (;;) {
+    let start = lower.indexOf('<a', cursor)
+    while (start !== -1 && /[a-z0-9:_-]/.test(lower[start + 2] ?? '')) {
+      start = lower.indexOf('<a', start + 2)
+    }
+    if (start === -1) return
+    let quote: string | undefined
+    let end = -1
+    for (let at = start + 2; at < html.length; at += 1) {
+      const char = html[at]
+      if (quote !== undefined) {
+        if (char === quote) quote = undefined
+      } else if (char === '"' || char === "'") {
+        quote = char
+      } else if (char === '>') {
+        end = at
+        break
+      }
+    }
+    if (end === -1) return
+    yield html.slice(start, end)
+    cursor = end + 1
+  }
+}
+
 /** Page URLs listed in a sitemap, including one level of sitemap index. */
 export function urlsFromSitemap(xml: string, origin: URL): URL[] {
   const urls: URL[] = []
-  for (const match of xml.matchAll(/<loc>\s*([^<]+?)\s*<\/loc>/gi)) {
-    const raw = match[1]
-    if (!raw) continue
+  // indexOf rather than `<loc>\s*([^<]+?)\s*<\/loc>`: three quantifiers that
+  // all match whitespace backtrack cubically, and a sitemap of `<loc>` and
+  // spaces with no closing tag hung the crawl for good — on a file any site
+  // serves, and that the crawl fetches before its first page.
+  const lower = xml.toLowerCase()
+  let cursor = 0
+  for (;;) {
+    const open = lower.indexOf('<loc>', cursor)
+    if (open === -1) break
+    const close = lower.indexOf('</loc>', open + 5)
+    if (close === -1) break
+    cursor = close + 6
+    const raw = xml.slice(open + 5, close).trim()
+    if (raw === '' || raw.includes('<')) continue
     try {
       const url = new URL(raw)
       url.hash = ''
@@ -241,9 +291,8 @@ async function fetchPage(
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
-    const response = await impl(url.href, {
+    const fetched = await fetchWithinOrigin(url, impl, origin, {
       signal: controller.signal,
-      redirect: 'follow',
       // Caller's headers last: somebody who sets a user-agent means it.
       headers: {
         accept: 'text/html,application/xhtml+xml',
@@ -251,30 +300,36 @@ async function fetchPage(
         ...headers,
       },
     })
-    if (!response.ok) return { ok: false, reason: `HTTP ${response.status}` }
-
-    // The response URL, not the requested one: a redirect means the page that
-    // was audited lives somewhere else, and reporting the old path would point
-    // whoever has to fix it at a URL that does not serve this markup.
-    const finalUrl = new URL(response.url || url.href)
-    finalUrl.hash = ''
-
-    // Checked before anything else about the response, because a redirect is
-    // the one way out of the origin that neither the link filter nor the
-    // sitemap filter sees. Without it a loopback crawl redirected anywhere — an
-    // internal host, the public internet — follows it and audits what it finds,
-    // which is exactly what --allow-remote exists to gate. It is also the more
-    // useful thing to report than whatever the off-origin response turned out
-    // to contain.
-    if (finalUrl.origin !== origin) {
-      return { ok: false, reason: `redirected off ${origin} to ${finalUrl.origin}` }
+    // A redirect is the one way out of the origin that neither the link filter
+    // nor the sitemap filter sees. It is refused before the request is made:
+    // a loopback crawl redirected to an internal host or the public internet
+    // must not reach it, and the caller's headers — a preview token, a session
+    // cookie — must never be sent anywhere but the origin they were given for.
+    // It is also the more useful thing to report than whatever the off-origin
+    // response would have turned out to contain.
+    if ('offOrigin' in fetched) {
+      return { ok: false, reason: `redirected off ${origin} to ${fetched.offOrigin.origin}` }
     }
+    if ('tooMany' in fetched) {
+      return { ok: false, reason: `more than ${MAX_REDIRECTS} redirects` }
+    }
+    const { response } = fetched
+    if (!response.ok) {
+      await discard(response)
+      return { ok: false, reason: `HTTP ${response.status}` }
+    }
+
+    // Where the redirects ended, not the requested URL: the page that was
+    // audited lives there, and reporting the old path would point whoever has
+    // to fix it at a URL that does not serve this markup.
+    const finalUrl = fetched.url
 
     // A crawl follows links, and a link can point at anything. Auditing a PDF
     // or a JSON endpoint as if it were markup produces findings about a
     // document that was never a page.
     const type = response.headers.get('content-type') ?? ''
     if (!/\b(?:text\/html|application\/xhtml\+xml)\b/i.test(type)) {
+      await discard(response)
       return { ok: false, reason: `not HTML (${type.split(';')[0] || 'no content-type'})` }
     }
 
@@ -291,6 +346,60 @@ async function fetchPage(
     }
   } finally {
     clearTimeout(timer)
+  }
+}
+
+/** Redirects one fetch follows before it gives up on the chain. */
+const MAX_REDIRECTS = 10
+
+/**
+ * One request, following redirects by hand and never off `origin`.
+ *
+ * `redirect: 'follow'` makes the off-origin request before the caller can see
+ * where it went, and carries every header with it: fetch drops Authorization
+ * on a cross-origin hop and nothing else, so a cookie or a preview bypass
+ * token went to wherever a page redirected. Each hop is checked before it is
+ * requested instead.
+ */
+async function fetchWithinOrigin(
+  url: URL,
+  impl: typeof fetch,
+  origin: string,
+  init: { signal: AbortSignal; headers?: Record<string, string> },
+): Promise<{ response: Response; url: URL } | { offOrigin: URL } | { tooMany: true }> {
+  let current = new URL(url.href)
+  current.hash = ''
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
+    const response = await impl(current.href, { ...init, redirect: 'manual' })
+    const location = response.headers.get('location')
+    if (response.status >= 300 && response.status < 400 && location !== null) {
+      await discard(response)
+      const next = new URL(location, current)
+      next.hash = ''
+      if (next.origin !== origin) return { offOrigin: next }
+      current = next
+      continue
+    }
+    // An implementation that followed the redirect itself says so in `url`.
+    // Too late to have kept the request on the origin, but not too late to
+    // refuse what it brought back.
+    const landed = new URL(response.url || current.href)
+    landed.hash = ''
+    if (landed.origin !== origin) {
+      await discard(response)
+      return { offOrigin: landed }
+    }
+    return { response, url: landed }
+  }
+  return { tooMany: true }
+}
+
+/** Let go of a body nobody will read, so its connection is released. */
+async function discard(response: Response): Promise<void> {
+  try {
+    await response.body?.cancel()
+  } catch {
+    // Already consumed or already closed: nothing to release.
   }
 }
 
@@ -388,20 +497,20 @@ async function fetchSiteFile(
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
-    const response = await impl(new URL(name, entry).href, {
-      redirect: 'follow',
+    // The same refusal fetchPage makes, for the same reasons: a sitemap
+    // fetched from somewhere else is not this site's list of its own pages,
+    // and the request carrying the caller's headers must never leave the
+    // origin to find out.
+    const fetched = await fetchWithinOrigin(new URL(name, entry), impl, entry.origin, {
       signal: controller.signal,
       ...(headers === undefined ? {} : { headers }),
     })
-    if (!response.ok) return undefined
-
-    // The same check fetchPage makes, for the same reason: a redirect is the
-    // one way out of the origin that nothing else here sees. A sitemap fetched
-    // from somewhere else is not this site's list of its own pages, and
-    // seeding the crawl from it would be taking a stranger's word for what to
-    // audit.
-    const finalUrl = new URL(response.url || new URL(name, entry).href)
-    if (finalUrl.origin !== entry.origin) return undefined
+    if (!('response' in fetched)) return undefined
+    const { response } = fetched
+    if (!response.ok) {
+      await discard(response)
+      return undefined
+    }
 
     // A sitemap index for a large site is legitimately big, and nothing caps
     // what a server may send. Capped like any other body.

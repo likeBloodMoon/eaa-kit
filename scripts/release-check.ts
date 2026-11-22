@@ -31,7 +31,22 @@ export async function checkRelease(options: ReleaseCheckOptions): Promise<string
   const problems: string[] = []
   const read = (file: string): Promise<string> => readFile(path.join(options.root, file), 'utf8')
 
-  const version = (JSON.parse(await read('package.json')) as { version: string }).version
+  const pkg = JSON.parse(await read('package.json')) as {
+    version: string
+    dependencies?: Record<string, string>
+  }
+  const version = pkg.version
+
+  // A caret range lets a fresh install pick up an axe-core minor this release
+  // was never tested with, and a minor adds rules: somebody's CI fails on
+  // findings no changelog announced. The policy is that upgrades are pinned
+  // and named, so the range may move patches and nothing more.
+  const axe = pkg.dependencies?.['axe-core']
+  if (axe !== undefined && !/^(~|=)?\d+\.\d+\.\d+$/.test(axe)) {
+    problems.push(
+      `axe-core is "${axe}" in package.json: pin it (~x.y.z or x.y.z), since a new minor adds rules`,
+    )
+  }
 
   if (options.tag !== undefined && options.tag !== `v${version}`) {
     problems.push(`the tag is ${options.tag}, but package.json says ${version}`)

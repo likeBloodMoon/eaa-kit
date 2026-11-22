@@ -44,6 +44,27 @@ describe('release:check', () => {
     expect(problems).toEqual(['the tag is v1.2.4, but package.json says 1.2.3'])
   })
 
+  it.each(['~4.13.0', '4.13.0', '=4.13.0'])('accepts axe-core pinned as %s', async (range) => {
+    const root = await repo({
+      'package.json': JSON.stringify({ version: '1.2.3', dependencies: { 'axe-core': range } }),
+    })
+
+    expect(await checkRelease({ root })).toEqual([])
+  })
+
+  it.each(['^4.13.0', '>=4.13.0', '4.x', '*'])(
+    'refuses axe-core as %s, which lets an untested minor in',
+    async (range) => {
+      const root = await repo({
+        'package.json': JSON.stringify({ version: '1.2.3', dependencies: { 'axe-core': range } }),
+      })
+
+      expect(await checkRelease({ root })).toEqual([
+        `axe-core is "${range}" in package.json: pin it (~x.y.z or x.y.z), since a new minor adds rules`,
+      ])
+    },
+  )
+
   it('refuses a changelog with no heading for the version', async () => {
     const root = await repo({ 'CHANGELOG.md': '# Changelog\n\n## 1.2.2 — 2026-09-01\n' })
 

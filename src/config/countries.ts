@@ -26,6 +26,23 @@ export interface CountryInfo {
   /** Who the enforcement section tells a reader to go to. */
   authority: string
   /**
+   * A change of supervisor that the law has already scheduled, and the day it
+   * takes effect.
+   *
+   * A statement is published for months, so a body that is right today and
+   * wrong after New Year has to be written into the tool before New Year, and
+   * switched by the date a statement is generated on rather than by a release
+   * that has to land on the right day. `authorityOn` decides which applies, and
+   * the templates branch on the same date.
+   */
+  authorityChange?: {
+    /** ISO date the new body takes over, inclusive. */
+    on: string
+    authority: string
+    /** The provision that makes the change, for `eaa-kit countries` and the docs. */
+    source: string
+  }
+  /**
    * Set where the citations were established from secondary sources only.
    * `eaa-kit countries` shows it, so nobody takes these templates to have had the
    * same checking as the others. It is removed once somebody checks the
@@ -141,7 +158,45 @@ export const COUNTRY_INFO: Record<Country, CountryInfo> = {
     siteLocale: 'sv-SE',
     statute: 'Lag (2023:254) om vissa produkters och tjänsters tillgänglighet',
     authority: 'Post- och telestyrelsen (PTS)',
+    authorityChange: {
+      on: '2027-01-01',
+      authority: 'Digitaliseringsmyndigheten (PTS and Digg, merged)',
+      source: 'Förordning (2026:1769) med instruktion för Digitaliseringsmyndigheten, 21 §',
+    },
   },
+}
+
+/**
+ * Whether a country's scheduled change of supervisor has taken effect on a day.
+ *
+ * False for a country with no change scheduled. Dates are compared as ISO
+ * strings, which sort the way the calendar does.
+ */
+export function authorityChanged(country: Country, isoDate: string): boolean {
+  const change = COUNTRY_INFO[country].authorityChange
+  return change !== undefined && isoDate >= change.on
+}
+
+/** The body a reader is sent to on a given day. */
+export function authorityOn(country: Country, isoDate: string): string {
+  const info = COUNTRY_INFO[country]
+  return authorityChanged(country, isoDate) && info.authorityChange
+    ? info.authorityChange.authority
+    : info.authority
+}
+
+/**
+ * Today in the local calendar, as an ISO date.
+ *
+ * Local rather than UTC because the switch is a legal date in the country's
+ * own calendar: a statement generated in Stockholm at half past midnight on
+ * New Year's Day is generated in the new year, which `toISOString` would deny
+ * for another hour.
+ */
+export function localToday(now: Date = new Date()): string {
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${now.getFullYear()}-${month}-${day}`
 }
 
 /**

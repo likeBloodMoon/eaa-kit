@@ -1,6 +1,6 @@
 {
   "name": "eaa-kit",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "description": "WCAG 2.2 AA auditor and EU accessibility statement generator for fifteen countries (AT, BE, CH, CZ, DE, DK, ES, FI, FR, IE, IT, NL, PL, PT, SE). Audits a static build or a running site from the command line.",
   "type": "module",
   "license": "MIT",
@@ -98,27 +98,28 @@
     }
   },
   "dependencies": {
-    "axe-core": "^4.13.0",
-    "commander": "^15.0.0",
-    "jsdom": "^30.0.1",
+    "axe-core": "~4.13.0",
+    "commander": "^15.1.0",
+    "jsdom": "^30.1.3",
     "picocolors": "^1.1.1",
     "tinyglobby": "^0.2.17"
   },
   "devDependencies": {
-    "@11ty/eleventy": "^3.1.6",
+    "@11ty/eleventy": "^3.1.8",
     "@biomejs/biome": "^2.5.9",
     "@types/jsdom": "^30.0.0",
-    "@types/node": "^26.2.0",
+    "@types/node": "^26.6.6",
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
-    "astro": "^7.2.9",
-    "nuxt": "^4.5.2",
-    "playwright": "^1.62.1",
+    "astro": "^7.4.13",
+    "nuxt": "^4.6.4",
+    "playwright": "^1.65.1",
     "tsdown": "^0.22.14",
     "typescript": "^7.0.2",
-    "vite": "^8.2.2",
-    "vitest": "^4.1.11",
-    "webpack": "^5.110.2"
+    "vite": "^8.3.8",
+    "vitest": "^4.1.12",
+    "webpack": "^5.113.0",
+    "yaml": "^2.9.1"
   },
   "publishConfig": {
     "access": "public",

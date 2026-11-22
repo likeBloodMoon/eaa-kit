@@ -305,12 +305,61 @@ describe('enforcement body', () => {
   ] as Array<[Country, StatementLocale, string]>)(
     'names the %s authority in %s',
     async (country, locale, authority) => {
-      const statement = await renderStatement(config(), { country, locale })
+      // Held before any scheduled change, so this table does not start failing
+      // on the day a supervisor changes. The change itself is tested below.
+      const statement = await renderStatement(config(), { country, locale, today: '2026-11-22' })
 
       expect(flat(statement.markdown)).toContain(authority)
       expect(statement.markdown).not.toContain('Sozialministeriumservice')
     },
   )
+
+  describe('a supervisor the law has scheduled to change', () => {
+    it.each([
+      ['sv', '2026-12-31', 'Post- och telestyrelsen (PTS)', 'Digitaliseringsmyndigheten'],
+      [
+        'en',
+        '2026-12-31',
+        'Swedish Post and Telecom Authority (PTS)',
+        'Digitaliseringsmyndigheten',
+      ],
+      ['sv', '2027-01-01', 'Digitaliseringsmyndigheten', 'Post- och telestyrelsen'],
+      ['en', '2027-01-01', 'Digitaliseringsmyndigheten', 'Post and Telecom Authority'],
+      ['sv', '2031-06-15', 'Digitaliseringsmyndigheten', 'pts.se'],
+    ] as Array<[StatementLocale, string, string, string]>)(
+      'names the right Swedish body in %s on %s',
+      async (locale, today, named, absent) => {
+        const statement = await renderStatement(config(), { country: 'SE', locale, today })
+
+        expect(flat(statement.markdown)).toContain(named)
+        expect(statement.markdown).not.toContain(absent)
+      },
+    )
+
+    it('does not leave a link to the old body after the change', async () => {
+      const statement = await renderStatement(config(), {
+        country: 'SE',
+        locale: 'sv',
+        today: '2027-01-01',
+      })
+
+      expect(statement.markdown).not.toContain('https://pts.se')
+      expect(statement.html).not.toContain('pts.se')
+    })
+
+    it('changes nothing for a country with no change scheduled', async () => {
+      const before = await renderStatement(config(), { country: 'AT', today: '2026-12-31' })
+      const after = await renderStatement(config(), { country: 'AT', today: '2027-01-01' })
+
+      expect(after.markdown).toBe(before.markdown)
+    })
+
+    it('refuses a date that is not an ISO date', async () => {
+      await expect(
+        renderStatement(config(), { country: 'SE', locale: 'sv', today: '01.01.2027' }),
+      ).rejects.toThrow(/ISO date/)
+    })
+  })
 
   it.each([
     ['BE', 'fr'],

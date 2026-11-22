@@ -9,6 +9,73 @@ move: the JSON report's `schemaVersion` and the baseline file's. Both are bumped
 a field is removed, renamed, or changes meaning — new fields may appear without one, so
 consumers must ignore what they do not recognise.
 
+## 0.11.0 — 2026-11-22
+
+It fits your workflow, and it keeps your credentials where you gave them.
+
+### Security
+
+- **A crawl never follows a redirect off the site, and never sends `--header` values
+  there.** Redirects were followed automatically and the destination checked afterwards,
+  by which time the request had been made with every header on it. Fetch strips
+  `Authorization` on a cross-origin hop and nothing else, so a preview bypass token or an
+  access-proxy secret reached whatever host a page or the sitemap redirected to, and a
+  localhost-only crawl could be bounced into requesting internal addresses. Each hop is
+  now checked before it is requested, with at most 10 redirects.
+- **In browser mode, `--header` values go to the audited site only.** They were set on the
+  whole browser context, so the site's fonts, analytics and CDN scripts received them too.
+  Requests to the site are now fetched without following redirects, so a page or asset
+  that redirects elsewhere sends the browser on without them.
+- **The page cache keys on credentials with scrypt**, not a fast hash that let anyone
+  holding `.eaa-kit/cache` test password guesses against it offline.
+- **Crawled markup and sitemaps are scanned in linear time.** A sitemap with an unclosed
+  `<loc>` and a run of whitespace hung the crawl for good, and pages of unclosed tags took
+  seconds per hundred kilobytes to check for a single-page-app shell.
+- Every advisory in shipped dependencies is cleared (jsdom's `undici` and `source-map-js`).
+
+### Added
+
+- **`--format markdown`, and `--summary <path>`** to write it beside another format. A short
+  summary for a CI job page or a pull request comment: the verdict, the rules that fail the
+  run, and with a baseline what this change introduced apart from what the baseline
+  accepts. Rules the engine could not evaluate are counted in it, and it stays under
+  GitHub's comment limit. The GitHub Action writes it to the job summary (`job-summary`,
+  on by default).
+- **GitLab CI and Bitbucket Pipelines from `init`**, chosen from the git remote, or with
+  `--ci github|gitlab|bitbucket`. An existing pipeline file is never overwritten: GitLab's
+  job goes in a file of its own to include, in `.post` when the project's own `stages:` has
+  no `test`, and Bitbucket gets a pointer to the step.
+- **Sweden's new supervisor, by date.** From 1 January 2027 a Swedish statement names
+  Digitaliseringsmyndigheten (förordning 2026:1769, 21 §); before that it names PTS,
+  whichever version is installed. `statement --date` and `countries --date` preview either
+  side (in `countries --json` too), and `countries` announces the change before it happens.
+- **The HTML report prints**, on white whatever the system colour scheme, with each finding
+  kept on one page, link addresses written out and collapsed detail opened. With a
+  baseline it has a "Since the baseline" section: new violations, what is still accepted,
+  and the entries now fixed or expired.
+- `examples/summary.md`.
+
+### Fixed
+
+- **axe-core is pinned to 4.13.x.** The `^4.13.0` range let a fresh install pick up axe-core
+  4.14, which this release was never tested with and which runs more rules, so a project's
+  CI could start failing on findings no changelog announced. One already did: under 4.14,
+  `label-content-name-mismatch` (WCAG 2.5.3) fails Starlight's search button. An axe-core
+  upgrade now comes in a release of its own that names its new rules, and `release:check`
+  refuses a range that would let one in unannounced.
+- A dated flag such as `--expires-on 2027-02-30` was taken as 2 March. A date that does not
+  exist is refused now.
+- In browser mode, a Playwright on `NODE_PATH` or installed globally was loaded ahead of
+  the project's own `@playwright/test`.
+- The GitHub actions are on their Node 24 majors (`checkout@v6`, `setup-node@v6`,
+  `upload-sarif@v4`, since v3 is deprecated in December 2026), in the composite action, the
+  workflow `init` writes, and the docs.
+
+### Not in this release
+
+- The HTML report in the site's language (de, fr, nl, es, it). It moves to the next
+  release rather than shipping half-translated.
+
 ## 0.10.0 — 2026-10-01
 
 It finds your site, whatever it is built with.

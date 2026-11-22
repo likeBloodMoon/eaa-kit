@@ -11,6 +11,7 @@ this engine cannot evaluate.
 | [`report.json`](report.json) | `… --format json` |
 | [`report.sarif`](report.sarif) | `… --format sarif` |
 | [`report.html`](report.html) | `… --format html` |
+| [`summary.md`](summary.md) | `… --format markdown` |
 | [`baseline.json`](baseline.json) | `eaa-kit baseline tests/fixtures/site` |
 | [`eaa-review.json`](eaa-review.json) | `eaa-kit checklist --record examples/eaa-review.json` |
 | [`review.md`](review.md) | `… --output examples/review.md` |

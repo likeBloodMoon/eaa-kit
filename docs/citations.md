@@ -139,4 +139,9 @@ make a generated statement legal advice.
   (2026:1769) med instruktion för Digitaliseringsmyndigheten, which takes effect that day,
   21 §: "Myndigheten ska vara marknadskontrollmyndighet och tillsynsmyndighet enligt lagen
   (2023:254)". The Swedish templates will need to name Digitaliseringsmyndigheten from
-  then on. That is in the ROADMAP.
+  then on. **Done in 0.11.0:** the templates switch by the date a statement is generated
+  on, and `eaa-kit statement --date` previews either side. Confirmed again on 22 November
+  2026 against [lagen.nu's text of SFS 2026:1769](https://lagen.nu/2026:1769), whose
+  transitional provision repeals the instructions for both Post- och telestyrelsen
+  (2007:951) and Myndigheten för digital förvaltning (2018:1486). No web address for the
+  new agency had been published, so the post-switch templates name it without a link.

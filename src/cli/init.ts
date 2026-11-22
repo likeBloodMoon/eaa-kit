@@ -9,7 +9,14 @@ import { COUNTRIES, type Country } from '../config/define.ts'
 import { CONFIG_FILENAMES } from '../config/load.ts'
 import { exists } from '../fs.ts'
 import { fail, nextStep, note, warn } from './command.ts'
-import { findGitRoot, WORKFLOW_FILE, workflowFor } from './setup.ts'
+import {
+  CI_HOST_NAMES,
+  type CiHost,
+  detectCiHost,
+  findGitRoot,
+  pipelineFor,
+  pipelinePlan,
+} from './setup.ts'
 
 /**
  * `eaa-kit init`.
@@ -39,8 +46,13 @@ export interface InitCommandOptions {
   yes?: boolean
   /** Injectable so the prompts can be tested without a terminal. */
   ask?: (question: string, fallback: string) => Promise<string>
-  /** `--no-ci`: never offer the GitHub Actions workflow. */
+  /** `--no-ci`: never offer a CI pipeline. */
   ci?: false
+  /**
+   * `--ci <host>`: which CI to write a pipeline for. Worked out from the git
+   * remote otherwise, and GitHub when nothing says.
+   */
+  ciHost?: CiHost
   /** `--no-baseline`: never offer to record a baseline. */
   baseline?: false
 }
@@ -186,7 +198,7 @@ export async function runInitCommand(options: InitCommandOptions = {}): Promise<
   // The other two things a project needs before the tool is doing its job.
   // Each is only offered where it can work: a baseline needs a build that is
   // already there, since init never runs one, and a workflow needs a git
-  // repository and no workflow of the same name, which is never overwritten.
+  // repository and nowhere to put one that would overwrite something.
   const site = options.baseline === false ? undefined : await builtSite(cwd)
   const recordBaseline =
     site !== undefined &&
@@ -197,11 +209,17 @@ export async function runInitCommand(options: InitCommandOptions = {}): Promise<
       ),
     )
   const root = options.ci === false ? undefined : await findGitRoot(cwd)
-  const workflowPath = root === undefined ? undefined : path.join(root, WORKFLOW_FILE)
+  const host = root === undefined ? undefined : (options.ciHost ?? (await detectCiHost(root)))
+  const plan = root === undefined || host === undefined ? undefined : await pipelinePlan(root, host)
+  // A pipeline that cannot be written without overwriting something is said,
+  // not asked about: offering it and then refusing would be a question with
+  // only one answer.
+  if (plan !== undefined && 'refused' in plan) note(`No CI pipeline written: ${plan.refused}`)
+  const pipeline = plan !== undefined && 'file' in plan ? plan : undefined
   const writeWorkflow =
-    workflowPath !== undefined &&
-    !(await exists(workflowPath)) &&
-    isYes(await ask('Add a GitHub Actions workflow that audits every push? (y/n)', 'y'))
+    pipeline !== undefined &&
+    host !== undefined &&
+    isYes(await ask(`Add a ${CI_HOST_NAMES[host]} that audits every push? (y/n)`, 'y'))
 
   // Before any writing: an open stdin handle keeps the process alive after the
   // file is written, and the reader is left looking at a prompt that has gone.
@@ -267,8 +285,9 @@ export async function runInitCommand(options: InitCommandOptions = {}): Promise<
       'which is the honest default before an audit has run.',
   )
 
-  if (writeWorkflow && root !== undefined && workflowPath !== undefined) {
-    const workflow = await workflowFor({
+  if (writeWorkflow && root !== undefined && host !== undefined && pipeline !== undefined) {
+    const file = path.join(root, pipeline.file)
+    const content = await pipelineFor(host, {
       cwd,
       root,
       ...(site === undefined ? {} : { site }),
@@ -276,14 +295,19 @@ export async function runInitCommand(options: InitCommandOptions = {}): Promise<
       failOn: DEFAULT_FAIL_ON,
     })
     try {
-      await mkdir(path.dirname(workflowPath), { recursive: true })
-      await writeFile(workflowPath, workflow, 'utf8')
-      process.stderr.write(`Wrote ${path.relative(cwd, workflowPath)}\n`)
+      await mkdir(path.dirname(file), { recursive: true })
+      await writeFile(file, content, 'utf8')
+      process.stderr.write(`Wrote ${path.relative(cwd, file)}\n`)
+      if (pipeline.include !== undefined) {
+        note(
+          `.gitlab-ci.yml is already there, so the job went in a file of its own. Include it:\n\n  include:\n    - local: ${pipeline.include}\n`,
+        )
+      }
     } catch (cause) {
       // The config is written and is the part that matters; a workflow that
       // could not be is reported, not turned into a failed init.
       warn(
-        `Could not write ${WORKFLOW_FILE}: ${cause instanceof Error ? cause.message : String(cause)}`,
+        `Could not write ${pipeline.file}: ${cause instanceof Error ? cause.message : String(cause)}`,
       )
     }
   }

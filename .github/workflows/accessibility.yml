@@ -21,14 +21,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
 
       # In your own repository this becomes:
-      #   uses: likeBloodMoon/eaa-kit@v0.10.0
+      #   uses: likeBloodMoon/eaa-kit@v0.11.0
       #
       # An exact release tag. There is deliberately no moving v0 tag to follow:
       # this is a 0.x package, the flags and the JSON contract can still move

@@ -127,11 +127,19 @@ Vi strävar efter att svara så snart som möjligt.
 
 ## Tillsyn
 
+{{#if supervision.unchanged}}
 Om du inte är nöjd med vårt svar kan du anmäla saken till Post- och telestyrelsen (PTS), som
 har tillsyn över e-handelstjänster enligt lagen.
 
 Post- och telestyrelsen (PTS)
 https://pts.se
+{{/if}}
+{{#if supervision.changed}}
+Om du inte är nöjd med vårt svar kan du anmäla saken till Digitaliseringsmyndigheten, som
+har tillsyn över e-handelstjänster enligt lagen.
+
+Digitaliseringsmyndigheten
+{{/if}}
 
 Offentliga aktörers webbplatser och mobila applikationer omfattas av en annan lag, som
 kräver en egen tillgänglighetsredogörelse. Det här dokumentet ersätter inte den.

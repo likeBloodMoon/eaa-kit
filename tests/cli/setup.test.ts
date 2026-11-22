@@ -2,8 +2,20 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { parse } from 'yaml'
 import { runInitCommand } from '../../src/cli/init.ts'
-import { findGitRoot, WORKFLOW_FILE, workflowFor } from '../../src/cli/setup.ts'
+import {
+  BITBUCKET_FILE,
+  declaredStages,
+  detectCiHost,
+  findGitRoot,
+  GITLAB_FILE,
+  GITLAB_INCLUDED_FILE,
+  pipelineFor,
+  pipelinePlan,
+  WORKFLOW_FILE,
+  workflowFor,
+} from '../../src/cli/setup.ts'
 import { TOOL_VERSION } from '../../src/version.ts'
 
 const dirs: string[] = []
@@ -139,6 +151,193 @@ describe('workflowFor', () => {
   })
 })
 
+const config = (url: string, name = 'origin') =>
+  `[core]\n\tbare = false\n[remote "${name}"]\n\turl = ${url}\n\tfetch = +refs/heads/*:refs/remotes/${name}/*\n`
+
+describe('detectCiHost', () => {
+  it.each([
+    ['https://github.com/acme/site.git', 'github'],
+    ['git@github.com:acme/site.git', 'github'],
+    ['https://gitlab.com/acme/site.git', 'gitlab'],
+    ['git@gitlab.example.at:agency/site.git', 'gitlab'],
+    ['ssh://git@gitlab.internal:2222/agency/site.git', 'gitlab'],
+    ['https://bitbucket.org/acme/site.git', 'bitbucket'],
+    ['git@bitbucket.org:acme/site.git', 'bitbucket'],
+  ])('reads %s as %s', async (url, host) => {
+    const root = await repo({ '.git/config': config(url) })
+
+    expect(await detectCiHost(root)).toBe(host)
+  })
+
+  it('prefers origin to any other remote', async () => {
+    const root = await repo({
+      '.git/config':
+        config('https://github.com/mirror/site.git', 'mirror') +
+        config('https://gitlab.com/acme/site.git'),
+    })
+
+    expect(await detectCiHost(root)).toBe('gitlab')
+  })
+
+  it('falls back to the pipeline file already there, then to GitHub', async () => {
+    expect(await detectCiHost(await repo({ '.git/HEAD': '', [GITLAB_FILE]: 'x: 1\n' }))).toBe(
+      'gitlab',
+    )
+    expect(await detectCiHost(await repo({ '.git/HEAD': '', [BITBUCKET_FILE]: 'x\n' }))).toBe(
+      'bitbucket',
+    )
+    expect(await detectCiHost(await repo({ '.git/HEAD': '' }))).toBe('github')
+    expect(
+      await detectCiHost(await repo({ '.git/config': config('https://git.example.com/x.git') })),
+    ).toBe('github')
+  })
+})
+
+describe('pipelinePlan', () => {
+  it("writes GitLab's file when there is none, and a file to include when there is", async () => {
+    expect(await pipelinePlan(await repo({ '.git/HEAD': '' }), 'gitlab')).toEqual({
+      file: GITLAB_FILE,
+    })
+    expect(await pipelinePlan(await repo({ [GITLAB_FILE]: 'x: 1\n' }), 'gitlab')).toEqual({
+      file: GITLAB_INCLUDED_FILE,
+      include: '.gitlab/eaa-kit.gitlab-ci.yml',
+    })
+    const both = await repo({ [GITLAB_FILE]: 'x\n', [GITLAB_INCLUDED_FILE]: 'x\n' })
+    expect(await pipelinePlan(both, 'gitlab')).toHaveProperty('refused')
+  })
+
+  it('refuses Bitbucket when its one file exists, and names where the step is documented', async () => {
+    const plan = await pipelinePlan(await repo({ [BITBUCKET_FILE]: 'x\n' }), 'bitbucket')
+
+    expect(plan).toHaveProperty('refused', expect.stringContaining('docs/integrations.md'))
+  })
+})
+
+describe('GitLab and Bitbucket pipelines', () => {
+  async function project(files: Record<string, string> = {}) {
+    return repo({
+      '.git/HEAD': 'ref: refs/heads/main\n',
+      'package.json': JSON.stringify({ scripts: { build: 'astro build' } }),
+      'pnpm-lock.yaml': '',
+      ...files,
+    })
+  }
+
+  it('is a GitLab job that installs, builds and audits this project', async () => {
+    const root = await project()
+    const yaml = await pipelineFor('gitlab', {
+      cwd: root,
+      root,
+      site: path.join(root, 'dist'),
+      baseline: 'eaa-baseline.json',
+      failOn: 'serious',
+    })
+    const job = parse(yaml).accessibility
+
+    expect(job.image).toBe('node:22')
+    expect(job.script).toEqual([
+      'corepack enable',
+      'pnpm install --frozen-lockfile',
+      'pnpm run build',
+      `npx --yes eaa-kit@${TOOL_VERSION} audit dist --fail-on serious --baseline eaa-baseline.json --no-build --summary eaa-kit-summary.md`,
+    ])
+    expect(job.artifacts).toMatchObject({ when: 'always', paths: ['eaa-kit-summary.md'] })
+  })
+
+  it('runs from the package in a monorepo and keeps the artifact there', async () => {
+    const root = await project()
+    const cwd = path.join(root, 'apps', 'web')
+    await mkdir(cwd, { recursive: true })
+    await writeFile(path.join(cwd, 'package.json'), JSON.stringify({ scripts: { build: 'x' } }))
+    await writeFile(path.join(cwd, 'package-lock.json'), '{}')
+
+    const job = parse(await pipelineFor('gitlab', { cwd, root, failOn: 'critical' })).accessibility
+
+    expect(job.script[0]).toBe('cd apps/web')
+    expect(job.script.at(-1)).toBe(
+      `npx --yes eaa-kit@${TOOL_VERSION} audit --fail-on critical --summary eaa-kit-summary.md`,
+    )
+    expect(job.artifacts.paths).toEqual(['apps/web/eaa-kit-summary.md'])
+  })
+
+  it('is a Bitbucket pipeline that runs on every push and every pull request', async () => {
+    const root = await repo({
+      '.git/HEAD': 'ref: refs/heads/main\n',
+      'package.json': JSON.stringify({ scripts: { build: 'x' } }),
+      'bun.lock': '',
+    })
+    const doc = parse(
+      await pipelineFor('bitbucket', {
+        cwd: root,
+        root,
+        site: path.join(root, 'out'),
+        failOn: 'serious',
+      }),
+    )
+
+    const push = doc.pipelines.default[0].step
+    const pr = doc.pipelines['pull-requests']['**'][0].step
+    expect(pr).toEqual(push)
+    expect(push.script).toContain('npm install --global bun')
+    expect(push.script).toContain('bun install --frozen-lockfile')
+    expect(push.script.at(-1)).toContain('audit out --fail-on serious --no-build')
+    expect(push.artifacts).toEqual(['eaa-kit-summary.md'])
+  })
+
+  it('quotes a directory the shell or YAML would misread', async () => {
+    const root = await project()
+    const yaml = await pipelineFor('gitlab', {
+      cwd: root,
+      root,
+      site: path.join(root, 'my site #1'),
+      failOn: 'serious',
+    })
+    const audit = parse(yaml).accessibility.script.at(-1)
+
+    expect(audit).toContain("audit 'my site #1' --fail-on")
+  })
+})
+
+describe('the GitLab stage', () => {
+  it.each([
+    ['no stages key', 'build:\n  script: make\n', undefined],
+    [
+      'a block list',
+      'stages:\n  - build\n  - deploy # last\n\njob:\n  stage: build\n',
+      ['build', 'deploy'],
+    ],
+    ['a flow list', 'stages: [build, "test", deploy]\n', ['build', 'test', 'deploy']],
+    ['a flow list over lines', 'stages: [\n  lint,\n  deploy\n]\n', ['lint', 'deploy']],
+    ['a nested stages key', 'job:\n  stages: [x]\n', undefined],
+  ])('reads %s', (_name, config, expected) => {
+    expect(declaredStages(config)).toEqual(expected)
+  })
+
+  it('uses .post when the project declares stages without test, which GitLab would reject', async () => {
+    const root = await repo({
+      '.git/HEAD': '',
+      'package.json': JSON.stringify({ scripts: { build: 'x' } }),
+      [GITLAB_FILE]: 'stages:\n  - build\n  - deploy\n',
+    })
+
+    const job = parse(
+      await pipelineFor('gitlab', { cwd: root, root, failOn: 'serious' }),
+    ).accessibility
+
+    expect(job.stage).toBe('.post')
+  })
+
+  it('keeps test when the project declares it, or declares nothing', async () => {
+    for (const config of ['stages: [build, test]\n', 'image: node:22\n']) {
+      const root = await repo({ '.git/HEAD': '', [GITLAB_FILE]: config })
+      const job = parse(
+        await pipelineFor('gitlab', { cwd: root, root, failOn: 'serious' }),
+      ).accessibility
+      expect(job.stage).toBe('test')
+    }
+  })
+})
+
 describe('findGitRoot', () => {
   it('walks up to the repository', async () => {
     const root = await repo({ '.git/HEAD': 'ref: refs/heads/main\n', 'a/b/c.txt': '' })
@@ -190,6 +389,56 @@ describe('eaa-kit init sets up the project', () => {
     await runInitCommand({ cwd, yes: true, baseline: false })
 
     expect(await readFile(path.join(cwd, WORKFLOW_FILE), 'utf8')).toBe('# mine\n')
+  })
+
+  it('writes a GitLab job for a repository pushed to GitLab', async () => {
+    const cwd = await repo({
+      '.git/config': config('git@gitlab.com:acme/site.git'),
+      'index.html': PAGE,
+    })
+
+    await runInitCommand({ cwd, yes: true, baseline: false })
+
+    expect(await readFile(path.join(cwd, GITLAB_FILE), 'utf8')).toContain('accessibility:')
+    await expect(readFile(path.join(cwd, WORKFLOW_FILE), 'utf8')).rejects.toThrow()
+  })
+
+  it('leaves an existing .gitlab-ci.yml alone and writes a file to include', async () => {
+    const cwd = await repo({
+      '.git/config': config('https://gitlab.com/acme/site.git'),
+      'index.html': PAGE,
+      [GITLAB_FILE]: 'stages: [test]\n',
+    })
+
+    await runInitCommand({ cwd, yes: true, baseline: false })
+
+    expect(await readFile(path.join(cwd, GITLAB_FILE), 'utf8')).toBe('stages: [test]\n')
+    expect(await readFile(path.join(cwd, GITLAB_INCLUDED_FILE), 'utf8')).toContain('accessibility:')
+  })
+
+  it('takes --ci over the remote', async () => {
+    const cwd = await repo({
+      '.git/config': config('https://github.com/acme/site.git'),
+      'index.html': PAGE,
+    })
+
+    await runInitCommand({ cwd, yes: true, baseline: false, ciHost: 'bitbucket' })
+
+    expect(await readFile(path.join(cwd, BITBUCKET_FILE), 'utf8')).toContain('pipelines:')
+    await expect(readFile(path.join(cwd, WORKFLOW_FILE), 'utf8')).rejects.toThrow()
+  })
+
+  it('never overwrites bitbucket-pipelines.yml', async () => {
+    const cwd = await repo({
+      '.git/config': config('https://bitbucket.org/acme/site.git'),
+      'index.html': PAGE,
+      [BITBUCKET_FILE]: '# mine\n',
+    })
+
+    const { exitCode } = await runInitCommand({ cwd, yes: true, baseline: false })
+
+    expect(exitCode).toBe(0)
+    expect(await readFile(path.join(cwd, BITBUCKET_FILE), 'utf8')).toBe('# mine\n')
   })
 
   it('offers no workflow outside a git repository', async () => {

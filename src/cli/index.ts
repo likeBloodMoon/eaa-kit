@@ -12,6 +12,7 @@ import {
   STATEMENT_LOCALES,
   type StatementLocale,
 } from '../config/define.ts'
+import { isCalendarDate } from '../text.ts'
 import { TOOL_VERSION } from '../version.ts'
 import { OUTPUT_FORMATS, runAuditCommand } from './audit.ts'
 import { runBaselineCommand } from './baseline.ts'
@@ -27,6 +28,7 @@ import {
   note,
 } from './command.ts'
 import { DIFF_FORMATS, type DiffCommandOptions, runDiffCommand } from './diff.ts'
+import { CI_HOSTS, type CiHost } from './hosts.ts'
 import {
   runStatementCommand,
   STATEMENT_FORMATS,
@@ -104,7 +106,7 @@ function wholeNumber(min: number): (value: string) => number {
 }
 
 function parseDate(value: string): string {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(Date.parse(`${value}T00:00:00Z`))) {
+  if (!isCalendarDate(value)) {
     throw new InvalidArgumentError('expected an ISO date, e.g. 2026-12-31')
   }
   return value
@@ -113,6 +115,7 @@ function parseDate(value: string): string {
 const parseLocale = oneOf(STATEMENT_LOCALES)
 const parseCountry = oneOf(COUNTRIES, (value) => value.toUpperCase())
 const parseStatementFormat = oneOf(STATEMENT_FORMATS)
+const parseCiHost = oneOf(CI_HOSTS, (value) => value.toLowerCase())
 const parseImpact = oneOf(IMPACT_LEVELS)
 const parseFormat = oneOf(OUTPUT_FORMATS)
 const parsePositive = wholeNumber(1)
@@ -208,6 +211,10 @@ program
     parseFormat,
   )
   .option('--output <path>', 'write the report to a file instead of stdout')
+  .option(
+    '--summary <path>',
+    'also write a Markdown summary of what this run found, e.g. to $GITHUB_STEP_SUMMARY',
+  )
   .option('--browser', 'audit in real Chromium, covering the rules jsdom cannot evaluate')
   .option(
     '--fast',
@@ -322,9 +329,11 @@ program
   .command('countries')
   .description('List the countries a statement can be written for, and what each one names')
   .option('--json', 'print the list as JSON')
-  .action(async (flags: { json?: true }) => {
+  .option('--date <yyyy-mm-dd>', 'list the authorities as of this day (default: today)', parseDate)
+  .action(async (flags: { json?: true; date?: string }) => {
     const { formatCountries } = await import('./countries.ts')
-    process.stdout.write(formatCountries(flags))
+    const { date, ...rest } = flags
+    process.stdout.write(formatCountries({ ...rest, ...(date ? { today: date } : {}) }))
   })
 
 program
@@ -373,23 +382,32 @@ program
   .option('--output <path>', 'write here instead of eaa.config.json')
   .option('--force', 'overwrite a config that is already there')
   .option('-y, --yes', 'take every default without asking')
-  .option('--no-ci', 'never offer the GitHub Actions workflow')
+  .option('--no-ci', 'never offer a CI pipeline')
+  .option(
+    '--ci <host>',
+    `CI to write a pipeline for (${CI_HOSTS.join('|')}; default: from the git remote)`,
+    parseCiHost,
+  )
   .option('--no-baseline', 'never offer to record a baseline')
   .action(
     async (flags: {
       output?: string
       force?: true
       yes?: true
-      ci: boolean
+      ci: boolean | CiHost
       baseline: boolean
     }) => {
-      const { ci, baseline, ...rest } = flags
+      const { ci: ciFlag, baseline, ...rest } = flags
+      // --ci <host> and --no-ci share commander's `ci` key.
+      const ci = ciFlag !== false
+      const ciHost = typeof ciFlag === 'string' ? ciFlag : undefined
       const { runInitCommand } = await import('./init.ts')
       // Commander sets both to true unless the --no- form was typed, and true
       // means "ask", which is what init does anyway.
       const { exitCode } = await runInitCommand({
         ...rest,
         ...(ci ? {} : { ci: false as const }),
+        ...(ciHost === undefined ? {} : { ciHost }),
         ...(baseline ? {} : { baseline: false as const }),
       })
       process.exitCode = exitCode
@@ -417,6 +435,11 @@ program
     parseStatementFormat,
   )
   .option('--output <path>', 'write the statement to a file instead of stdout')
+  .option(
+    '--date <yyyy-mm-dd>',
+    'generate as of this day, which decides a supervisor the law has scheduled to change (default: today)',
+    parseDate,
+  )
   .action(async (flags: StatementFlags) => {
     const { lang, ...options } = flags
     const { exitCode } = await runStatementCommand({

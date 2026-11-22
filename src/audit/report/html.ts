@@ -74,6 +74,12 @@ export interface HtmlReportOptions {
   baseUrl?: string
   /** What a person recorded about the criteria this run could not reach. */
   review?: ReviewOptions
+  /**
+   * What the baseline said about this run, when one was used: entries whose
+   * element was not found on an audited page (fixed, or gone), and entries
+   * past their expiry date.
+   */
+  baseline?: { stale: number; expired: number }
   /** Injectable so tests and snapshots are not time-dependent. */
   now?: Date
 }
@@ -102,6 +108,7 @@ ${STYLES}
 <main>
 <h1>Accessibility audit</h1>
 ${verdict(totals, options)}
+${sinceBaseline(totals, options)}
 ${scoreboard(audits)}
 ${issues(audits, options)}
 ${runDetails(audits, engine, generatedAt, options)}
@@ -165,6 +172,31 @@ function verdict(totals: JsonSummary, options: HtmlReportOptions): string {
   }
 
   return banner('pass', 'No violations found', 'Automated testing found nothing to report.')
+}
+
+/**
+ * What changed since the baseline was recorded, for the reader who wants to
+ * know whether things are getting better: what is new, what the project still
+ * lives with, and what has been fixed since.
+ *
+ * Only with a baseline. Without one there is no "last time" this report can
+ * speak for, and inventing one from an earlier run nobody pointed at would be
+ * a comparison the reader never asked for.
+ */
+function sinceBaseline(totals: JsonSummary, options: HtmlReportOptions): string {
+  const baseline = options.baseline
+  if (baseline === undefined) return ''
+  const items = [
+    `<li><strong>${totals.failing}</strong> new ${totals.failing === 1 ? 'violation' : 'violations'} at or above ${escapeText(options.failOn)}, which the baseline does not list</li>`,
+    `<li><strong>${totals.accepted}</strong> ${totals.accepted === 1 ? 'element' : 'elements'} the baseline still accepts</li>`,
+    `<li><strong>${baseline.stale}</strong> baseline ${baseline.stale === 1 ? 'entry' : 'entries'} no longer found: fixed, or the element is gone</li>`,
+  ]
+  if (baseline.expired > 0) {
+    items.push(
+      `<li><strong>${baseline.expired}</strong> baseline ${baseline.expired === 1 ? 'entry has' : 'entries have'} expired and no longer ${baseline.expired === 1 ? 'suppresses' : 'suppress'} anything</li>`,
+    )
+  }
+  return `<h2>Since the baseline</h2>\n<ul class="counts since">\n  ${items.join('\n  ')}\n</ul>`
 }
 
 function banner(kind: string, heading: string, detail: string): string {
@@ -628,7 +660,8 @@ p.reach, p.sources, p.selector, p.more, p.written-in { margin: 0.35rem 0; font-s
 .element details { font-size: 0.9rem; color: #4a4a4a; }
 .element summary { cursor: pointer; }
 ul.page-list { margin: 0.35rem 0 0; padding-left: 1.25rem; }
-@media (prefers-color-scheme: dark) {
+/* Screen only: a reader whose system is dark still prints on white paper. */
+@media screen and (prefers-color-scheme: dark) {
   body { background: #121212; color: #ededed; }
   a { color: #9ec1ff; }
   h2, hr { border-color: #3a3a3a; }
@@ -664,9 +697,26 @@ ul.page-list { margin: 0.35rem 0 0; padding-left: 1.25rem; }
   .badge.unclassified { background: #1f1f1f; border-color: #b6b6b6; color: #d8d8d8; }
 }
 @media print {
-  body { background: #ffffff; color: #000000; }
-  main { max-width: none; }
+  @page { margin: 16mm 14mm; }
+  :root { color-scheme: light; }
+  body { background: #ffffff; color: #000000; font-size: 10.5pt; line-height: 1.45; }
+  main { max-width: none; padding: 0; }
   a { color: #000000; }
+  /* Paper has no links, so the address goes beside the text it was behind. */
+  a[href^="http"]::after { content: " <" attr(href) ">"; font-size: 0.8em; color: #333333;
+    overflow-wrap: anywhere; }
+  h1, h2, h3, p.rule, p.review-heading, p.accepted-heading { break-after: avoid; }
+  h2 { margin-top: 1.5rem; padding-top: 0.75rem; }
+  li.finding, li.issue, .element, .tile, .verdict, dl.run, tr, ul.counts { break-inside: avoid; }
+  pre, pre code { white-space: pre-wrap; overflow-wrap: anywhere; overflow: visible; }
+  .scroll { overflow: visible; }
+  /* Collapsed detail is still detail: a printed report is read without a mouse. */
+  details::details-content { content-visibility: visible; display: block; }
+  summary { list-style: none; font-weight: 600; }
+  .badge, .tile, .verdict, pre.suggested { print-color-adjust: exact;
+    -webkit-print-color-adjust: exact; }
+  .scoreboard { gap: 0.4rem; }
+  .tile { padding: 0.4rem 0.6rem; }
 }`
 
 /**

@@ -117,7 +117,7 @@ export type RedirectMode = (typeof REDIRECT_MODES)[number]
  * should pay for a reporter to read a config file. A test asserts the two
  * lists agree, so a format cannot be added to one and not the other.
  */
-export const AUDIT_FORMATS = ['console', 'json', 'sarif', 'html'] as const
+export const AUDIT_FORMATS = ['console', 'json', 'sarif', 'html', 'markdown'] as const
 export type AuditFormat = (typeof AUDIT_FORMATS)[number]
 
 /**

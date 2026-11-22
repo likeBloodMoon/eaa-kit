@@ -46,8 +46,8 @@ export interface BrowserRunnerOptions {
   concurrency?: number
   /**
    * Extra request headers, for a site behind a login or preview protection.
-   * Set on the browser context, so every tab and every asset it fetches carries
-   * them. Credentials: never recorded in a report.
+   * Added to every request to the audited site's own origin, page and asset
+   * alike, and to nothing else. Credentials: never recorded in a report.
    */
   headers?: Record<string, string>
 }
@@ -120,14 +120,19 @@ export async function runBrowserAudit(
     // otherwise refuse the injected axe-core as an inline script and every page
     // would come back unaudited. Observed on a real build the first time this
     // ran outside the fixtures.
-    // Credentials for a staging site or a preview deployment, on the context so
-    // every tab carries them: a protected site protects its assets too, and a
-    // page audited without its stylesheet is a page audited wrong.
-    const context = await browser.newContext({
-      viewport,
-      bypassCSP: true,
-      ...(options.headers === undefined ? {} : { extraHTTPHeaders: options.headers }),
-    })
+    const context = await browser.newContext({ viewport, bypassCSP: true })
+
+    // Credentials for a staging site or a preview deployment, on every request
+    // to that site: a protected site protects its assets too, and a page
+    // audited without its stylesheet is a page audited wrong. Only to that
+    // site. They used to be set as the context's extraHTTPHeaders, which
+    // Chromium sends on every request a page makes, so the fonts, analytics
+    // and CDN scripts of the audited site all received the preview token too.
+    if (options.headers !== undefined) {
+      const credentials = options.headers
+      const origins = siteOrigins(pages, server?.origin)
+      await context.route('**/*', credentialsRoute(origins, credentials))
+    }
 
     // Indexed by position rather than pushed in completion order: the pages
     // finish in whatever order the server answers them, and two runs of one
@@ -239,9 +244,81 @@ export function servedUrl(origin: string, relativePath: string): string {
 }
 
 /** The bits of playwright this runner uses, so the import can stay dynamic. */
+export interface RouteLike {
+  request(): { url(): string; headers(): Record<string, string> }
+  continue(): Promise<void>
+  fetch(options: { headers: Record<string, string>; maxRedirects: number }): Promise<unknown>
+  fulfill(options: { response: unknown }): Promise<void>
+  abort(): Promise<void>
+}
+
 interface BrowserContextLike {
   newPage(): Promise<PageLike>
+  route(url: string, handler: (route: RouteLike) => Promise<void>): Promise<void>
   close(): Promise<void>
+}
+
+/**
+ * A route handler that adds `credentials` to requests for `origins`, and to
+ * nothing else, redirects included.
+ *
+ * Requests to the site are fetched here and handed back, not continued with
+ * the headers added: Playwright carries a continued request's header
+ * overrides onto every redirect hop, so a page or asset on the site that
+ * redirected elsewhere took the credentials with it. With no redirects
+ * followed here, a 3xx goes back to the browser, which follows it as a new
+ * request; that one is routed again, and leaves the site bare.
+ *
+ * One side effect, on the safe side: Chromium treats a document handed back
+ * this way as public, so it may not load assets from another loopback or
+ * private address. Turning that check off would let an audited page probe the
+ * network of the machine running the audit.
+ */
+export function credentialsRoute(
+  origins: ReadonlySet<string>,
+  credentials: Record<string, string>,
+): (route: RouteLike) => Promise<void> {
+  return async (route) => {
+    const request = route.request()
+    if (!origins.has(originOf(request.url()))) return route.continue()
+    try {
+      const response = await route.fetch({
+        headers: { ...request.headers(), ...credentials },
+        maxRedirects: 0,
+      })
+      return await route.fulfill({ response })
+    } catch {
+      // Unreachable, timed out, or the page went away: the failure the browser
+      // would have recorded, without a retry that could send the credentials
+      // anywhere else.
+      return route.abort()
+    }
+  }
+}
+
+/**
+ * The origins credentials may go to: those of the crawled pages, which a crawl
+ * keeps to one origin, and the loopback server for a build off disk.
+ */
+export function siteOrigins(
+  pages: readonly CollectedPage[],
+  serverOrigin: string | undefined,
+): Set<string> {
+  const origins = new Set<string>()
+  if (serverOrigin !== undefined) origins.add(serverOrigin)
+  for (const page of pages) {
+    const origin = originOf(page.absolutePath)
+    if (origin.startsWith('http')) origins.add(origin)
+  }
+  return origins
+}
+
+function originOf(url: string): string {
+  try {
+    return new URL(url).origin
+  } catch {
+    return 'null'
+  }
 }
 
 interface PageLike {
@@ -259,7 +336,6 @@ interface BrowserLike {
   newContext(options?: {
     viewport?: { width: number; height: number }
     bypassCSP?: boolean
-    extraHTTPHeaders?: Record<string, string>
   }): Promise<BrowserContextLike>
   close(): Promise<void>
 }
@@ -313,13 +389,24 @@ export async function loadChromium(cwd = process.cwd()): Promise<ChromiumLike> {
   //
   // @playwright/test is included because it is what most projects actually
   // install, and it re-exports the same launchers.
+  //
+  // The project's own install is looked for on its own first. `require.resolve`
+  // also searches NODE_PATH and the global folders, so a global `playwright`
+  // used to win over the `@playwright/test` the project had installed, and the
+  // run drove whichever Chromium that global copy happened to pair with.
   const specifiers = ['playwright', '@playwright/test']
-  const roots = [cwd, undefined]
+  const passes: Array<{ root: string | undefined; installedIn?: string }> = [
+    { root: cwd, installedIn: cwd },
+    { root: cwd },
+    { root: undefined },
+  ]
+  const seen = new Set<unknown>()
 
-  for (const root of roots) {
+  for (const { root, installedIn } of passes) {
     for (const specifier of specifiers) {
-      const loaded = await tryLoad(specifier, root)
-      if (loaded === undefined) continue
+      const loaded = await tryLoad(specifier, root, installedIn)
+      if (loaded === undefined || seen.has(loaded)) continue
+      seen.add(loaded)
       tried.push(`${specifier}${root === undefined ? ' (from eaa-kit)' : ''}`)
       const chromium = launcherIn(loaded)
       if (chromium !== undefined) return chromium
@@ -346,13 +433,48 @@ export async function loadChromium(cwd = process.cwd()): Promise<ChromiumLike> {
 }
 
 /** Import a specifier, resolved from `root` when given. Undefined if absent. */
-async function tryLoad(specifier: string, root: string | undefined): Promise<unknown> {
+async function tryLoad(
+  specifier: string,
+  root: string | undefined,
+  /** Accept only a copy installed for this project, not one found on NODE_PATH. */
+  installedIn?: string,
+): Promise<unknown> {
   try {
     if (root === undefined) return await import(specifier)
     const require = createRequire(pathToFileURL(path.join(root, 'package.json')).href)
-    return await import(pathToFileURL(require.resolve(specifier)).href)
+    const resolved = require.resolve(specifier)
+    if (installedIn !== undefined && !isInstalledFor(resolved, installedIn)) return undefined
+    return await import(pathToFileURL(resolved).href)
   } catch {
     return undefined
+  }
+}
+
+/**
+ * Whether a resolved file came from the project's own dependencies: a
+ * node_modules directory in the project or above it (a monorepo hoists to its
+ * root), or Yarn's cache, which is where Plug'n'Play keeps them.
+ */
+export function isInstalledFor(
+  resolved: string,
+  project: string,
+  /** Injectable so the Windows rules can be tested anywhere. */
+  paths: typeof path = path,
+): boolean {
+  // Both sides absolute, and on Windows compared without case: a drive letter
+  // can come back from require.resolve as c: and from the working directory
+  // as C:, and NTFS does not care, so neither may this.
+  const fold =
+    paths.sep === '\\' ? (value: string) => value.toLowerCase() : (value: string) => value
+  const file = fold(paths.resolve(resolved))
+  let dir = fold(paths.resolve(project))
+  for (;;) {
+    for (const store of ['node_modules', '.yarn']) {
+      if (file.startsWith(paths.join(dir, store) + paths.sep)) return true
+    }
+    const parent = paths.dirname(dir)
+    if (parent === dir) return false
+    dir = parent
   }
 }
 

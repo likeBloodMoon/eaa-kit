@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto'
+import { createHash, scryptSync } from 'node:crypto'
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import * as s from '../schema.ts'
@@ -179,10 +179,31 @@ export function inputsKey(inputs: CacheInputs): string {
         `viewport=${inputs.viewport ? `${inputs.viewport.width}x${inputs.viewport.height}` : ''}`,
         `baseUrl=${inputs.baseUrl ?? ''}`,
         `timeout=${inputs.timeoutMs ?? ''}`,
-        `headers=${createHash('sha256').update(headers).digest('hex')}`,
+        `headers=${headersDigest(headers)}`,
       ].join('\n'),
     )
     .digest('hex')
+}
+
+/**
+ * The credentials, as something that changes when they do and that nobody
+ * can work backwards from.
+ *
+ * A fast hash is not that. The cache directory is meant to be kept between CI
+ * runs, and with everything else in the key guessable, a SHA-256 of
+ * `authorization=Basic …` lets whoever can read the cache try billions of
+ * passwords a second until one matches. scrypt makes each guess cost what one
+ * run pays once, tens of milliseconds. No headers is the ordinary case and
+ * keeps the old digest, so existing caches stay valid.
+ */
+function headersDigest(headers: string): string {
+  if (headers === '') return createHash('sha256').update('').digest('hex')
+  return scryptSync(headers, 'eaa-kit cache: request headers', 32, {
+    N: 2 ** 15,
+    r: 8,
+    p: 1,
+    maxmem: 64 * 1024 * 1024,
+  }).toString('hex')
 }
 
 /**

@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   BrowserUnavailableError,
+  isInstalledFor,
   launcherIn,
   loadChromium,
 } from '../../../src/audit/runners/playwright.ts'
@@ -166,5 +167,41 @@ describe('launcherIn', () => {
     expect(launcherIn(null)).toBeUndefined()
     expect(launcherIn({})).toBeUndefined()
     expect(launcherIn({ default: undefined })).toBeUndefined()
+  })
+})
+
+describe('isInstalledFor', () => {
+  const project = path.join(path.sep, 'work', 'agency', 'apps', 'site')
+
+  it.each([
+    [path.join(project, 'node_modules', 'playwright', 'index.js'), true],
+    // A monorepo hoists to its root.
+    [path.join(path.sep, 'work', 'agency', 'node_modules', '.pnpm', 'x', 'index.js'), true],
+    // Yarn Plug'n'Play.
+    [path.join(project, '.yarn', 'cache', 'playwright.zip', 'index.js'), true],
+    // NODE_PATH and the global folders are not the project's.
+    [
+      path.join(path.sep, 'usr', 'local', 'lib', 'node_modules_global', 'playwright', 'index.js'),
+      false,
+    ],
+    [path.join(path.sep, 'opt', 'npm-tools', 'node_modules', 'playwright', 'index.js'), false],
+    [path.join(project + '-other', 'node_modules', 'playwright', 'index.js'), false],
+  ])("%s is the project's own: %s", (resolved, expected) => {
+    expect(isInstalledFor(resolved, project)).toBe(expected)
+  })
+  it.each([
+    // The drive letter in another case, as require.resolve and process.cwd()
+    // can disagree on Windows.
+    ['c:\\work\\site\\node_modules\\playwright\\index.js', 'C:\\work\\site', true],
+    ['C:\\Work\\Agency\\node_modules\\.pnpm\\x\\index.js', 'c:\\work\\agency\\apps\\site', true],
+    ['C:\\work\\site\\.yarn\\cache\\playwright.zip\\index.js', 'C:\\work\\site', true],
+    [
+      'C:\\Users\\me\\AppData\\Roaming\\npm\\node_modules\\playwright\\index.js',
+      'C:\\work\\site',
+      false,
+    ],
+    ['D:\\work\\site\\node_modules\\playwright\\index.js', 'C:\\work\\site', false],
+  ])("on Windows, %s is the project %s's own: %s", (resolved, project, expected) => {
+    expect(isInstalledFor(resolved, project, path.win32)).toBe(expected)
   })
 })

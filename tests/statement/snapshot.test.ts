@@ -69,6 +69,15 @@ const COMBINATIONS = [
   { country: 'SE', locale: 'sv' },
 ] as const
 
+/**
+ * The day every snapshot is generated on. Held still because some countries
+ * name a different supervisor from a date the law sets, and a snapshot that
+ * changes on New Year's Day for no reason in the diff would teach people to
+ * update snapshots without reading them. The days after a change have
+ * snapshots of their own, below.
+ */
+const TODAY = '2026-11-22'
+
 async function fixtures() {
   const [config, report] = await Promise.all([
     readFile(path.join(FIXTURES, 'eaa.config.json'), 'utf8'),
@@ -85,7 +94,7 @@ describe('statement snapshots', () => {
   it.each(COMBINATIONS)('renders $country/$locale as markdown', async (combination) => {
     const { config, audit } = await fixtures()
 
-    const statement = await renderStatement(config, { ...combination, audit })
+    const statement = await renderStatement(config, { ...combination, audit, today: TODAY })
 
     await expect(statement.markdown).toMatchFileSnapshot(
       `./__snapshots__/statement.${statement.template}.md`,
@@ -95,10 +104,27 @@ describe('statement snapshots', () => {
   it.each(COMBINATIONS)('renders $country/$locale as HTML', async (combination) => {
     const { config, audit } = await fixtures()
 
-    const statement = await renderStatement(config, { ...combination, audit })
+    const statement = await renderStatement(config, { ...combination, audit, today: TODAY })
 
     await expect(stable(statement.html)).toMatchFileSnapshot(
       `./__snapshots__/statement.${statement.template}.html`,
+    )
+  })
+
+  it.each([
+    { country: 'SE', locale: 'sv' },
+    { country: 'SE', locale: 'en' },
+  ] as const)('renders $country/$locale after its supervisor changes', async (combination) => {
+    const { config, audit } = await fixtures()
+
+    const statement = await renderStatement(config, {
+      ...combination,
+      audit,
+      today: '2027-01-01',
+    })
+
+    await expect(statement.markdown).toMatchFileSnapshot(
+      `./__snapshots__/statement.${statement.template}.2027-01-01.md`,
     )
   })
 
@@ -129,7 +155,7 @@ describe('statement snapshots', () => {
   it('renders a statement with no audit report behind it', async () => {
     const { config } = await fixtures()
 
-    const statement = await renderStatement(config)
+    const statement = await renderStatement(config, { today: TODAY })
 
     await expect(statement.markdown).toMatchFileSnapshot(
       './__snapshots__/statement.at.de.no-audit.md',

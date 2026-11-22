@@ -2,51 +2,20 @@
 
 [![CI](https://github.com/likeBloodMoon/eaa-kit/actions/workflows/ci.yml/badge.svg)](https://github.com/likeBloodMoon/eaa-kit/actions/workflows/ci.yml)
 
-Build-time WCAG 2.2 AA auditor and EU accessibility statement generator for static sites,
-built for the freelancers and small agencies who have to comply with the European
-Accessibility Act (in force since 28 June 2025) without an accessibility budget. It started
-in the DACH region — the BFSG in Germany, the BaFG in Austria — and the statement now names
-the statute and supervisory body of **fifteen countries**: Austria, Belgium, Czechia,
-Denmark, Finland, France, Germany, Ireland, Italy, the Netherlands, Poland, Portugal,
-Spain, Sweden and Switzerland, each in its own language as well as English.
+eaa-kit checks a website against WCAG 2.2 AA and writes the accessibility statement the
+European Accessibility Act asks for. It is meant for freelancers and small agencies, who
+have had to comply since 28 June 2025 and rarely have an accessibility budget.
 
-0.10.0 finds your site, whatever it is built with. A Next.js app that renders on a server
-is built, started and audited page by page from its own build manifests, including pages
-nothing links to. Forty-one stacks are recognised, from Qwik and TanStack Start to
-MkDocs, Sphinx and Zola, and a monorepo's sites are found from its root. The package
-manager comes from the project itself, Bun and Deno included. A single-page app's empty
-shell is named as not audited instead of passing. `eaa-kit detect` says what the tool
-makes of a project and why, and `eaa-kit doctor` checks everything it needs on one screen.
-
-0.9.0 needs no setup. `npx eaa-kit` on its own finds the site, audits it, writes an HTML
-report and says which command comes next. `init` fills itself in from what the built site
-states, and also writes a baseline and a GitHub Actions workflow tailored to the project.
-Every error a new user is likely to hit ends with the command to type next. A `--url` run
-checks where the address leads before it crawls: a redirect to another site is shown and
-needs a yes (or `--redirects follow`), and a sign-in wall stops the run instead of being
-audited as the site. `audit --watch` re-checks the build on every save, and eight countries
-join the statement. Their citations have since been checked against each law's official
-text, and [docs/citations.md](docs/citations.md) records what each one was checked against.
-
-0.7.0 made a run cost what it should. A page that has not changed byte for byte is not
-audited again, and a run with nothing to re-audit never loads an engine at all: twenty
-pages go from ~2,520 ms to ~230 ms, which is about what starting the process costs. A
-reused result is never passed off as a fresh one — every report says how much was reused
-and from when, and `diff` will not call a page fixed that this run did not look at. The
-statement now also says how many of WCAG's 55 criteria a person checked by hand, and
-`pnpm bench` prints the numbers in this paragraph for your own machine.
-
-0.6.0 added the half no engine can do. Of the 55 WCAG 2.2 A and AA success criteria, 34
-have no automated rule at all: `checklist` writes those down as a review somebody works
-through, `audit --review` reads the answers back beside what the run measured, and
-`statement` refuses to publish a claim of full conformance that either one contradicts.
-Sites behind a login or a preview protection are auditable too.
+It started with the German BFSG and the Austrian BaFG. The statement now covers fifteen
+countries: Austria, Belgium, Czechia, Denmark, Finland, France, Germany, Ireland, Italy,
+the Netherlands, Poland, Portugal, Spain, Sweden and Switzerland. Each is written in the
+country's own language as well as English, and names its statute and supervisory body.
 
 ```bash
 npx eaa-kit                       # nothing to set up: finds your site, audits it, writes a report
 npx eaa-kit audit                 # WCAG 2.2 AA report; finds your build itself
 npx eaa-kit diff a.json b.json    # what a change made worse, and what it fixed
-npx eaa-kit init                  # the config, a baseline and a CI workflow
+npx eaa-kit init                  # the config, a baseline and a CI pipeline
 npx eaa-kit statement             # accessibility statement, in one of fifteen countries
 npx eaa-kit countries             # which ones, in which languages, under which law
 npx eaa-kit checklist             # the manual review no engine can do for you
@@ -55,8 +24,8 @@ npx eaa-kit doctor                # everything it needs here, checked on one scr
 ```
 
 > **Not legal advice.** eaa-kit reports what an automated engine can and cannot determine
-> about your markup. Automated testing catches a minority of accessibility barriers; it is
-> a floor, not a certificate.
+> about your markup. Automated testing catches a minority of accessibility barriers, so a
+> clean run is a starting point and never a certificate.
 
 ## Install
 
@@ -64,68 +33,76 @@ npx eaa-kit doctor                # everything it needs here, checked on one scr
 pnpm add -D eaa-kit    # npm i -D eaa-kit
 ```
 
-Node 22.22, 24.15 or 26 and newer. jsdom, which the browserless engine is built on,
-supports only the even-numbered release lines, so the odd-numbered ones (23, 25) are not
-supported here either.
+You need Node 22.22, 24.15, or 26 or newer. The odd-numbered lines (23, 25) are not
+supported, because jsdom, which the browserless engine is built on, supports only the
+even-numbered ones.
 
-## What it does
+## New in 0.11
 
-**Audits your build.** Globs the HTML out of `./dist`, parses it with jsdom and runs
-axe-core against it. No Chromium download, fast enough for CI, and it never fetches
-anything or executes your site's JavaScript. `--browser` swaps in real Chromium for the
-rules that need layout and CSS; `--fast` goes the other way and skips the rules the
-browserless engine cannot decide anyway, rather than running them and discarding the
-answer.
+- `--format markdown` writes a short summary for a CI job page or a pull request comment,
+  and `--summary <path>` writes it beside another format. The GitHub Action puts it on the
+  job page by default.
+- `init` writes a GitLab CI job or a Bitbucket pipeline when the repository lives there,
+  as well as the GitHub Actions workflow it wrote before.
+- From 1 January 2027, Swedish statements name Digitaliseringsmyndigheten instead of PTS.
+  The switch follows the date the statement is generated on, whichever version is
+  installed.
+- The HTML report prints cleanly, and with a baseline it says what changed since then.
+- Credentials given with `--header` or `--basic-auth` now go only to the audited site.
+  Before, a redirect to another host, or that site's own third-party assets in browser
+  mode, could receive them too.
+
+The [changelog](CHANGELOG.md) has the rest, and every earlier release.
+
+## Auditing
+
+eaa-kit collects the HTML in your build output, parses it with jsdom and runs axe-core on
+it. It downloads no browser, it is fast enough for CI, and it never fetches anything or
+runs your site's JavaScript. `--browser` uses real Chromium instead, for the rules that need
+layout and CSS. `--fast` skips the rules the browserless engine cannot decide anyway,
+instead of running them and throwing the answer away.
 
 ```bash
 eaa-kit audit ./dist --fail-on serious
 ```
 
-Sites that render on a server and never write HTML to disk, such as Next.js without a
-static export, Nuxt or SvelteKit, are built and started by `eaa-kit audit` with no
-directory, and crawled while they run. Anything behind a CMS is never started uninvited;
-start it yourself and audit it running:
+It recognises forty-one stacks, from Next.js, Astro and Nuxt to Qwik, MkDocs and Zola, and
+finds the sites in a monorepo from its root. A site that renders on a server and never
+writes HTML to disk, such as Next.js without a static export, Nuxt or SvelteKit, is built,
+started and crawled when you run `eaa-kit audit` with no directory. A Next.js app is
+audited page by page from its own build manifests, so pages nothing links to are covered
+too. A single-page app's empty shell is reported as not audited, instead of passing.
+
+A site behind a CMS is never started for you. Start it yourself and audit it while it runs.
+WordPress, TYPO3, Craft, Laravel, Symfony, Rails and Django write no HTML to disk, so
+eaa-kit tells you the command that gets the site running, and follows the site's own
+sitemap wherever it keeps it:
 
 ```bash
 eaa-kit audit --url http://localhost:3000
+eaa-kit audit --url http://localhost:8000 --sitemap /sitemap_index.xml
 ```
 
-**Writes the statement.** A Barrierefreiheitserklärung, a déclaration d'accessibilité, a
-dichiarazione di accessibilità — whatever the country calls it — from one config file, as
-Markdown or HTML, naming that country's statute and supervisory body, and optionally
-listing the barriers a real audit found.
+Before it crawls, a `--url` run checks where the address leads. A redirect to another site
+needs your confirmation (or `--redirects follow`), and a sign-in page stops the run instead
+of being audited as if it were the site.
+
+A preview deployment or a staging CMS refuses anonymous requests. `--basic-auth` and a
+repeatable `--header` get past that, both when crawling and in the browser. The
+credentials go to the audited site and nowhere else. They are never written into a report,
+a baseline or a SARIF log, and `eaa.config` does not accept them, because it is a committed
+file.
 
 ```bash
-eaa-kit statement --output src/content/a11y.md
-eaa-kit statement --country PL --lang pl    # eaa-kit countries lists all fifteen
+eaa-kit audit --url https://preview.example.com --basic-auth user:password
 ```
 
-Each country's statement is a document under its own law rather than a translation of
-another's, so where a national regime asks for more than this — France's RGAA declaration,
-Italy's filing with AgID — the text says so instead of letting a generated file look like
-it settles the matter.
+### What it tells you to do
 
-**Fails only on what is new.** The first run on a site that already exists finds
-everything at once. A baseline records what is already wrong so the build fails on
-regressions instead, without ever letting an accepted barrier look like a passing one.
-
-```bash
-eaa-kit baseline ./dist
-eaa-kit audit ./dist --baseline eaa-baseline.json
-```
-
-**Says what a change did.** Two reports, and the difference between them: what is new, what
-was fixed, and what the later run never looked at — which is kept apart, because a
-violation missing from a run that stopped early was not fixed by anybody.
-
-```bash
-eaa-kit diff before.json after.json
-```
-
-**Says what to do about it.** Not "images must have alternative text" and a link — who the
-barrier stops, what to change, and the corrected form of *your* markup, in your framework's
-idiom where that differs. Deterministic and offline: no model, no API key, nothing that
-could invent a fix that looks right and is not.
+Each finding says who the barrier stops, what to change, and gives the corrected form of
+your own markup, in your framework's idiom where that differs. The advice is written into
+the tool, so it works offline and needs no model or API key, and it cannot invent a fix
+that looks right and is wrong.
 
 ```
 ✗ image-alt critical, WCAG 1.1.1
@@ -135,47 +112,106 @@ could invent a fix that looks right and is not.
     written in src/components/Header.astro:12
 ```
 
-**Records the part no engine can do.** 34 of the 55 criteria have no automated rule at
-all. `eaa-kit checklist` writes them out as a worksheet and a record; `audit --review`
-reads the record back and reports what a person checked *beside* what the run measured,
-never folded into it. A review never overrules the engine, never counts an entry nobody
-answered, and never counts one that has aged out.
+### Failing only on what is new
+
+The first run on an existing site finds everything at once. A baseline records what is
+already wrong, so the build fails on regressions instead. An accepted barrier is still
+reported as a barrier, and never as a pass.
+
+```bash
+eaa-kit baseline ./dist
+eaa-kit audit ./dist --baseline eaa-baseline.json
+```
+
+`diff` compares two reports: what is new, what was fixed, and what the later run never
+looked at. That last group is kept apart, because a violation missing from a run that
+stopped early was not fixed by anybody.
+
+```bash
+eaa-kit diff before.json after.json
+```
+
+### Only what changed, and while you work
+
+A page whose markup has not changed byte for byte since the last run keeps the result it
+already had, and a run with nothing to re-audit never loads an engine. Twenty pages take
+about 230 ms instead of about 2,520 ms, which is roughly what starting the process costs.
+Every report counts reused results apart from fresh ones, and `diff` will not call a page
+fixed that this run did not look at. `--no-cache` audits everything. `pnpm bench` measures
+these numbers on your own machine.
+
+`--watch` audits again every time the build changes. With the cache, only the pages you
+touched are audited again, so the report is usually ready by the time you switch windows.
+
+```bash
+eaa-kit audit ./dist --watch
+```
+
+### Reports
+
+There are five formats. The console report is for whoever ran the command, JSON is for
+other tools, SARIF is for GitHub code scanning, and Markdown is a short summary for a CI job
+or a pull request. The HTML report is a single file you can send to the client whose site it
+is, and it prints or saves as a PDF.
+
+A run that stopped at its page limit, or could not fetch some URLs, says so. Its report does
+not look like a complete one.
+
+## The statement
+
+eaa-kit writes the statement from one config file, as Markdown or HTML: a
+Barrierefreiheitserklärung, a déclaration d'accessibilité, a dichiarazione di
+accessibilità, or whatever the country calls it. It names the country's statute and
+supervisory body, and can list the barriers an audit found.
+
+```bash
+eaa-kit statement --output src/content/a11y.md
+eaa-kit statement --country PL --lang pl    # eaa-kit countries lists all fifteen
+```
+
+Each country's statement is written under its own law, not translated from another
+country's. Where a national regime asks for more, such as France's RGAA declaration or
+Italy's filing with AgID, the text says so.
+
+When the law has already scheduled a change of supervisor, the statement follows the date
+it is generated on. `--date` previews either side:
+
+```bash
+eaa-kit statement --country SE --lang sv --date 2027-01-01
+```
+
+The statement says what you told it, and eaa-kit cannot check whether that is true. A
+statement claiming full conformance for a site that does not conform is worse than none, so
+given evidence it refuses to write one: `statement --audit` will not claim full
+conformance over a report that lists barriers, and `--review` will not claim it over
+criteria somebody recorded as not met.
+
+## The part no engine can do
+
+WCAG 2.2 has 55 success criteria at Levels A and AA. This tool has rules for 21 of them,
+and the other 34 need a person. Every run says so, and `--coverage` lists all 55 with what
+the run reached on each. There is no percentage, because most of WCAG cannot be automated
+and a score would present that as a fact about your site.
+
+`eaa-kit checklist` writes the 34 out as a worksheet and a record. `audit --review` reads
+the record back and reports what a person checked next to what the run measured, without
+mixing the two. A review never overrules the engine, and it never counts an entry nobody
+answered or one that has aged out.
 
 ```bash
 eaa-kit checklist --output a11y-review.md
 eaa-kit audit --review eaa-review.json --coverage
 ```
 
-**Says how much of WCAG it could reach.** WCAG 2.2 has 55 success criteria at Levels A and
-AA. This tool has rules for 21 of them, and 34 need a person. Every run says so, and
-`--coverage` lists all 55 with what this run reached on each — never as a percentage,
-because most of WCAG cannot be automated and a score would present that as a fact about
-your site.
+## Setting it up
 
-**Says what it did not measure.** A crawl that stopped at its page limit, or could not
-fetch forty URLs, no longer produces a report that looks like a complete one.
+`eaa-kit init` asks the few things it cannot work out, fills in the rest from what the built
+site states, and writes the config. It then offers a baseline and a CI pipeline written for
+the project: a GitHub Actions workflow, a GitLab CI job or a Bitbucket pipeline, depending on
+where the repository is hosted. It never overwrites a pipeline file that is already there.
 
-**Keeps up while you work.** `--watch` audits again every time the build changes. Because
-of the cache below, only the pages you touched are audited again, so the report is ready
-by the time you switch windows.
-
-```bash
-eaa-kit audit ./dist --watch
-```
-
-**Audits only what changed.** A page whose markup is byte-identical to the last run's keeps
-the result it already had, and a run with nothing to re-audit never loads an engine —
-twenty pages in ~230 ms instead of ~2,520 ms, which is about what starting the process
-costs. Reuse is counted apart from auditing in all four reports, and `diff` will not call a
-page fixed that this run did not look at. `--no-cache` audits everything regardless.
-
-**Reports in four shapes**: a console report for whoever ran it, JSON for other tools,
-SARIF for GitHub code scanning, and a self-contained HTML page for the client whose site
-it is.
-
-**Says it once.** The flags a project runs on every build belong in the project, not in the
-build script that repeats them. `eaa.config` — the same file the statement reads — takes an
-[`audit` block](docs/audit.md#defaults-from-eaaconfig) of defaults, and `baseline` reads the
+Flags you would repeat on every run can go in `eaa.config`, the same file the statement
+reads, as an [`audit` block](docs/audit.md#defaults-from-eaaconfig). `baseline` reads the
 keys that mean the same thing to it. A flag you type still wins, so a one-off `--browser`
 check needs no edit to a committed file.
 
@@ -183,31 +219,14 @@ check needs no edit to a committed file.
 { "audit": { "dir": "build", "failOn": "critical", "browser": true } }
 ```
 
-**Runs in your build**: a [Vite plugin](docs/integrations.md#vite-plugin) covering SvelteKit
-and Remix too, and integrations for
+It also runs inside your build: a [Vite plugin](docs/integrations.md#vite-plugin) that
+covers SvelteKit and Remix as well, integrations for
 [Astro](docs/integrations.md#astro-integration),
 [Nuxt](docs/integrations.md#nuxt-module),
 [Eleventy](docs/integrations.md#eleventy-plugin) and
-[webpack](docs/integrations.md#webpack-plugin) — or the bundled
-[GitHub Action](docs/integrations.md#github-actions).
-
-**Audits what a CMS serves.** WordPress, TYPO3, Craft, Laravel, Symfony, Rails and Django
-write no HTML to disk, so eaa-kit names the command that gets the site running and audits
-that instead — following the site's own sitemap, wherever it keeps it.
-
-```bash
-eaa-kit audit --url http://localhost:8000 --sitemap /sitemap_index.xml
-```
-
-**Reaches a site behind a login.** A preview deployment or a staging CMS refuses anonymous
-requests, which used to put both out of reach. `--basic-auth` and a repeatable `--header`
-cover them, on the crawl and in the browser, and the credentials are never written into a
-report, a baseline or a SARIF log — nor accepted from `eaa.config`, which is a committed
-file.
-
-```bash
-eaa-kit audit --url https://preview.example.com --basic-auth user:password
-```
+[webpack](docs/integrations.md#webpack-plugin), and the bundled
+[GitHub Action](docs/integrations.md#github-actions). GitLab and Bitbucket have
+[pipelines of their own](docs/integrations.md#gitlab-ci).
 
 ## Documentation
 
@@ -220,41 +239,36 @@ eaa-kit audit --url https://preview.example.com --basic-auth user:password
 | [Comparing two runs](docs/reports.md#comparing-two-runs) | The `diff` command, and what it refuses to call fixed |
 | [Coverage of WCAG](docs/audit.md#how-much-of-wcag-a-run-reaches) | What an automated engine can reach at all, and what it cannot |
 | [Recording a manual review](docs/review.md) | The `checklist` command, the record, and what a review is not allowed to do |
-| [Report formats](docs/reports.md) | The JSON contract, SARIF, and the HTML report |
-| [Integrations](docs/integrations.md) | The build plugins, the GitHub Action, and the two builders that get a command instead |
+| [Report formats](docs/reports.md) | The JSON contract, SARIF, the Markdown summary and the HTML report |
+| [Integrations](docs/integrations.md) | The build plugins, the GitHub Action, GitLab CI and Bitbucket Pipelines |
 
-Complete generated output for every format is checked in under [examples/](examples).
+Generated output for every format is checked in under [examples/](examples).
 
-## What it will not tell you
+## What it cannot tell you
 
-The two things worth knowing before you rely on any of it:
+Automated testing finds a minority of barriers. It cannot judge whether alternative text is
+accurate, whether a page makes sense in reading order, or whether a form can actually be
+completed with a screen reader. A clean report means this engine found nothing, which is
+different from the site being accessible, and none of the formats will claim otherwise on
+your behalf. Every report also counts the 34 criteria no automated rule covers.
 
-**Automated testing finds a minority of barriers.** It cannot judge whether alternative
-text is accurate, whether a page makes sense in reading order, or whether a form can
-actually be completed with a screen reader. A clean report means nothing was found by this
-engine, which is not the same as a site being accessible — and none of the four output
-formats will say otherwise on your behalf. This is not a disclaimer the tool leaves you to
-take on faith: it counts it. Of the 55 WCAG 2.2 A and AA criteria, 34 have no automated
-rule at all, and every report says so.
-
-**The browserless engine cannot decide everything.** jsdom has no layout, so rules that
-depend on rendering — colour contrast, target size, computed overflow — cannot be
-evaluated. axe-core does not know that and will report some of them as *passing*. eaa-kit
-never passes those on: they are reported as **not evaluated**, with the reason, whatever
-axe-core said about them. See [what the browserless engine can and cannot tell
+The browserless engine cannot decide everything either. jsdom has no layout, so rules that
+depend on rendering, such as colour contrast, target size and computed overflow, cannot be
+evaluated. axe-core does not know that, and reports some of them as passing. eaa-kit reports
+them as not evaluated, with the reason, whatever axe-core said. See [what the browserless
+engine can and cannot tell
 you](docs/audit.md#what-the-browserless-engine-can-and-cannot-tell-you).
 
-The same applies to the statement: it says what you told it. eaa-kit cannot check whether
-those claims are true, and a statement claiming full conformance for a site that is not
-conformant is worse than no statement at all — which is why, given evidence, it now refuses
-to write that particular one. `statement --audit` will not claim full conformance over a
-report listing barriers, and `--review` will not claim it over criteria somebody recorded as
-not met.
+## Contributing and security
+
+[CONTRIBUTING.md](CONTRIBUTING.md) covers setting up the repository and what a change needs
+before it is merged. To report a vulnerability, follow [SECURITY.md](SECURITY.md) rather than
+opening a public issue.
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md), and [ROADMAP.md](ROADMAP.md) for what 0.6.0 is meant to
-add and what it deliberately will not.
+See [CHANGELOG.md](CHANGELOG.md) for every release, and [ROADMAP.md](ROADMAP.md) for what
+is planned on the way to 1.0 and what will deliberately stay out.
 
 ## License
 
