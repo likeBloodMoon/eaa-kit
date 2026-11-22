@@ -57,6 +57,12 @@ It fits your workflow, and it keeps your credentials where you gave them.
 
 ### Fixed
 
+- **axe-core is pinned to 4.13.x.** The `^4.13.0` range let a fresh install pick up axe-core
+  4.14, which this release was never tested with and which runs more rules, so a project's
+  CI could start failing on findings no changelog announced. One already did: under 4.14,
+  `label-content-name-mismatch` (WCAG 2.5.3) fails Starlight's search button. An axe-core
+  upgrade now comes in a release of its own that names its new rules, and `release:check`
+  refuses a range that would let one in unannounced.
 - A dated flag such as `--expires-on 2027-02-30` was taken as 2 March. A date that does not
   exist is refused now.
 - In browser mode, a Playwright on `NODE_PATH` or installed globally was loaded ahead of
