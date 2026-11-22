@@ -121,6 +121,21 @@ describe('eaa-kit countries', () => {
     }
   })
 
+  it('resolves the authority by date in JSON too, and keeps the schedule', () => {
+    const sweden = (today: string) =>
+      (
+        JSON.parse(formatCountries({ json: true, today })) as Array<{
+          code: string
+          authority: string
+          authorityChange?: { on: string }
+        }>
+      ).find((entry) => entry.code === 'SE')
+
+    expect(sweden('2026-12-31')?.authority).toBe('Post- och telestyrelsen (PTS)')
+    expect(sweden('2027-01-01')?.authority).toMatch(/^Digitaliseringsmyndigheten/)
+    expect(sweden('2027-01-01')?.authorityChange?.on).toBe('2027-01-01')
+  })
+
   it('prints JSON with the code on every entry', () => {
     const parsed = JSON.parse(formatCountries({ json: true })) as Array<{ code: string }>
 

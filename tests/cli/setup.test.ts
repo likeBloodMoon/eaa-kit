@@ -6,6 +6,7 @@ import { parse } from 'yaml'
 import { runInitCommand } from '../../src/cli/init.ts'
 import {
   BITBUCKET_FILE,
+  declaredStages,
   detectCiHost,
   findGitRoot,
   GITLAB_FILE,
@@ -294,6 +295,46 @@ describe('GitLab and Bitbucket pipelines', () => {
     const audit = parse(yaml).accessibility.script.at(-1)
 
     expect(audit).toContain("audit 'my site #1' --fail-on")
+  })
+})
+
+describe('the GitLab stage', () => {
+  it.each([
+    ['no stages key', 'build:\n  script: make\n', undefined],
+    [
+      'a block list',
+      'stages:\n  - build\n  - deploy # last\n\njob:\n  stage: build\n',
+      ['build', 'deploy'],
+    ],
+    ['a flow list', 'stages: [build, "test", deploy]\n', ['build', 'test', 'deploy']],
+    ['a flow list over lines', 'stages: [\n  lint,\n  deploy\n]\n', ['lint', 'deploy']],
+    ['a nested stages key', 'job:\n  stages: [x]\n', undefined],
+  ])('reads %s', (_name, config, expected) => {
+    expect(declaredStages(config)).toEqual(expected)
+  })
+
+  it('uses .post when the project declares stages without test, which GitLab would reject', async () => {
+    const root = await repo({
+      '.git/HEAD': '',
+      'package.json': JSON.stringify({ scripts: { build: 'x' } }),
+      [GITLAB_FILE]: 'stages:\n  - build\n  - deploy\n',
+    })
+
+    const job = parse(
+      await pipelineFor('gitlab', { cwd: root, root, failOn: 'serious' }),
+    ).accessibility
+
+    expect(job.stage).toBe('.post')
+  })
+
+  it('keeps test when the project declares it, or declares nothing', async () => {
+    for (const config of ['stages: [build, test]\n', 'image: node:22\n']) {
+      const root = await repo({ '.git/HEAD': '', [GITLAB_FILE]: config })
+      const job = parse(
+        await pipelineFor('gitlab', { cwd: root, root, failOn: 'serious' }),
+      ).accessibility
+      expect(job.stage).toBe('test')
+    }
   })
 })
 

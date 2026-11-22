@@ -378,6 +378,10 @@ accessibility:
       - eaa-kit-summary.md
 ```
 
+The job runs in the `test` stage. When your `.gitlab-ci.yml` declares its own `stages:`
+without `test`, GitLab would refuse a job in it, so `init` uses `.post`, which GitLab adds to
+every pipeline, and the audit runs after your own stages.
+
 The console report is in the job log, which is where somebody reading a failed job looks.
 The [Markdown summary](reports.md#markdown-summary) is kept as an artifact and linked from
 merge requests through `expose_as`. A job exiting 1 fails the pipeline the same way it fails

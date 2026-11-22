@@ -21,13 +21,21 @@ export interface CountriesCommandOptions {
 }
 
 export function formatCountries(options: CountriesCommandOptions = {}): string {
+  const today = options.today ?? localToday()
   if (options.json) {
-    const entries = COUNTRIES.map((code) => ({ code, ...COUNTRY_INFO[code] }))
+    // `authority` is the body on the day asked about, as in the text listing,
+    // so a program reading the JSON agrees with a person reading the list.
+    // `authorityChange` stays in: it is the schedule, and says when the
+    // answer changes.
+    const entries = COUNTRIES.map((code) => ({
+      code,
+      ...COUNTRY_INFO[code],
+      authority: authorityOn(code, today),
+    }))
     return `${JSON.stringify(entries, null, 2)}\n`
   }
 
   const colors = pc.createColors(options.color ?? pc.isColorSupported)
-  const today = options.today ?? localToday()
   const lines: string[] = []
   for (const code of COUNTRIES) {
     const info = COUNTRY_INFO[code]

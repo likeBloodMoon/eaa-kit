@@ -227,7 +227,7 @@ export async function pipelineFor(host: CiHost, inputs: WorkflowInputs): Promise
     case 'github':
       return githubWorkflow(facts, inputs)
     case 'gitlab':
-      return gitlabJob(facts, inputs)
+      return gitlabJob(facts, inputs, await gitlabStage(inputs.root))
     case 'bitbucket':
       return bitbucketPipeline(facts, inputs)
   }
@@ -347,7 +347,60 @@ function artifactPath(facts: ProjectFacts): string {
     : `${facts.workingDirectory}/eaa-kit-summary.md`
 }
 
-function gitlabJob(facts: ProjectFacts, inputs: WorkflowInputs): string {
+/**
+ * The stage the job can run in, given the project's own `.gitlab-ci.yml`.
+ *
+ * `test`, which GitLab's default stages include, unless the project declares
+ * stages of its own without it: GitLab refuses a pipeline whose job names a
+ * stage nobody declared, and the job lands in a file included into that
+ * pipeline. Then `.post`, which GitLab adds to every pipeline whatever it
+ * declares, so the audit runs after the project's own stages.
+ */
+export async function gitlabStage(root: string): Promise<string> {
+  let config: string
+  try {
+    config = await readFile(path.join(root, GITLAB_FILE), 'utf8')
+  } catch {
+    return 'test'
+  }
+  const stages = declaredStages(config)
+  return stages === undefined || stages.includes('test') ? 'test' : '.post'
+}
+
+/**
+ * The top-level `stages:` of a GitLab config, in block or flow style, or
+ * undefined when it declares none. Not a YAML parser: one key, read the two
+ * ways GitLab's own docs write it, so that init needs no YAML dependency.
+ */
+export function declaredStages(config: string): string[] | undefined {
+  const lines = config.split(/\r?\n/)
+  const at = lines.findIndex((line) => /^stages\s*:/.test(line))
+  if (at === -1) return undefined
+  const clean = (value: string) =>
+    value
+      .replace(/\s+#.*$/, '')
+      .trim()
+      .replace(/^(['"])(.*)\1$/, '$2')
+  const rest = (lines[at] as string).replace(/^stages\s*:/, '').trim()
+  if (rest.startsWith('[')) {
+    let flow = rest
+    for (let next = at + 1; !flow.includes(']') && next < lines.length; next += 1) {
+      flow += ` ${lines[next]}`
+    }
+    const inside = flow.slice(1, flow.includes(']') ? flow.indexOf(']') : undefined)
+    return inside.split(',').map(clean).filter(Boolean)
+  }
+  const stages: string[] = []
+  for (const line of lines.slice(at + 1)) {
+    if (/^\s*(#.*)?$/.test(line)) continue
+    const item = /^\s+-\s*(.+)$/.exec(line)
+    if (item === null) break
+    stages.push(clean(item[1] as string))
+  }
+  return stages
+}
+
+function gitlabJob(facts: ProjectFacts, inputs: WorkflowInputs, stage: string): string {
   return [
     '# Written by eaa-kit init. Audits the built site against WCAG 2.2 AA in every',
     '# pipeline and fails the job on barriers at or above --fail-on. The report is',
@@ -357,7 +410,10 @@ function gitlabJob(facts: ProjectFacts, inputs: WorkflowInputs): string {
     '# https://github.com/likeBloodMoon/eaa-kit/blob/master/docs/integrations.md#gitlab-ci',
     'accessibility:',
     '  image: node:22',
-    '  stage: test',
+    ...(stage === 'test'
+      ? []
+      : ['  # .gitlab-ci.yml declares its own stages without "test"; .post always exists.']),
+    `  stage: ${stage}`,
     '  script:',
     ...auditScript(facts, inputs).map((line) => `    - ${yamlItem(line)}`),
     '  artifacts:',
